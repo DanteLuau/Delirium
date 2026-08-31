@@ -1,0 +1,27 @@
+# ── Roblox place files ────────────────────────────────────────────────────────
+/Delirium-Reworked.rbxlx
+*.rbxlx.lock
+*.rbxl.lock
+
+# ── Build artifacts (rebuilt via: rojo build bundle.project.json) ─────────────
+# Keep delirium.rbxm and delirium.bundle.lua — they are the release artifacts.
+
+# ── Rojo generated ────────────────────────────────────────────────────────────
+sourcemap.json
+
+# ── Internal / private ────────────────────────────────────────────────────────
+claude-prompt.txt
+plan.txt
+rules.txt
+delirium-test.txt
+
+# ── Test artifacts ────────────────────────────────────────────────────────────
+test.rbxm
+
+# ── Design workspace ──────────────────────────────────────────────────────────
+design-idea/
+
+# ── OS junk ───────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini

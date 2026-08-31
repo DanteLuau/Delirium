@@ -1,0 +1,12 @@
+{
+  "name": "DeliriumRework",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "Delirium": {
+        "$path": "src"
+      }
+    }
+  }
+}
