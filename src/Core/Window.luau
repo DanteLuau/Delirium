@@ -10,6 +10,7 @@ local Theme        = require(script.Parent.Parent.Theme)
 local Components   = require(script.Parent.Parent.Components)
 local SmoothScroll = require(script.Parent.Parent.Utils.SmoothScroll)
 local Tab          = require(script.Parent.Tab)
+local Notification = require(script.Parent.Notification)
 
 local TWEEN_OPEN     = TweenInfo.new(0.3,  Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
 local TWEEN_CLOSE    = TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
@@ -198,7 +199,7 @@ local function buildWindow(title: string, cfg: WindowConfig)
 	local searchBtn   = mkTitleBtn("SearchBtn",   "⊙", 1)
 	local settingsBtn = mkTitleBtn("SettingsBtn", "⚙", 2)
 	local minusBtn    = mkTitleBtn("MinusBtn",    "—", 3)
-	local collapseBtn = mkTitleBtn("CollapseBtn", "✕", 4)
+	local collapseBtn = mkTitleBtn("CollapseBtn", "X", 4)
 	searchBtn.LayoutOrder   = 1
 	settingsBtn.LayoutOrder = 2
 	minusBtn.LayoutOrder    = 3
@@ -426,6 +427,7 @@ function Window.new(title: string, options: WindowConfig?)
 	self._hidden        = false
 	self._hideAnimating = false
 	self._savedPosition = nil :: UDim2?
+	self._pillBg        = nil :: any
 	self._pillDot       = nil :: any
 	self._pillTitle     = nil :: any
 	self._pillSub       = nil :: any
@@ -456,6 +458,12 @@ function Window.new(title: string, options: WindowConfig?)
 			minusBtn_w,
 			collapseBtn_w
 		)
+		self._maid:GiveTask((searchBtn_w :: TextButton).MouseButton1Click:Connect(function()
+			Notification.notify({ Title = "Search", Message = "Coming soon.", Type = "info", Duration = 3 })
+		end))
+		self._maid:GiveTask((settingsBtn_w :: TextButton).MouseButton1Click:Connect(function()
+			Notification.notify({ Title = "Settings", Message = "Coming soon.", Type = "info", Duration = 3 })
+		end))
 		self._maid:GiveTask(minusBtn_w.MouseButton1Click:Connect(function()
 			self:_toggleCollapse()
 		end))
@@ -1575,12 +1583,37 @@ end
 -- ── pill face ───────────────────────────────────────────────────────────────────
 
 function Window:_buildPillFace()
-	-- accent dot (left side)
+	-- PillBg: gradient + samar outline — shown only while the window is hidden (pill state).
+	-- CanvasGroup's UICorner already clips this to the pill silhouette; no corner needed here.
+	local pillBg                 = Instance.new("Frame")
+	pillBg.Name                  = "PillBg"
+	pillBg.Size                  = UDim2.fromScale(1, 1)
+	pillBg.BackgroundColor3      = Color3.fromHex("#1e1e1e")
+	pillBg.BorderSizePixel       = 0
+	pillBg.Visible               = false
+	pillBg.ZIndex                = 8
+	local pillBgGrad             = Instance.new("UIGradient")
+	pillBgGrad.Color             = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromHex("#2e2e2e")),
+		ColorSequenceKeypoint.new(1, Color3.fromHex("#191919")),
+	})
+	pillBgGrad.Rotation          = 90
+	pillBgGrad.Parent            = pillBg
+	local pillBgStroke           = Instance.new("UIStroke")
+	pillBgStroke.Color           = Theme.Colors.Border
+	pillBgStroke.Thickness       = 1
+	pillBgStroke.Transparency    = 0.35
+	pillBgStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	pillBgStroke.Parent          = pillBg
+	pillBg.Parent                = self._canvas
+	self._pillBg                 = pillBg
+
+	-- dot: kept as a zero-size stub so Hide/Show refs remain valid
 	local dot                  = Instance.new("Frame")
 	dot.Name                   = "PillDot"
-	dot.AnchorPoint            = Vector2.new(0, 0.5)
-	dot.Position               = UDim2.new(0, 14, 0.5, 0)
-	dot.Size                   = UDim2.fromOffset(8, 8)
+	dot.AnchorPoint            = Vector2.new(0.5, 0.5)
+	dot.Position               = UDim2.new(0.5, 0, 0.5, 0)
+	dot.Size                   = UDim2.fromOffset(0, 0)
 	dot.BackgroundColor3       = Theme.Colors.Accent
 	dot.BorderSizePixel        = 0
 	dot.BackgroundTransparency = 1
@@ -1588,38 +1621,38 @@ function Window:_buildPillFace()
 	applyCorner(dot, 4)
 	dot.Parent = self._canvas
 
-	-- title
+	-- title: current game name, centered
 	local pillTitle                  = Instance.new("TextLabel")
 	pillTitle.Name                   = "PillTitle"
-	pillTitle.AnchorPoint            = Vector2.new(0, 0.5)
-	pillTitle.Position               = UDim2.new(0, 30, 0.5, -7)
-	pillTitle.Size                   = UDim2.new(1, -38, 0, 16)
+	pillTitle.AnchorPoint            = Vector2.new(0.5, 0.5)
+	pillTitle.Position               = UDim2.new(0.5, 0, 0.5, -8)
+	pillTitle.Size                   = UDim2.new(1, -24, 0, 16)
 	pillTitle.BackgroundTransparency = 1
 	pillTitle.Font                   = Theme.Font.Title
-	pillTitle.Text                   = self.Title
-	pillTitle.TextSize               = 13
+	pillTitle.Text                   = game.Name
+	pillTitle.TextSize               = 12
 	pillTitle.TextColor3             = Theme.Colors.TextPrimary
-	pillTitle.TextXAlignment         = Enum.TextXAlignment.Left
+	pillTitle.TextXAlignment         = Enum.TextXAlignment.Center
 	pillTitle.TextTruncate           = Enum.TextTruncate.AtEnd
 	pillTitle.TextTransparency       = 1
-	pillTitle.ZIndex                 = 10
+	pillTitle.ZIndex                 = 11
 	pillTitle.Parent                 = self._canvas
 
-	-- subtitle
+	-- subtitle, centered
 	local pillSub                    = Instance.new("TextLabel")
 	pillSub.Name                     = "PillSubtitle"
-	pillSub.AnchorPoint              = Vector2.new(0, 0.5)
-	pillSub.Position                 = UDim2.new(0, 30, 0.5, 8)
-	pillSub.Size                     = UDim2.new(1, -38, 0, 12)
+	pillSub.AnchorPoint              = Vector2.new(0.5, 0.5)
+	pillSub.Position                 = UDim2.new(0.5, 0, 0.5, 8)
+	pillSub.Size                     = UDim2.new(1, -24, 0, 11)
 	pillSub.BackgroundTransparency   = 1
 	pillSub.Font                     = Theme.Font.Body
-	pillSub.Text                     = "Tap to show"
-	pillSub.TextSize                 = 11
+	pillSub.Text                     = "tap to show"
+	pillSub.TextSize                 = 10
 	pillSub.TextColor3               = Theme.Colors.TextSecondary
-	pillSub.TextXAlignment           = Enum.TextXAlignment.Left
+	pillSub.TextXAlignment           = Enum.TextXAlignment.Center
 	pillSub.TextTruncate             = Enum.TextTruncate.AtEnd
 	pillSub.TextTransparency         = 1
-	pillSub.ZIndex                   = 10
+	pillSub.ZIndex                   = 11
 	pillSub.Parent                   = self._canvas
 
 	-- full-canvas interact (click to restore)
@@ -1691,6 +1724,9 @@ function Window:Hide()
 		end)
 	end
 
+	-- Pill background: show immediately so the gradient is visible during morph
+	if self._pillBg then self._pillBg.Visible = true end
+
 	-- Stroke fades out quickly
 	TweenService:Create(self._stroke,
 		TweenInfo.new(0.18, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
@@ -1719,7 +1755,7 @@ function Window:Hide()
 		self._pillTitle.TextTransparency     = 1
 		self._pillSub.TextTransparency       = 1
 
-		TweenService:Create(self._pillDot,   faceInfo, { BackgroundTransparency = 0   }):Play()
+		-- dot is zero-size; only title + subtitle fade in
 		TweenService:Create(self._pillTitle, faceInfo, { TextTransparency       = 0   }):Play()
 		TweenService:Create(self._pillSub,   faceInfo, { TextTransparency       = 0.4 }):Play()
 
@@ -1743,7 +1779,6 @@ function Window:Show()
 	local cornerInfo = TweenInfo.new(0.50, Enum.EasingStyle.Exponential,  Enum.EasingDirection.Out)
 
 	-- Fade pill face out
-	TweenService:Create(self._pillDot,   fadeInfo, { BackgroundTransparency = 1 }):Play()
 	TweenService:Create(self._pillTitle, fadeInfo, { TextTransparency       = 1 }):Play()
 	TweenService:Create(self._pillSub,   fadeInfo, { TextTransparency       = 1 }):Play()
 
@@ -1794,6 +1829,8 @@ function Window:Show()
 	-- so chrome snapping visible here looks invisible in practice.
 	task.delay(0.22, function()
 		if self._hidden then return end
+		-- pill bg goes away once the window chrome is revealed
+		if self._pillBg then self._pillBg.Visible = false end
 		if self._titleBar then self._titleBar.Visible = true end
 		if self._sep      then self._sep.Visible      = not self._collapsed end
 		if self._content  then self._content.Visible  = not self._collapsed end

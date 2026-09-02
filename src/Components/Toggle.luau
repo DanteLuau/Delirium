@@ -118,6 +118,7 @@ function Toggle.new(config: ToggleConfig): ToggleImpl
 	inner.BackgroundColor3   = Color3.new(1, 1, 1)
 	inner.BorderSizePixel    = 0
 	inner.ZIndex             = 2
+	inner.ClipsDescendants   = true
 	inner.Parent             = frame
 	self._inner              = inner
 

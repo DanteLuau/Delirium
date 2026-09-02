@@ -574,12 +574,20 @@ function Dropdown.new(config: DropdownConfig): DropdownImpl
 	end))
 
 	-- close on click outside
+	-- NOTE: use known target height instead of frame.AbsoluteSize — the frame is
+	-- mid-tween when the user clicks quickly, so AbsoluteSize hasn't reached its
+	-- final value yet. Checking the animated size causes options near the bottom
+	-- of a short list to register as "outside" and close before the click lands.
 	self._maid:GiveTask(UserInputService.InputBegan:Connect(function(input: InputObject)
 		if input.UserInputType ~= Enum.UserInputType.MouseButton1
 			and input.UserInputType ~= Enum.UserInputType.Touch then return end
 		if not self._open then return end
 		local mousePos = UserInputService:GetMouseLocation()
-		if not isInsideFrame(frame, mousePos) then
+		local ap    = frame.AbsolutePosition
+		local fullH = HEADER_H + LIST_GAP + self._targetH
+		local inside = mousePos.X >= ap.X and mousePos.X <= ap.X + frame.AbsoluteSize.X
+			and mousePos.Y >= ap.Y and mousePos.Y <= ap.Y + fullH
+		if not inside then
 			closeDropdown()
 		end
 	end))
