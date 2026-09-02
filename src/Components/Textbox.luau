@@ -2,9 +2,10 @@
 
 local TweenService = game:GetService("TweenService")
 
-local Maid   = require(script.Parent.Parent.Utils.Maid)
-local Signal = require(script.Parent.Parent.Utils.Signal)
-local Theme  = require(script.Parent.Parent.Theme)
+local Maid        = require(script.Parent.Parent.Utils.Maid)
+local Signal      = require(script.Parent.Parent.Utils.Signal)
+local Theme       = require(script.Parent.Parent.Theme)
+local SaveManager = require(script.Parent.Parent.Core.SaveManager)
 
 local TWEEN_STROKE = TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 local TWEEN_HOVER  = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
@@ -25,6 +26,7 @@ export type TextboxConfig = {
 	ClearOnFocus: boolean?,
 	Enabled: boolean?,
 	LayoutOrder: number?,
+	Flag: string?,
 }
 
 type TextboxImpl = {
@@ -227,6 +229,29 @@ function Textbox.new(config: TextboxConfig): TextboxImpl
 		TweenService:Create(flash,  TWEEN_HOVER,  { BackgroundTransparency = 1 }):Play()
 		TweenService:Create(shadow, TWEEN_SHADOW, SHADOW_REST):Play()
 	end))
+
+	-- ── SaveManager wiring ────────────────────────────────────────────────
+	do
+		local rawLabel = config.Label
+		local flag = config.Flag
+			or (if rawLabel then SaveManager.deriveFlagFromName(rawLabel) else "")
+		if flag ~= "" then
+			SaveManager.Register(
+				flag,
+				function() return self.Value end,
+				function(v: any)
+					if type(v) == "string" then
+						self:SetValue(v)
+					end
+				end
+			)
+			-- wire on FocusLost (when value is committed) rather than Changed
+			-- to avoid hammering disk on every keystroke
+			self._maid:GiveTask(focusLost:Connect(function()
+				SaveManager._scheduleAutoSave()
+			end))
+		end
+	end
 
 	return self
 end

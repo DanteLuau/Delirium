@@ -7,6 +7,7 @@ local Maid         = require(script.Parent.Parent.Utils.Maid)
 local Signal       = require(script.Parent.Parent.Utils.Signal)
 local Theme        = require(script.Parent.Parent.Theme)
 local SmoothScroll = require(script.Parent.Parent.Utils.SmoothScroll)
+local SaveManager  = require(script.Parent.Parent.Core.SaveManager)
 
 local TWEEN_STROKE   = TweenInfo.new(0.25, Enum.EasingStyle.Quint,       Enum.EasingDirection.Out)
 local TWEEN_HOVER    = TweenInfo.new(0.2,  Enum.EasingStyle.Quint,       Enum.EasingDirection.Out)
@@ -63,6 +64,7 @@ export type DropdownConfig = {
 	Default:     any?,
 	-- overlay parent required for z-ordering if inside a ScrollingFrame
 	OverlayParent: Instance?,
+	Flag: string?,
 }
 
 type DropdownImpl = {
@@ -581,6 +583,35 @@ function Dropdown.new(config: DropdownConfig): DropdownImpl
 			closeDropdown()
 		end
 	end))
+
+	-- ── SaveManager wiring ────────────────────────────────────────────────
+	do
+		local rawLabel = config.Label
+		local flag = config.Flag
+			or (if rawLabel then SaveManager.deriveFlagFromName(rawLabel) else "")
+		if flag ~= "" then
+			if self._multiSelect then
+				SaveManager.Register(
+					flag,
+					function() return self.Value end,
+					function(v: any)
+						if typeof(v) == "table" then
+							self:SetValue(v)
+						end
+					end
+				)
+			else
+				SaveManager.Register(
+					flag,
+					function() return self.Value end,
+					function(v: any) self:SetValue(v) end
+				)
+			end
+			self._maid:GiveTask(changed:Connect(function()
+				SaveManager._scheduleAutoSave()
+			end))
+		end
+	end
 
 	return self
 end

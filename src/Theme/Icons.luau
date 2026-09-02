@@ -1,6 +1,6 @@
 --!strict
 
-local NEBULA_URL = "https://raw.githubusercontent.com/7kayoh/nebula-icon-library/main/src/init.lua"
+local NEBULA_URL = "https://raw.githubusercontent.com/Nebula-Softworks/Nebula-Icon-Library/refs/heads/master/Loader.luau"
 local FALLBACK_ID = "rbxassetid://0"
 
 local _cache: { [string]: string } = {}

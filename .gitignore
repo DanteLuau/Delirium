@@ -8,6 +8,10 @@
 
 # ── Rojo generated ────────────────────────────────────────────────────────────
 sourcemap.json
+bundle.project.json
+example.lua
+txt
+
 
 # ── Internal / private ────────────────────────────────────────────────────────
 claude-prompt.txt

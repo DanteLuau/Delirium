@@ -3,9 +3,10 @@
 local TweenService     = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
-local Maid   = require(script.Parent.Parent.Utils.Maid)
-local Signal = require(script.Parent.Parent.Utils.Signal)
-local Theme  = require(script.Parent.Parent.Theme)
+local Maid        = require(script.Parent.Parent.Utils.Maid)
+local Signal      = require(script.Parent.Parent.Utils.Signal)
+local Theme       = require(script.Parent.Parent.Theme)
+local SaveManager = require(script.Parent.Parent.Core.SaveManager)
 
 -- ── Tween presets ──────────────────────────────────────────────────────────────
 local TWEEN_FILL        = TweenInfo.new(0.18, Enum.EasingStyle.Quint,        Enum.EasingDirection.Out)
@@ -24,15 +25,16 @@ local TWEEN_KNOB_SLIDE  = TweenInfo.new(0.22, Enum.EasingStyle.Quint,        Enu
 local SHADOW_REST  = { BackgroundTransparency = 0.75, Position = UDim2.new(0.5, 0, 0.5, 3) }
 local SHADOW_HOVER = { BackgroundTransparency = 0.65, Position = UDim2.new(0.5, 0, 0.5, 5) }
 
--- ── Track / knob geometry (iOS-style pill track) ───────────────────────────────
+-- ── Track / knob geometry ───────────────────────────────────────────────────────
 local TRACK_W  = 120    -- total track width
-local TRACK_H  = 22     -- tall pill (matches Toggle height)
-local KNOB_D   = 26     -- knob diameter (fits inside with 2px pad)
-local KNOB_PAD = 2      -- gap between knob edge and track edge at extremes
+local TRACK_H  = 15     -- slim pill track
+local KNOB_W   = 30     -- knob width  (flat pill, wider than tall)
+local KNOB_H   = 18     -- knob height (gepeng)
+local KNOB_PAD = 0      -- gap between knob edge and track edge at extremes
 
 -- Knob X-center bounds (keeps knob fully inside the track)
-local KNOB_X_MIN = KNOB_D / 2 + KNOB_PAD          -- left extreme
-local KNOB_X_MAX = TRACK_W - KNOB_D / 2 - KNOB_PAD -- right extreme
+local KNOB_X_MIN = KNOB_W / 2 + KNOB_PAD          -- left extreme
+local KNOB_X_MAX = TRACK_W - KNOB_W / 2 - KNOB_PAD -- right extreme
 
 local VAL_W = 34
 local GAP   = 8
@@ -56,6 +58,7 @@ export type SliderConfig = {
 	Step:        number?,
 	Enabled:     boolean?,
 	LayoutOrder: number?,
+	Flag:        string?,
 }
 
 type SliderImpl = {
@@ -261,7 +264,7 @@ function Slider.new(config: SliderConfig): SliderImpl
 	local knob            = Instance.new("Frame")
 	knob.Name             = "Knob"
 	knob.AnchorPoint      = Vector2.new(0.5, 0.5)
-	knob.Size             = UDim2.fromOffset(KNOB_D, KNOB_D)
+	knob.Size             = UDim2.fromOffset(KNOB_W, KNOB_H)
 	knob.Position         = UDim2.fromOffset(knobX(t0), TRACK_H / 2)
 	knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	knob.BorderSizePixel  = 0
@@ -415,7 +418,7 @@ function Slider.new(config: SliderConfig): SliderImpl
 		if not self._enabled then return end
 		local mouseX    = UserInputService:GetMouseLocation().X
 		local trackLeft = track.AbsolutePosition.X
-		if mouseX < trackLeft or mouseX > trackLeft + TRACK_W + KNOB_D / 2 then return end
+		if mouseX < trackLeft or mouseX > trackLeft + TRACK_W + KNOB_W / 2 then return end
 		dragging = true
 		TweenService:Create(knobScale, TWEEN_KNOB_PRESS, { Scale = KNOB_SCALE_PRESS }):Play()
 		applyT(tFromMouseX(track, mouseX))
@@ -452,6 +455,24 @@ function Slider.new(config: SliderConfig): SliderImpl
 	self._maid:GiveTask(hit.MouseButton1Up:Connect(function()
 		onRelease()
 	end))
+
+	-- ── SaveManager wiring ────────────────────────────────────────────────
+	local flag = config.Flag
+		or SaveManager.deriveFlagFromName(config.Label)
+	if flag ~= "" then
+		SaveManager.Register(
+			flag,
+			function() return self._value end,
+			function(v: any)
+				if type(v) == "number" then
+					self:SetValue(v)
+				end
+			end
+		)
+		self._maid:GiveTask(changed:Connect(function()
+			SaveManager._scheduleAutoSave()
+		end))
+	end
 
 	return self
 end

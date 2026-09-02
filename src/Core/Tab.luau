@@ -5,6 +5,7 @@
 local Maid       = require(script.Parent.Parent.Utils.Maid)
 local Theme      = require(script.Parent.Parent.Theme)
 local Components = require(script.Parent.Parent.Components)
+local Groupbox   = require(script.Parent.Parent.Components.Groupbox)
 
 -- ── Types ──────────────────────────────────────────────────────────────────
 
@@ -16,13 +17,17 @@ export type TabImpl = {
 	AddTextbox:     (self: TabImpl, config: any) -> any,
 	AddKeybind:     (self: TabImpl, config: any) -> any,
 	AddDropdown:    (self: TabImpl, config: any) -> any,
+	AddColorPicker: (self: TabImpl, config: any) -> any,
 	AddLabel:       (self: TabImpl, text: string, color: Color3?) -> any,
 	AddDescription: (self: TabImpl, config: any) -> any,
 	AddDivider:     (self: TabImpl, text: string?) -> any,
+	-- groupbox factory
+	AddGroupbox: (self: TabImpl, titleA: string, titleB: string?) -> any,
 	-- internals
 	_maid:        any,
 	_content:     ScrollingFrame,
 	_gui:         ScreenGui,
+	_canvas:      Frame?,
 	_layoutOrder: number,
 }
 
@@ -39,12 +44,13 @@ Tab.__index = Tab
 	windowMaid  — the parent window's maid; owns this tab's maid so
 	              destroying the window cascades cleanup into all tabs
 ]]
-function Tab.new(pane: ScrollingFrame, gui: ScreenGui, windowMaid: any): TabImpl
+function Tab.new(pane: ScrollingFrame, gui: ScreenGui, windowMaid: any, canvas: Frame?): TabImpl
 	local self        = setmetatable({}, Tab) :: TabImpl
 	self._maid        = Maid.new()
 	windowMaid:GiveTask(self._maid)  -- cascade: window destroy → tab destroy
 	self._content     = pane
 	self._gui         = gui
+	self._canvas      = canvas
 	self._layoutOrder = 0
 	return self
 end
@@ -203,6 +209,71 @@ function Tab:AddDropdown(config: {
 	c.LayoutOrder   = self:_nextOrder()
 	c.OverlayParent = self._gui
 	return self:_addToContent(Components.Dropdown.new(c), c)
+end
+
+function Tab:AddColorPicker(config: {
+	Label: string, Default: Color3?, ShowAlpha: boolean?,
+	Flag: string?, Risky: boolean?, Enabled: boolean?, description: string?,
+})
+	local c = config :: any
+	c.LayoutOrder   = self:_nextOrder()
+	c.OverlayParent = self._gui
+	c.Canvas        = self._canvas
+	return self:_addToContent(Components.ColorPicker.new(c), c)
+end
+
+-- ── Groupbox factory ─────────────────────────────────────────────────────────
+
+--[[
+	Tab:AddGroupbox(titleA, titleB?)
+
+	Single column  — returns one  GroupboxImpl
+	Two columns    — returns two  GroupboxImpl (left, right)
+
+	Two-column layout: a transparent wrapper frame holds both boxes side-by-side
+	with UDim2 relative sizing; wrapper AutomaticSize Y grows to the taller child.
+	No UIListLayout on the wrapper — children are positioned, not stacked.
+]]
+function Tab:AddGroupbox(titleA: string, titleB: string?)
+	if titleB then
+		-- ── Two-column ──────────────────────────────────────────────────────
+		local GAP = Theme.Spacing.XS  -- 4 px gutter between columns
+
+		local wrapper                  = Instance.new("Frame")
+		wrapper.Name                   = "GroupboxRow"
+		wrapper.Size                   = UDim2.new(1, 0, 0, 0)
+		wrapper.AutomaticSize          = Enum.AutomaticSize.Y
+		wrapper.BackgroundTransparency = 1
+		wrapper.BorderSizePixel        = 0
+		wrapper.ClipsDescendants       = false
+		wrapper.LayoutOrder            = self:_nextOrder()
+		wrapper.Parent                 = self._content
+		self._maid:GiveTask(wrapper)
+
+		local leftBox  = Groupbox.new(titleA, self._gui, self._maid, self._canvas)
+		local rightBox = Groupbox.new(titleB, self._gui, self._maid, self._canvas)
+
+		local lf          = leftBox:GetFrame()
+		lf.AnchorPoint    = Vector2.new(0, 0)
+		lf.Position       = UDim2.new(0, 0, 0, 0)
+		lf.Size           = UDim2.new(0.5, -(GAP // 2 + GAP % 2), 0, 0)  -- floor half-gap
+		lf.Parent         = wrapper
+
+		local rf          = rightBox:GetFrame()
+		rf.AnchorPoint    = Vector2.new(0, 0)
+		rf.Position       = UDim2.new(0.5, GAP // 2 + GAP % 2, 0, 0)    -- ceil half-gap
+		rf.Size           = UDim2.new(0.5, -(GAP // 2 + GAP % 2), 0, 0)
+		rf.Parent         = wrapper
+
+		return leftBox, rightBox
+	else
+		-- ── Single column ───────────────────────────────────────────────────
+		local box = Groupbox.new(titleA, self._gui, self._maid, self._canvas)
+		local f   = box:GetFrame()
+		f.LayoutOrder = self:_nextOrder()
+		f.Parent      = self._content
+		return box
+	end
 end
 
 return Tab

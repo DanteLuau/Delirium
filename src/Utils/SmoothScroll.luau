@@ -32,6 +32,7 @@ type ManagedEntry = {
 }
 
 local _managed: { ManagedEntry } = {}
+local _paused = false
 
 local function isInBounds(frame: GuiObject, pos: Vector2): boolean
 	local ap = frame.AbsolutePosition
@@ -68,6 +69,12 @@ end
 -- ── public API ────────────────────────────────────────────────────────────────
 
 local SmoothScroll = {}
+
+-- Pause / resume all managed scroll frames.
+-- Called by Popup.show to freeze scroll while a modal is open.
+function SmoothScroll.setPaused(paused: boolean)
+	_paused = paused
+end
 
 --[[
 	SmoothScroll.blockRegion(frame)
@@ -121,6 +128,7 @@ function SmoothScroll.apply(frame: ScrollingFrame, step: number?): () -> ()
 	local activeTween: Tween? = nil
 
 	local inputConn = UserInputService.InputChanged:Connect(function(input: InputObject)
+		if _paused then return end
 		if input.UserInputType ~= Enum.UserInputType.MouseWheel then return end
 
 		local mousePos = UserInputService:GetMouseLocation()

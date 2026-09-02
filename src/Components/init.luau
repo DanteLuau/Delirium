@@ -22,6 +22,7 @@ local Slider      = safeRequire(function() return require(script.Slider)      en
 local Textbox     = safeRequire(function() return require(script.Textbox)     end, "Textbox")
 local Keybind     = safeRequire(function() return require(script.Keybind)     end, "Keybind")
 local Dropdown    = safeRequire(function() return require(script.Dropdown)    end, "Dropdown")
+local ColorPicker = safeRequire(function() return require(script.ColorPicker) end, "ColorPicker")
 
 return {
 	Button      = Button,
@@ -33,4 +34,5 @@ return {
 	Textbox     = Textbox,
 	Keybind     = Keybind,
 	Dropdown    = Dropdown,
+	ColorPicker = ColorPicker,
 }

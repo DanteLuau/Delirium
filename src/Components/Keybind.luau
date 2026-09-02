@@ -4,9 +4,10 @@ local TweenService     = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local TextService      = game:GetService("TextService")
 
-local Maid   = require(script.Parent.Parent.Utils.Maid)
-local Signal = require(script.Parent.Parent.Utils.Signal)
-local Theme  = require(script.Parent.Parent.Theme)
+local Maid        = require(script.Parent.Parent.Utils.Maid)
+local Signal      = require(script.Parent.Parent.Utils.Signal)
+local Theme       = require(script.Parent.Parent.Theme)
+local SaveManager = require(script.Parent.Parent.Core.SaveManager)
 
 local TWEEN_HOVER  = TweenInfo.new(0.38, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
 local TWEEN_STROKE = TweenInfo.new(0.38, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
@@ -17,10 +18,11 @@ local TWEEN_RESIZE = TweenInfo.new(0.25, Enum.EasingStyle.Sine,  Enum.EasingDire
 local SHADOW_REST  = { BackgroundTransparency = 0.75, Position = UDim2.new(0.5, 0, 0.5, 3) }
 local SHADOW_HOVER = { BackgroundTransparency = 0.65, Position = UDim2.new(0.5, 0, 0.5, 5) }
 
-local PILL_H    = 22
-local PILL_PAD  = 12   -- horizontal breathing room each side (= Theme.Spacing.M)
+local PILL_H   = 22
+local PILL_PAD = 12
 
--- ── Key name map ───────────────────────────────────────────────────────────
+-- ── Key name map ───────────────────────────────────────────────────────────────
+
 local KEY_NAMES: { [Enum.KeyCode]: string } = {
 	[Enum.KeyCode.LeftShift]    = "LeftShift",
 	[Enum.KeyCode.RightShift]   = "RightShift",
@@ -40,25 +42,16 @@ local KEY_NAMES: { [Enum.KeyCode]: string } = {
 	[Enum.KeyCode.PageDown]     = "PageDown",
 	[Enum.KeyCode.CapsLock]     = "Caps",
 	[Enum.KeyCode.Escape]       = "Esc",
-	[Enum.KeyCode.F1]           = "F1",
-	[Enum.KeyCode.F2]           = "F2",
-	[Enum.KeyCode.F3]           = "F3",
-	[Enum.KeyCode.F4]           = "F4",
-	[Enum.KeyCode.F5]           = "F5",
-	[Enum.KeyCode.F6]           = "F6",
-	[Enum.KeyCode.F7]           = "F7",
-	[Enum.KeyCode.F8]           = "F8",
-	[Enum.KeyCode.F9]           = "F9",
-	[Enum.KeyCode.F10]          = "F10",
-	[Enum.KeyCode.F11]          = "F11",
-	[Enum.KeyCode.F12]          = "F12",
+	[Enum.KeyCode.F1]  = "F1",  [Enum.KeyCode.F2]  = "F2",  [Enum.KeyCode.F3]  = "F3",
+	[Enum.KeyCode.F4]  = "F4",  [Enum.KeyCode.F5]  = "F5",  [Enum.KeyCode.F6]  = "F6",
+	[Enum.KeyCode.F7]  = "F7",  [Enum.KeyCode.F8]  = "F8",  [Enum.KeyCode.F9]  = "F9",
+	[Enum.KeyCode.F10] = "F10", [Enum.KeyCode.F11] = "F11", [Enum.KeyCode.F12] = "F12",
 }
 
 local function keyName(key: Enum.KeyCode): string
 	return KEY_NAMES[key] or key.Name
 end
 
--- Returns the pixel width a string occupies at the pill's font + size.
 local function measureText(text: string): number
 	local v = TextService:GetTextSize(
 		text,
@@ -69,23 +62,36 @@ local function measureText(text: string): number
 	return v.X
 end
 
--- Full pill width including side padding.
 local function pillWidth(text: string): number
 	return measureText(text) + PILL_PAD * 2
 end
 
--- ── Types ──────────────────────────────────────────────────────────────────
+-- ── Types ──────────────────────────────────────────────────────────────────────
+
 export type KeybindConfig = {
 	Label:       string,
 	Icon:        string?,
 	Default:     Enum.KeyCode?,
 	Enabled:     boolean?,
 	LayoutOrder: number?,
+	Flag:        string?,
+	-- Execution mode.
+	-- "Press"  (default) — fires Pressed once per keydown, respects Enabled.
+	-- "Toggle"           — alternates boolean state, fires Toggled, respects Enabled.
+	-- "Hold"             — fires HoldStart on down, HoldEnd on up, respects Enabled.
+	-- "Always"           — fires Pressed regardless of Enabled state.
+	Mode: string?,
 }
 
 type KeybindImpl = {
 	Key:          Enum.KeyCode?,
+	-- Capture signal (key was rebound)
 	Changed:      any,
+	-- Execution signals
+	Pressed:      any,
+	Toggled:      any,
+	HoldStart:    any,
+	HoldEnd:      any,
 	SetKey:       (self: KeybindImpl, key: Enum.KeyCode?) -> (),
 	SetEnabled:   (self: KeybindImpl, enabled: boolean) -> (),
 	GetFrame:     (self: KeybindImpl) -> Frame,
@@ -107,6 +113,9 @@ type KeybindImpl = {
 	_enabled:     boolean,
 	_binding:     boolean,
 	_bindToken:   number,
+	_mode:        string,
+	_toggleState: boolean,
+	_morphToken:  number?,
 }
 
 local Keybind = {} :: { __index: any }
@@ -118,9 +127,11 @@ function Keybind.new(config: KeybindConfig): KeybindImpl
 	self._enabled       = if config.Enabled ~= nil then config.Enabled else true
 	self._binding       = false
 	self._bindToken     = 0
+	self._mode          = config.Mode or "Press"
+	self._toggleState   = false
 	self.Key            = config.Default
 
-	-- ── Outer container ────────────────────────────────────────────────────
+	-- ── Outer container ────────────────────────────────────────────────────────
 	local frame                  = Instance.new("Frame")
 	frame.Name                   = "Keybind"
 	frame.Size                   = UDim2.new(1, 0, 0, 36)
@@ -130,7 +141,7 @@ function Keybind.new(config: KeybindConfig): KeybindImpl
 	frame.ClipsDescendants       = false
 	self._frame                  = frame
 
-	-- ── Shadow ─────────────────────────────────────────────────────────────
+	-- ── Shadow ─────────────────────────────────────────────────────────────────
 	local shadow                  = Instance.new("Frame")
 	shadow.Name                   = "Shadow"
 	shadow.AnchorPoint            = Vector2.new(0.5, 0.5)
@@ -146,7 +157,7 @@ function Keybind.new(config: KeybindConfig): KeybindImpl
 	shadow.Parent                 = frame
 	self._shadow                  = shadow
 
-	-- ── Inner row ──────────────────────────────────────────────────────────
+	-- ── Inner row ──────────────────────────────────────────────────────────────
 	local inner              = Instance.new("Frame")
 	inner.Name               = "Inner"
 	inner.AnchorPoint        = Vector2.new(0.5, 0.5)
@@ -201,7 +212,7 @@ function Keybind.new(config: KeybindConfig): KeybindImpl
 	flash.Parent                 = inner
 	self._flash                  = flash
 
-	-- ── Content (icon + label) ─────────────────────────────────────────────
+	-- ── Content (icon + label) ─────────────────────────────────────────────────
 	local initPillW = pillWidth(if config.Default then keyName(config.Default) else "—")
 
 	local content                  = Instance.new("Frame")
@@ -261,9 +272,7 @@ function Keybind.new(config: KeybindConfig): KeybindImpl
 	flex.FlexMode = Enum.UIFlexMode.Shrink
 	flex.Parent   = label
 
-	-- ── Pill (key box) ─────────────────────────────────────────────────────
-	-- Width is NOT AutomaticSize — it is computed via TextService and tweened
-	-- so the resize is always animated rather than snapping.
+	-- ── Pill (key display box) ─────────────────────────────────────────────────
 	local pill              = Instance.new("Frame")
 	pill.Name               = "Pill"
 	pill.AnchorPoint        = Vector2.new(1, 0.5)
@@ -280,7 +289,6 @@ function Keybind.new(config: KeybindConfig): KeybindImpl
 	pillCorner.CornerRadius = UDim.new(0, Theme.Radius.Pill)
 	pillCorner.Parent       = pill
 
-	-- Gradient slightly lighter than the container so the pill reads as elevated
 	local pillGrad    = Instance.new("UIGradient")
 	pillGrad.Color    = ColorSequence.new({
 		ColorSequenceKeypoint.new(0, Color3.fromHex("#464646")),
@@ -288,6 +296,7 @@ function Keybind.new(config: KeybindConfig): KeybindImpl
 	})
 	pillGrad.Rotation = 90
 	pillGrad.Parent   = pill
+
 	local pillStroke           = Instance.new("UIStroke")
 	pillStroke.Color           = Theme.Colors.Border
 	pillStroke.Thickness       = 1
@@ -310,8 +319,6 @@ function Keybind.new(config: KeybindConfig): KeybindImpl
 	pillLabel.Parent                 = pill
 	self._pillLabel                  = pillLabel
 
-
-	-- ── PillHit covers ONLY the pill box, not the row ─────────────────────
 	local pillHit                  = Instance.new("TextButton")
 	pillHit.Name                   = "PillHit"
 	pillHit.Size                   = UDim2.fromScale(1, 1)
@@ -321,8 +328,7 @@ function Keybind.new(config: KeybindConfig): KeybindImpl
 	pillHit.ZIndex                 = 9
 	pillHit.Parent                 = pill
 
-	-- ── Sync content width live as the pill tween runs ────────────────────
-	-- AbsoluteSize fires every frame during a tween, so content tracks smoothly.
+	-- Content tracks pill width during its resize tween
 	local function syncContent()
 		local pillW = pill.AbsoluteSize.X
 		if pillW > 0 then
@@ -331,12 +337,29 @@ function Keybind.new(config: KeybindConfig): KeybindImpl
 	end
 	self._maid:GiveTask(pill:GetPropertyChangedSignal("AbsoluteSize"):Connect(syncContent))
 
-	-- ── Signal ─────────────────────────────────────────────────────────────
+	-- ── Signals ────────────────────────────────────────────────────────────────
+
+	-- Fires when the bound key changes (capture complete)
 	local changed = Signal.new()
 	self.Changed  = changed
 	self._maid:GiveTask(changed)
 
-	-- ── Independent hover state ────────────────────────────────────────────
+	-- Execution signals — which ones are useful depends on Mode
+	local pressed   = Signal.new()
+	local toggled   = Signal.new()
+	local holdStart = Signal.new()
+	local holdEnd   = Signal.new()
+	self.Pressed   = pressed
+	self.Toggled   = toggled
+	self.HoldStart = holdStart
+	self.HoldEnd   = holdEnd
+	self._maid:GiveTask(pressed)
+	self._maid:GiveTask(toggled)
+	self._maid:GiveTask(holdStart)
+	self._maid:GiveTask(holdEnd)
+
+	-- ── Hover / pill interaction ────────────────────────────────────────────────
+
 	local rowHovering  = false
 	local pillHovering = false
 
@@ -420,16 +443,13 @@ function Keybind.new(config: KeybindConfig): KeybindImpl
 		}):Play()
 	end))
 
-	-- ── Pill click — toggle binding mode ──────────────────────────────────
+	-- Pill click — enter / exit binding mode
 	self._maid:GiveTask(pillHit.MouseButton1Click:Connect(function()
 		if not self._enabled then return end
 		self._binding = not self._binding
 
 		if self._binding then
 			self._bindToken += 1
-			local token = self._bindToken
-
-			-- Animate pill to fit "Recording" then show listening state
 			self:_animatePill("Recording")
 			pillLabel.Text       = "Recording"
 			pillLabel.TextColor3 = Theme.Colors.Accent
@@ -441,40 +461,99 @@ function Keybind.new(config: KeybindConfig): KeybindImpl
 		end
 	end))
 
-	-- ── Key capture ────────────────────────────────────────────────────────
+	-- ── Key capture (binding mode) ─────────────────────────────────────────────
+
 	self._maid:GiveTask(UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
 		if gameProcessed or not self._binding or not self._enabled then return end
+		if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
 
-		if input.UserInputType == Enum.UserInputType.Keyboard then
-			if input.KeyCode == Enum.KeyCode.Escape then
-				self._bindToken += 1
-				self:_exitBinding(false)
-				return
-			end
+		if input.KeyCode == Enum.KeyCode.Escape then
 			self._bindToken += 1
-			self:SetKey(input.KeyCode)
-			changed:Fire(input.KeyCode)
+			self:_exitBinding(false)
+			return
+		end
+
+		self._bindToken += 1
+		self:SetKey(input.KeyCode)
+		changed:Fire(input.KeyCode)
+	end))
+
+	-- ── Execution listener — InputBegan ────────────────────────────────────────
+	-- Fires independently of binding mode; does NOT interfere with rebind flow.
+
+	self._maid:GiveTask(UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
+		if gameProcessed then return end
+		if self._binding then return end  -- rebind in progress; don't execute
+		if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+		if input.KeyCode ~= self.Key then return end
+
+		-- "Always" ignores _enabled; every other mode respects it
+		if self._mode ~= "Always" and not self._enabled then return end
+
+		if self._mode == "Toggle" then
+			self._toggleState = not self._toggleState
+			toggled:Fire(self._toggleState)
+		elseif self._mode == "Hold" then
+			holdStart:Fire()
+		else
+			-- "Press" and "Always" both fire Pressed
+			pressed:Fire()
 		end
 	end))
+
+	-- ── Execution listener — InputEnded (Hold release) ─────────────────────────
+
+	self._maid:GiveTask(UserInputService.InputEnded:Connect(function(input: InputObject)
+		if self._binding then return end
+		if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+		if input.KeyCode ~= self.Key then return end
+		if self._mode ~= "Hold" then return end
+		if not self._enabled then return end
+		holdEnd:Fire()
+	end))
+
+	-- ── SaveManager wiring ────────────────────────────────────────────────────
+
+	do
+		local flag = config.Flag
+			or SaveManager.deriveFlagFromName(config.Label)
+		if flag ~= "" then
+			SaveManager.Register(
+				flag,
+				function()
+					return if self.Key then self.Key.Name else nil
+				end,
+				function(v: any)
+					if type(v) == "string" then
+						local kc = (Enum.KeyCode :: any)[v] :: Enum.KeyCode?
+						if kc then self:SetKey(kc) end
+					end
+				end
+			)
+			self._maid:GiveTask(changed:Connect(function()
+				SaveManager._scheduleAutoSave()
+			end))
+		end
+	end
 
 	return self
 end
 
--- ── Animate pill width to fit a new text string ───────────────────────────
+-- ── Animate pill width to fit new text ────────────────────────────────────────
+
 function Keybind:_animatePill(text: string)
 	local targetW = pillWidth(text)
 	TweenService:Create(self._pill, TWEEN_RESIZE, {
 		Size = UDim2.fromOffset(targetW, PILL_H),
 	}):Play()
-	-- content tracks via AbsoluteSize connection; no extra call needed
 end
 
--- ── Internal: exit binding state cleanly ──────────────────────────────────
+-- ── Exit binding state ─────────────────────────────────────────────────────────
+
 function Keybind:_exitBinding(confirmed: boolean)
 	self._binding = false
 	local restoreText = if self.Key then keyName(self.Key) else "—"
 	if not confirmed then
-		-- Cancelled — animate back to previous key width, restore label
 		self:_animatePill(restoreText)
 		self._pillLabel.Text = restoreText
 	end
@@ -485,13 +564,13 @@ function Keybind:_exitBinding(confirmed: boolean)
 	TweenService:Create(self._pillLabel,  TWEEN_HOVER,  { TextColor3 = Theme.Colors.TextPrimary }):Play()
 end
 
--- ── Public API ─────────────────────────────────────────────────────────────
+-- ── Public API ─────────────────────────────────────────────────────────────────
+
 function Keybind:SetKey(key: Enum.KeyCode?)
 	self.Key = key
 	local newText = if key then keyName(key) else "—"
 	self._pillLabel.Text = newText
 	self:_animatePill(newText)
-	-- _exitBinding handles dot tween + all cleanup tweens
 	self:_exitBinding(true)
 end
 

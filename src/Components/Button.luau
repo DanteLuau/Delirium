@@ -24,6 +24,9 @@ export type ButtonConfig = {
 	Variant: number?,
 	Enabled: boolean?,
 	LayoutOrder: number?,
+	-- When true, label renders in Theme.Colors.Error (visual-only danger signal).
+	-- Does not affect click behaviour or any other logic.
+	Risky: boolean?,
 }
 
 type ButtonImpl = {
@@ -45,6 +48,7 @@ type ButtonImpl = {
 	_shadow:    Frame,
 	_enabled:   boolean,
 	_variant:   number,
+	_risky:     boolean,
 	_strokeGrad: UIGradient?,
 }
 
@@ -56,6 +60,7 @@ function Button.new(config: ButtonConfig): ButtonImpl
 	self._maid    = Maid.new()
 	self._variant = config.Variant or 0
 	self._enabled = if config.Enabled ~= nil then config.Enabled else true
+	self._risky   = config.Risky == true
 
 	-- ── Outer container ───────────────────────────────────────────────────────
 	local frame                  = Instance.new("Frame")
@@ -196,9 +201,10 @@ function Button.new(config: ButtonConfig): ButtonImpl
 	label.Font                   = Theme.Font.Body
 	label.Text                   = config.Label
 	label.TextSize               = Theme.TextSize.Body
-	label.TextColor3             = if self._enabled
-		then Theme.Colors.TextPrimary
-		else Theme.Colors.TextDisabled
+	label.TextColor3             = if not self._enabled
+		then Theme.Colors.TextDisabled
+		elseif self._risky then Theme.Colors.Error
+		else Theme.Colors.TextPrimary
 	label.TextXAlignment         = Enum.TextXAlignment.Left
 	label.TextTruncate           = Enum.TextTruncate.AtEnd
 	label.LayoutOrder            = 1
@@ -343,10 +349,14 @@ end
 
 function Button:SetEnabled(enabled: boolean)
 	self._enabled             = enabled
-	local color               = if enabled then Theme.Colors.TextPrimary else Theme.Colors.TextDisabled
+	local color               = if not enabled
+		then Theme.Colors.TextDisabled
+		elseif self._risky then Theme.Colors.Error
+		else Theme.Colors.TextPrimary
 	self._label.TextColor3    = color
 	if self._icon then
-		self._icon.ImageColor3 = color
+		-- icon stays neutral; Risky only tints the label
+		self._icon.ImageColor3 = if enabled then Theme.Colors.TextPrimary else Theme.Colors.TextDisabled
 	end
 	self._stroke.Color        = Theme.Colors.Border
 	self._stroke.Transparency = if enabled then 0 else 0.5

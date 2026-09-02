@@ -3,9 +3,10 @@
 local TweenService     = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
-local Maid   = require(script.Parent.Parent.Utils.Maid)
-local Signal = require(script.Parent.Parent.Utils.Signal)
-local Theme  = require(script.Parent.Parent.Theme)
+local Maid        = require(script.Parent.Parent.Utils.Maid)
+local Signal      = require(script.Parent.Parent.Utils.Signal)
+local Theme       = require(script.Parent.Parent.Theme)
+local SaveManager = require(script.Parent.Parent.Core.SaveManager)
 
 -- Press / release feedback (unchanged — these are interaction, not state-change)
 local TWEEN_PRESS   = TweenInfo.new(0.20, Enum.EasingStyle.Quint,       Enum.EasingDirection.Out)
@@ -42,6 +43,10 @@ export type ToggleConfig = {
 	Default: boolean?,
 	Enabled: boolean?,
 	LayoutOrder: number?,
+	Flag: string?,
+	-- When true, label renders in Theme.Colors.Error (visual-only danger signal).
+	-- Does not affect toggle behaviour, value, or save logic.
+	Risky: boolean?,
 }
 
 type ToggleImpl = {
@@ -65,6 +70,7 @@ type ToggleImpl = {
 	_shadow:  Frame,
 	_enabled: boolean,
 	_value:   boolean,
+	_risky:   boolean,
 }
 
 local Toggle = {} :: { __index: any }
@@ -75,6 +81,7 @@ function Toggle.new(config: ToggleConfig): ToggleImpl
 	self._maid    = Maid.new()
 	self._value   = if config.Default ~= nil then config.Default else false
 	self._enabled = if config.Enabled ~= nil then config.Enabled else true
+	self._risky   = config.Risky == true
 
 	-- ── Outer container ───────────────────────────────────────────────────────
 	local frame                  = Instance.new("Frame")
@@ -244,9 +251,10 @@ function Toggle.new(config: ToggleConfig): ToggleImpl
 	label.Font                   = Theme.Font.Body
 	label.Text                   = config.Label
 	label.TextSize               = Theme.TextSize.Body
-	label.TextColor3             = if self._enabled
-		then Theme.Colors.TextPrimary
-		else Theme.Colors.TextDisabled
+	label.TextColor3             = if not self._enabled
+		then Theme.Colors.TextDisabled
+		elseif self._risky then Theme.Colors.Error
+		else Theme.Colors.TextPrimary
 	label.TextXAlignment         = Enum.TextXAlignment.Left
 	label.TextTruncate           = Enum.TextTruncate.AtEnd
 	label.LayoutOrder            = 1
@@ -340,6 +348,20 @@ function Toggle.new(config: ToggleConfig): ToggleImpl
 		changed:Fire(self._value)
 	end))
 
+	-- ── SaveManager wiring ────────────────────────────────────────────────
+	local flag = config.Flag
+		or SaveManager.deriveFlagFromName(config.Label)
+	if flag ~= "" then
+		SaveManager.Register(
+			flag,
+			function() return self._value end,
+			function(v: any) self:SetValue(v == true) end
+		)
+		self._maid:GiveTask(changed:Connect(function()
+			SaveManager._scheduleAutoSave()
+		end))
+	end
+
 	return self
 end
 
@@ -378,10 +400,14 @@ end
 
 function Toggle:SetEnabled(enabled: boolean)
 	self._enabled          = enabled
-	local color            = if enabled then Theme.Colors.TextPrimary else Theme.Colors.TextDisabled
+	local color            = if not enabled
+		then Theme.Colors.TextDisabled
+		elseif self._risky then Theme.Colors.Error
+		else Theme.Colors.TextPrimary
 	self._label.TextColor3 = color
 	if self._icon then
-		self._icon.ImageColor3 = color
+		-- icon stays neutral; Risky only tints the label
+		self._icon.ImageColor3 = if enabled then Theme.Colors.TextPrimary else Theme.Colors.TextDisabled
 	end
 	self._stroke.Transparency = if enabled then 0 else 0.5
 end

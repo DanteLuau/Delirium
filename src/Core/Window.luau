@@ -11,10 +11,18 @@ local Components   = require(script.Parent.Parent.Components)
 local SmoothScroll = require(script.Parent.Parent.Utils.SmoothScroll)
 local Tab          = require(script.Parent.Tab)
 
-local TWEEN_OPEN    = TweenInfo.new(0.3,  Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
-local TWEEN_CLOSE   = TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
-local TWEEN_TAB     = TweenInfo.new(0.18, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
-local TWEEN_GROUP   = TweenInfo.new(0.20, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+local TWEEN_OPEN     = TweenInfo.new(0.3,  Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+local TWEEN_CLOSE    = TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+local TWEEN_TAB      = TweenInfo.new(0.18, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+local TWEEN_GROUP    = TweenInfo.new(0.20, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+local TWEEN_COLLAPSE = TweenInfo.new(0.45, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut)
+local TWEEN_EXPAND   = TweenInfo.new(0.50, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
+
+-- Pill (hide/show morph) ─ same concept as Rayfield's collapsed pill
+local PILL_SIZE = UDim2.fromOffset(185, 50)
+local PILL_POS  = UDim2.new(0.5, 0, 0, 45) -- AnchorPoint(0.5,0.5) so center = 20+25 from top
+local TWEEN_PILL_MORPH  = TweenInfo.new(0.45, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut)
+local TWEEN_PILL_REVEAL = TweenInfo.new(0.50, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
 
 local DEFAULT_SIZE        = UDim2.fromOffset(500, 340)
 local MIN_SIZE            = Vector2.new(300, 200)
@@ -103,14 +111,21 @@ end
 local function buildWindow(title: string, cfg: WindowConfig)
 	local targetSize = cfg.Size or DEFAULT_SIZE
 
+	-- Root frame: unified container that holds both canvas (window) and sidebar as siblings
+	local root                  = Instance.new("Frame")
+	root.Name                   = "WindowRoot"
+	root.Size                   = targetSize
+	root.AnchorPoint            = Vector2.new(0.5, 0.5)
+	root.Position               = cfg.Position or UDim2.fromScale(0.5, 0.5)
+	root.BackgroundTransparency = 1
+	root.BorderSizePixel        = 0
+	root.ClipsDescendants       = false
+
 	local canvas             = Instance.new("CanvasGroup")
 	canvas.Name              = "WindowFrame"
-	canvas.Size              = UDim2.fromOffset(
-		targetSize.X.Offset * 0.88,
-		targetSize.Y.Offset * 0.88
-	)
-	canvas.AnchorPoint       = Vector2.new(0.5, 0.5)
-	canvas.Position          = cfg.Position or UDim2.fromScale(0.5, 0.5)
+	canvas.Size              = UDim2.fromScale(1, 1)
+	canvas.Position          = UDim2.fromOffset(0, 0)
+	canvas.AnchorPoint       = Vector2.new(0, 0)
 	canvas.BackgroundColor3  = Theme.Colors.Surface
 	canvas.BorderSizePixel   = 0
 	canvas.GroupTransparency = 1
@@ -138,7 +153,7 @@ local function buildWindow(title: string, cfg: WindowConfig)
 	titleLabel.Name                   = "TitleLabel"
 	titleLabel.BackgroundTransparency = 1
 	titleLabel.Position               = UDim2.fromOffset(Theme.Spacing.M, 0)
-	titleLabel.Size                   = UDim2.new(1, -(Theme.Spacing.M + 44), 1, 0)
+	titleLabel.Size                   = UDim2.new(1, -(Theme.Spacing.M + 108), 1, 0)
 	titleLabel.Font                   = Theme.Font.Title
 	titleLabel.Text                   = title
 	titleLabel.TextSize               = Theme.TextSize.Title
@@ -147,19 +162,52 @@ local function buildWindow(title: string, cfg: WindowConfig)
 	titleLabel.TextTruncate           = Enum.TextTruncate.AtEnd
 	titleLabel.Parent                 = titleBar
 
-	local closeBtn              = Instance.new("TextButton")
-	closeBtn.Name               = "CloseButton"
-	closeBtn.Size               = UDim2.fromOffset(24, 24)
-	closeBtn.Position           = UDim2.new(1, -32, 0.5, -12)
-	closeBtn.BackgroundColor3   = Theme.Colors.SurfaceHover
-	closeBtn.Font               = Theme.Font.Body
-	closeBtn.Text               = "X"
-	closeBtn.TextSize           = 11
-	closeBtn.TextColor3         = Theme.Colors.TextSecondary
-	closeBtn.BorderSizePixel    = 0
-	closeBtn.AutoButtonColor    = false
-	applyCorner(closeBtn, 4)
-	closeBtn.Parent = titleBar
+	-- ── Title bar button row: Search | Settings | Minus | Collapse ─────────────
+	local function mkTitleBtn(name: string, text: string, order: number): TextButton
+		local b              = Instance.new("TextButton")
+		b.Name               = name
+		b.Size               = UDim2.fromOffset(20, 20)
+		b.BackgroundColor3   = Theme.Colors.SurfaceHover
+		b.Font               = Theme.Font.Body
+		b.Text               = text
+		b.TextSize           = 11
+		b.TextColor3         = Theme.Colors.TextSecondary
+		b.BorderSizePixel    = 0
+		b.AutoButtonColor    = false
+		applyCorner(b, 4)
+		return b
+	end
+
+	local btnRow               = Instance.new("Frame")
+	btnRow.Name                = "BtnRow"
+	btnRow.AnchorPoint         = Vector2.new(1, 0.5)
+	btnRow.Position            = UDim2.new(1, -8, 0.5, 0)
+	btnRow.Size                = UDim2.fromOffset(0, 20)
+	btnRow.AutomaticSize       = Enum.AutomaticSize.X
+	btnRow.BackgroundTransparency = 1
+	btnRow.BorderSizePixel     = 0
+
+	local btnRowLayout                 = Instance.new("UIListLayout")
+	btnRowLayout.FillDirection         = Enum.FillDirection.Horizontal
+	btnRowLayout.VerticalAlignment     = Enum.VerticalAlignment.Center
+	btnRowLayout.HorizontalAlignment   = Enum.HorizontalAlignment.Right
+	btnRowLayout.SortOrder             = Enum.SortOrder.LayoutOrder
+	btnRowLayout.Padding               = UDim.new(0, 4)
+	btnRowLayout.Parent                = btnRow
+
+	local searchBtn   = mkTitleBtn("SearchBtn",   "⊙", 1)
+	local settingsBtn = mkTitleBtn("SettingsBtn", "⚙", 2)
+	local minusBtn    = mkTitleBtn("MinusBtn",    "—", 3)
+	local collapseBtn = mkTitleBtn("CollapseBtn", "✕", 4)
+	searchBtn.LayoutOrder   = 1
+	settingsBtn.LayoutOrder = 2
+	minusBtn.LayoutOrder    = 3
+	collapseBtn.LayoutOrder = 4
+	searchBtn.Parent        = btnRow
+	settingsBtn.Parent      = btnRow
+	minusBtn.Parent         = btnRow
+	collapseBtn.Parent      = btnRow
+	btnRow.Parent           = titleBar
 
 	local sep             = Instance.new("Frame")
 	sep.Name              = "Separator"
@@ -208,13 +256,14 @@ local function buildWindow(title: string, cfg: WindowConfig)
 	sep.Parent      = canvas
 	content.Parent  = canvas
 	handle.Parent   = canvas
+	canvas.Parent   = root
 
-	return canvas, titleBar, content :: any, handle, stroke, titleLabel
+	return root, canvas, titleBar, content :: any, handle, stroke, titleLabel, sep
 end
 
 -- ── interaction setup ─────────────────────────────────────────────────────────
 
-local function setupDrag(maid: any, titleBar: Frame, canvas: CanvasGroup, onMoved: (() -> ())?)
+local function setupDrag(maid: any, titleBar: Frame, root: Frame)
 	local dragging  = false
 	local dragStart = Vector3.zero
 	local startPos  = UDim2.fromOffset(0, 0)
@@ -223,11 +272,11 @@ local function setupDrag(maid: any, titleBar: Frame, canvas: CanvasGroup, onMove
 		if input.UserInputType ~= Enum.UserInputType.MouseButton1
 			and input.UserInputType ~= Enum.UserInputType.Touch then return end
 
-		local closeBtn = titleBar:FindFirstChildOfClass("TextButton") :: GuiObject?
-		if closeBtn then
-			local mouse  = UserInputService:GetMouseLocation()
-			local bPos   = closeBtn.AbsolutePosition
-			local bSize  = closeBtn.AbsoluteSize
+		local btnRow_ = titleBar:FindFirstChild("BtnRow") :: Frame?
+		if btnRow_ then
+			local mouse = UserInputService:GetMouseLocation()
+			local bPos  = btnRow_.AbsolutePosition
+			local bSize = btnRow_.AbsoluteSize
 			if mouse.X >= bPos.X and mouse.X <= bPos.X + bSize.X
 				and mouse.Y >= bPos.Y and mouse.Y <= bPos.Y + bSize.Y then
 				return
@@ -236,7 +285,7 @@ local function setupDrag(maid: any, titleBar: Frame, canvas: CanvasGroup, onMove
 
 		dragging  = true
 		dragStart = input.Position
-		startPos  = canvas.Position
+		startPos  = root.Position
 	end))
 
 	maid:GiveTask(UserInputService.InputChanged:Connect(function(input: InputObject)
@@ -245,11 +294,10 @@ local function setupDrag(maid: any, titleBar: Frame, canvas: CanvasGroup, onMove
 			and input.UserInputType ~= Enum.UserInputType.Touch then return end
 
 		local delta = input.Position - dragStart
-		canvas.Position = UDim2.new(
+		root.Position = UDim2.new(
 			startPos.X.Scale, startPos.X.Offset + delta.X,
 			startPos.Y.Scale, startPos.Y.Offset + delta.Y
 		)
-		if onMoved then onMoved() end
 	end))
 
 	maid:GiveTask(UserInputService.InputEnded:Connect(function(input: InputObject)
@@ -260,7 +308,7 @@ local function setupDrag(maid: any, titleBar: Frame, canvas: CanvasGroup, onMove
 	end))
 end
 
-local function setupResize(maid: any, handle: Frame, canvas: CanvasGroup, minSize: Vector2, onResized: (() -> ())?)
+local function setupResize(maid: any, handle: Frame, root: Frame, minSize: Vector2)
 	local resizing    = false
 	local resizeStart = Vector3.zero
 	local startSize   = UDim2.fromOffset(0, 0)
@@ -270,7 +318,7 @@ local function setupResize(maid: any, handle: Frame, canvas: CanvasGroup, minSiz
 			and input.UserInputType ~= Enum.UserInputType.Touch then return end
 		resizing    = true
 		resizeStart = input.Position
-		startSize   = canvas.Size
+		startSize   = root.Size
 	end))
 
 	maid:GiveTask(UserInputService.InputChanged:Connect(function(input: InputObject)
@@ -281,8 +329,7 @@ local function setupResize(maid: any, handle: Frame, canvas: CanvasGroup, minSiz
 		local delta = input.Position - resizeStart
 		local newW  = math.max(minSize.X, startSize.X.Offset + delta.X)
 		local newH  = math.max(minSize.Y, startSize.Y.Offset + delta.Y)
-		canvas.Size = UDim2.new(startSize.X.Scale, newW, startSize.Y.Scale, newH)
-		if onResized then onResized() end
+		root.Size   = UDim2.new(startSize.X.Scale, newW, startSize.Y.Scale, newH)
 	end))
 
 	maid:GiveTask(UserInputService.InputEnded:Connect(function(input: InputObject)
@@ -293,14 +340,41 @@ local function setupResize(maid: any, handle: Frame, canvas: CanvasGroup, minSiz
 	end))
 end
 
-local function setupCloseHover(maid: any, closeBtn: TextButton)
-	maid:GiveTask(closeBtn.MouseEnter:Connect(function()
-		closeBtn.BackgroundColor3 = Theme.Colors.Error
-		closeBtn.TextColor3       = Color3.fromRGB(255, 255, 255)
+local function setupTitleBtnHovers(
+	maid: any,
+	searchBtn: TextButton,
+	settingsBtn: TextButton,
+	minusBtn: TextButton,
+	collapseBtn: TextButton
+)
+	-- search + settings: coming soon — subtle hover only
+	for _, b in ipairs({ searchBtn, settingsBtn }) do
+		maid:GiveTask(b.MouseEnter:Connect(function()
+			b.BackgroundColor3 = Theme.Colors.SurfaceActive
+			b.TextColor3       = Theme.Colors.TextPrimary
+		end))
+		maid:GiveTask(b.MouseLeave:Connect(function()
+			b.BackgroundColor3 = Theme.Colors.SurfaceHover
+			b.TextColor3       = Theme.Colors.TextSecondary
+		end))
+	end
+	-- minus: destructive red
+	maid:GiveTask(minusBtn.MouseEnter:Connect(function()
+		minusBtn.BackgroundColor3 = Theme.Colors.Error
+		minusBtn.TextColor3       = Color3.fromRGB(255, 255, 255)
 	end))
-	maid:GiveTask(closeBtn.MouseLeave:Connect(function()
-		closeBtn.BackgroundColor3 = Theme.Colors.SurfaceHover
-		closeBtn.TextColor3       = Theme.Colors.TextSecondary
+	maid:GiveTask(minusBtn.MouseLeave:Connect(function()
+		minusBtn.BackgroundColor3 = Theme.Colors.SurfaceHover
+		minusBtn.TextColor3       = Theme.Colors.TextSecondary
+	end))
+	-- collapse: neutral accent
+	maid:GiveTask(collapseBtn.MouseEnter:Connect(function()
+		collapseBtn.BackgroundColor3 = Theme.Colors.SurfaceActive
+		collapseBtn.TextColor3       = Theme.Colors.TextPrimary
+	end))
+	maid:GiveTask(collapseBtn.MouseLeave:Connect(function()
+		collapseBtn.BackgroundColor3 = Theme.Colors.SurfaceHover
+		collapseBtn.TextColor3       = Theme.Colors.TextSecondary
 	end))
 end
 
@@ -316,6 +390,12 @@ function Window.new(title: string, options: WindowConfig?)
 	self._maid             = Maid.new()
 	self.Title             = title
 	self._closing          = false
+	self._collapsed        = false
+	self._collapseAnimating = false
+	self._expandedSize     = cfg.Size or DEFAULT_SIZE
+	self._collapseBtn      = nil :: any
+	self._minusBtn         = nil :: any
+	self._handle           = nil :: any
 	self._tabs             = nil :: any
 	self._groups           = nil :: any
 	self._sidebar          = nil :: any
@@ -330,43 +410,74 @@ function Window.new(title: string, options: WindowConfig?)
 	self._gui = gui
 	self._maid:GiveTask(gui)
 
-	local targetSize = cfg.Size or DEFAULT_SIZE
-	local canvas, titleBar, content, handle, stroke, titleLabel = buildWindow(title, cfg)
-	canvas.Parent     = gui
+	local root, canvas, titleBar, content, handle, stroke, titleLabel, sep = buildWindow(title, cfg)
+	root.Parent       = gui
+	self._root        = root
 	self._canvas      = canvas
+	self._titleBar    = titleBar
 	self._content     = content
 	self._stroke      = stroke
 	self._titleLabel  = titleLabel
+	self._handle      = handle
+	self._sep         = sep
 	self._layoutOrder = 0
+
+	-- pill / hide-restore state
+	self._hidden        = false
+	self._hideAnimating = false
+	self._savedPosition = nil :: UDim2?
+	self._pillDot       = nil :: any
+	self._pillTitle     = nil :: any
+	self._pillSub       = nil :: any
+	self._pillInteract  = nil :: any
 
 	local minSize = cfg.MinSize or MIN_SIZE
 
-	setupDrag(self._maid, titleBar, canvas, function()
-		if self._syncSidebar then self._syncSidebar() end
-	end)
-	setupResize(self._maid, handle, canvas, minSize, function()
-		if self._syncSidebar then self._syncSidebar() end
-	end)
+	setupDrag(self._maid, titleBar, root)
+	setupResize(self._maid, handle, root, minSize)
 
-	self._maid:GiveTask(SmoothScroll.blockRegion(canvas))
+	self._maid:GiveTask(SmoothScroll.blockRegion(root))
 	self._maid:GiveTask(SmoothScroll.blockRegion(titleBar))
 	self._maid:GiveTask(SmoothScroll.apply(content))
 
-	local closeBtn = titleBar:FindFirstChild("CloseButton") :: TextButton
-	if closeBtn then
-		setupCloseHover(self._maid, closeBtn)
-		self._maid:GiveTask(closeBtn.MouseButton1Click:Connect(function()
-			self:Close()
+	local btnRow_w      = titleBar:FindFirstChild("BtnRow")
+	local searchBtn_w   = btnRow_w and btnRow_w:FindFirstChild("SearchBtn")   :: TextButton?
+	local settingsBtn_w = btnRow_w and btnRow_w:FindFirstChild("SettingsBtn") :: TextButton?
+	local minusBtn_w    = btnRow_w and btnRow_w:FindFirstChild("MinusBtn")    :: TextButton?
+	local collapseBtn_w = btnRow_w and btnRow_w:FindFirstChild("CollapseBtn") :: TextButton?
+	self._collapseBtn   = collapseBtn_w
+	self._minusBtn      = minusBtn_w
+
+	if searchBtn_w and settingsBtn_w and minusBtn_w and collapseBtn_w then
+		setupTitleBtnHovers(
+			self._maid,
+			searchBtn_w   :: TextButton,
+			settingsBtn_w :: TextButton,
+			minusBtn_w,
+			collapseBtn_w
+		)
+		self._maid:GiveTask(minusBtn_w.MouseButton1Click:Connect(function()
+			self:_toggleCollapse()
+		end))
+		self._maid:GiveTask(collapseBtn_w.MouseButton1Click:Connect(function()
+			self:ToggleHide()
 		end))
 	end
 
-	TweenService:Create(canvas, TWEEN_OPEN, {
-		Size              = targetSize,
-		GroupTransparency = 0,
-	}):Play()
-	TweenService:Create(stroke, TWEEN_OPEN, {
-		Transparency = 0,
-	}):Play()
+	-- Frame-zero guard: Visible=false means Roblox never renders the uninitialised
+	-- CanvasGroup composite buffer, so nothing can flash white on first open.
+	-- task.defer lets one render cycle pass, then we flip Visible=true at GT=1
+	-- and tween cleanly to 0. No Completed snap — that re-composite was itself
+	-- causing an extra flash artifact.
+	canvas.Visible = false
+	task.defer(function()
+		canvas.Visible           = true
+		canvas.GroupTransparency = 1
+		TweenService:Create(canvas, TWEEN_OPEN, { GroupTransparency = 0 }):Play()
+		TweenService:Create(stroke, TWEEN_OPEN, { Transparency = 0 }):Play()
+	end)
+
+	self:_buildPillFace()
 
 	return self
 end
@@ -515,15 +626,22 @@ function Window:_initTabSystem()
 
 	local BODY_TOP = Theme.TitleBarHeight + 1
 	local canvas   = self._canvas
+	local root     = self._root
 
-	-- ── Sidebar frame ─────────────────────────────────────────────────────────
-	local sidebar                  = Instance.new("Frame")
+	-- ── Sidebar frame (child of WindowRoot, pinned directly to left of window) ─
+	-- CanvasGroup so UICorner masks ALL children (header, tabListBg, etc.)
+	-- instead of just the sidebar's own background — fixes the sharp-corner bleed.
+	local sidebar                  = Instance.new("CanvasGroup")
 	sidebar.Name                   = "Sidebar"
+	sidebar.AnchorPoint            = Vector2.new(0, 0)
+	sidebar.Position               = UDim2.new(0, -SIDEBAR_W_EXPANDED - SIDEBAR_GAP, 0, 0)
+	sidebar.Size                   = UDim2.new(0, SIDEBAR_W_EXPANDED, 1, 0)
 	sidebar.BackgroundColor3       = Theme.Colors.TitleBar
 	sidebar.BorderSizePixel        = 0
 	sidebar.ClipsDescendants       = true
+	sidebar.GroupTransparency      = 0
 	sidebar.ZIndex                 = 1
-	sidebar.Parent                 = self._gui
+	sidebar.Parent                 = root
 	self._sidebar                  = sidebar
 	self._sidebarExpanded          = true
 	self._sidebarW                 = SIDEBAR_W_EXPANDED
@@ -531,33 +649,15 @@ function Window:_initTabSystem()
 	applyCorner(sidebar, Theme.Radius.Medium)
 	applyStroke(sidebar, Theme.Colors.Border, 1)
 
-	local gui = self._gui
-	local function updateSidebarTransform()
-		local targetW = if self._sidebarExpanded then SIDEBAR_W_EXPANDED else SIDEBAR_W_COLLAPSED
-		self._sidebarW = self._sidebarW + (targetW - self._sidebarW) * 0.20
-		local w        = math.round(self._sidebarW)
-
-		local guiOrigin = gui.AbsolutePosition
-		local guiSize   = gui.AbsoluteSize
-		local cp        = canvas.Position
-		local cs        = canvas.Size
-		local cx        = guiOrigin.X + cp.X.Scale * guiSize.X + cp.X.Offset
-		local cy        = guiOrigin.Y + cp.Y.Scale * guiSize.Y + cp.Y.Offset
-		local cW        = cs.X.Scale  * guiSize.X + cs.X.Offset
-		local cH        = cs.Y.Scale  * guiSize.Y + cs.Y.Offset
-		local canvasLeft = cx - cW / 2
-		local canvasTop  = cy - cH / 2
-
-		sidebar.Position = UDim2.fromOffset(math.round(canvasLeft - w - SIDEBAR_GAP), math.round(canvasTop))
-		sidebar.Size     = UDim2.fromOffset(w, math.max(0, math.round(cH)))
+	-- Smooth collapse/expand animation
+	local function updateSidebarWidth(expanded: boolean)
+		local targetW = if expanded then SIDEBAR_W_EXPANDED else SIDEBAR_W_COLLAPSED
+		TweenService:Create(sidebar, TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+			Position = UDim2.new(0, -targetW - SIDEBAR_GAP, 0, 0),
+			Size     = UDim2.new(0, targetW, 1, 0),
+		}):Play()
 	end
-	self._syncSidebar = updateSidebarTransform
-
-	local updateSignal = if (RunService:IsClient() and RunService:IsRunning())
-		then RunService.RenderStepped
-		else RunService.Heartbeat
-	self._maid:GiveTask(updateSignal:Connect(updateSidebarTransform))
-	task.defer(updateSidebarTransform)
+	self._updateSidebarWidth = updateSidebarWidth
 
 	-- ── Sidebar header (TitleBar color — same as window) ──────────────────────
 	local header                  = Instance.new("Frame")
@@ -678,10 +778,9 @@ function Window:_initTabSystem()
 
 		chevronBtn.Text          = if expanded then "‹" else "›"
 		headerLabel.Visible      = expanded
+		updateSidebarWidth(expanded)
 
-		tabListLayout.HorizontalAlignment = if expanded
-			then Enum.HorizontalAlignment.Left
-			else Enum.HorizontalAlignment.Center
+		tabListLayout.HorizontalAlignment = if expanded then Enum.HorizontalAlignment.Left else Enum.HorizontalAlignment.Center
 		tabListPad.PaddingLeft  = UDim.new(0, if expanded then 6 else 0)
 		tabListPad.PaddingRight = UDim.new(0, if expanded then 6 else 0)
 
@@ -692,10 +791,9 @@ function Window:_initTabSystem()
 			local layout : UIListLayout? = t.btn:FindFirstChild("TabLayout") :: any
 			local pad    : UIPadding?    = t.btn:FindFirstChild("TabPad")   :: any
 			local ind    : Frame?        = t.btn:FindFirstChild("Indicator") :: any
+			local slot   : Frame?        = t.iconSlot :: any
 
-			t.btn.Size = if expanded
-				then UDim2.new(1, 0, 0, TAB_ITEM_H)
-				else UDim2.fromOffset(TAB_ITEM_H, TAB_ITEM_H)
+			t.btn.Size = if expanded then UDim2.new(1, 0, 0, TAB_ITEM_H) else UDim2.fromOffset(TAB_ITEM_H, TAB_ITEM_H)
 			if lbl    then lbl.Visible = expanded end
 			if layout then layout.HorizontalAlignment = if expanded then Enum.HorizontalAlignment.Left else Enum.HorizontalAlignment.Center end
 			if pad    then
@@ -703,6 +801,16 @@ function Window:_initTabSystem()
 				pad.PaddingRight = UDim.new(0, if expanded then 6  else 0)
 			end
 			if ind    then ind.Visible = expanded end
+			-- Icon slot: when no icon, show slot+letter only in collapsed mode
+			if slot then
+				if t.hasIcon then
+					slot.Visible = true  -- always show real icon slot
+				else
+					slot.Visible = not expanded  -- collapsed → show letter pill
+					local letter : TextLabel? = slot:FindFirstChild("TabLetter") :: any
+					if letter then letter.Visible = not expanded end
+				end
+			end
 		end
 
 		-- Update groups
@@ -713,9 +821,7 @@ function Window:_initTabSystem()
 			local gHeaderLayout : UIListLayout? = gEntry._headerBtn:FindFirstChild("GroupLayout") :: any
 			local gHeaderPad    : UIPadding?    = gEntry._headerBtn:FindFirstChild("GroupPad")   :: any
 			if gHeaderLayout then
-				gHeaderLayout.HorizontalAlignment = if expanded
-					then Enum.HorizontalAlignment.Left
-					else Enum.HorizontalAlignment.Center
+				gHeaderLayout.HorizontalAlignment = if expanded then Enum.HorizontalAlignment.Left else Enum.HorizontalAlignment.Center
 			end
 			if gHeaderPad then
 				gHeaderPad.PaddingLeft  = UDim.new(0, if expanded then 8 else 0)
@@ -737,10 +843,9 @@ function Window:_initTabSystem()
 				local layout : UIListLayout? = t.btn:FindFirstChild("TabLayout") :: any
 				local pad    : UIPadding?    = t.btn:FindFirstChild("TabPad")   :: any
 				local ind    : Frame?        = t.btn:FindFirstChild("Indicator") :: any
+				local slot   : Frame?        = t.iconSlot :: any
 
-				t.btn.Size = if expanded
-					then UDim2.new(1, 0, 0, TAB_ITEM_H)
-					else UDim2.fromOffset(TAB_ITEM_H, TAB_ITEM_H)
+				t.btn.Size = if expanded then UDim2.new(1, 0, 0, TAB_ITEM_H) else UDim2.fromOffset(TAB_ITEM_H, TAB_ITEM_H)
 				if lbl    then lbl.Visible = expanded end
 				if layout then layout.HorizontalAlignment = if expanded then Enum.HorizontalAlignment.Left else Enum.HorizontalAlignment.Center end
 				if pad    then
@@ -748,6 +853,16 @@ function Window:_initTabSystem()
 					pad.PaddingRight = UDim.new(0, if expanded then 6  else 0)
 				end
 				if ind    then ind.Visible = expanded end
+				-- Icon slot: when no icon, show slot+letter only in collapsed mode
+				if slot then
+					if t.hasIcon then
+						slot.Visible = true
+					else
+						slot.Visible = not expanded
+						local letter : TextLabel? = slot:FindFirstChild("TabLetter") :: any
+						if letter then letter.Visible = not expanded end
+					end
+				end
 			end
 
 			-- Recompute clip height after icon-size change
@@ -794,7 +909,7 @@ function Window:_activateTab(idx: number)
 		if oldInd then
 			TweenService:Create(oldInd, TWEEN_TAB, { BackgroundTransparency = 1 }):Play()
 		end
-		local oldIcon = old.btn:FindFirstChild("TabIcon")
+		local oldIcon = old.btn:FindFirstChild("TabIcon", true)
 		if oldIcon then
 			TweenService:Create(oldIcon, TWEEN_TAB, { ImageColor3 = Theme.Colors.TextSecondary }):Play()
 		end
@@ -839,7 +954,7 @@ function Window:_activateTab(idx: number)
 	if ind and self._sidebarExpanded then
 		TweenService:Create(ind, TWEEN_TAB, { BackgroundTransparency = 0 }):Play()
 	end
-	local icon = tab.btn:FindFirstChild("TabIcon")
+	local icon = tab.btn:FindFirstChild("TabIcon", true)
 	if icon then
 		TweenService:Create(icon, TWEEN_TAB, { ImageColor3 = Theme.Colors.Accent }):Play()
 	end
@@ -847,6 +962,19 @@ function Window:_activateTab(idx: number)
 	if lbl then
 		TweenService:Create(lbl, TWEEN_TAB, { TextColor3 = Theme.Colors.TextPrimary }):Play()
 	end
+
+	-- Auto-scroll sidebar tab list so the active tab button stays in view
+	task.defer(function()
+		local tabList = self._tabList
+		if not tabList then return end
+		local totalH = tabList.AbsoluteCanvasSize.Y
+		local listH  = tabList.AbsoluteSize.Y
+		if totalH <= listH then return end
+		local relY    = tab.btn.AbsolutePosition.Y - tabList.AbsolutePosition.Y + tabList.CanvasPosition.Y
+		local btnH    = tab.btn.AbsoluteSize.Y
+		local targetY = math.clamp(relY - (listH - btnH) * 0.5, 0, totalH - listH)
+		TweenService:Create(tabList, TWEEN_TAB, { CanvasPosition = Vector2.new(0, targetY) }):Play()
+	end)
 end
 
 -- ── _buildTabBtn — shared button factory (top-level and group child) ──────────
@@ -904,19 +1032,49 @@ function Window:_buildTabBtn(
 	btnPad.PaddingRight       = UDim.new(0, 6)
 	btnPad.Parent             = btn
 
-	-- Icon
+	-- Icon slot — in layout flow; hidden when no icon so text isn't pushed left
+	local hasIconFlag                = icon ~= nil and icon ~= ""
+
+	local iconSlot                   = Instance.new("Frame")
+	iconSlot.Name                    = "IconSlot"
+	iconSlot.Size                    = UDim2.fromOffset(14, 14)
+	iconSlot.BackgroundTransparency  = 1
+	iconSlot.BorderSizePixel         = 0
+	iconSlot.LayoutOrder             = 0
+	iconSlot.ZIndex                  = 5
+	iconSlot.Visible                 = hasIconFlag   -- hidden in expanded+no-icon state
+	iconSlot.Parent                  = btn
+
+	-- Actual icon image (visible only when icon provided)
 	local iconLabel                  = Instance.new("ImageLabel")
 	iconLabel.Name                   = "TabIcon"
-	iconLabel.Size                   = UDim2.fromOffset(14, 14)
-	iconLabel.BackgroundTransparency = if not icon or icon == "" then 0.6 else 1
-	iconLabel.BackgroundColor3       = Theme.Colors.Border
+	iconLabel.Size                   = UDim2.fromScale(1, 1)
+	iconLabel.BackgroundTransparency = 1
+	iconLabel.BorderSizePixel        = 0
 	iconLabel.Image                  = icon or ""
 	iconLabel.ImageColor3            = Theme.Colors.TextSecondary
 	iconLabel.ScaleType              = Enum.ScaleType.Fit
-	iconLabel.LayoutOrder            = 0
-	iconLabel.ZIndex                 = 5
-	if not icon or icon == "" then applyCorner(iconLabel, 3) end
-	iconLabel.Parent = btn
+	iconLabel.ZIndex                 = 6
+	iconLabel.Visible                = hasIconFlag
+	iconLabel.Parent                 = iconSlot
+
+	-- Letter placeholder — shown only when sidebar is collapsed and tab has no icon
+	local letterLabel                  = Instance.new("TextLabel")
+	letterLabel.Name                   = "TabLetter"
+	letterLabel.Size                   = UDim2.fromScale(1, 1)
+	letterLabel.BackgroundColor3       = Theme.Colors.AccentMuted
+	letterLabel.BackgroundTransparency = 0
+	letterLabel.BorderSizePixel        = 0
+	letterLabel.Font                   = Theme.Font.Subtitle
+	letterLabel.Text                   = string.upper(string.sub(name, 1, 1))
+	letterLabel.TextSize               = 9
+	letterLabel.TextColor3             = Theme.Colors.Accent
+	letterLabel.TextXAlignment         = Enum.TextXAlignment.Center
+	letterLabel.TextYAlignment         = Enum.TextYAlignment.Center
+	letterLabel.ZIndex                 = 6
+	letterLabel.Visible                = false
+	applyCorner(letterLabel, 3)
+	letterLabel.Parent                 = iconSlot
 
 	-- Label
 	local tabLabel                   = Instance.new("TextLabel")
@@ -998,10 +1156,20 @@ function Window:AddTab(name: string, icon: string?): any
 	paneLayout.Padding             = UDim.new(0, Theme.Spacing.XS)
 	paneLayout.Parent              = pane
 
-	local tabInfo = { name = name, btn = btn, pane = pane, indicator = indicator, grad = tabGrad, group = nil }
+	local iconSlotRef = btn:FindFirstChild("IconSlot")
+	local tabInfo = {
+		name     = name,
+		btn      = btn,
+		pane     = pane,
+		indicator = indicator,
+		grad     = tabGrad,
+		group    = nil,
+		iconSlot = iconSlotRef,
+		hasIcon  = icon ~= nil and icon ~= "",
+	}
 	table.insert(tabs, tabInfo)
 
-	local tabObj = Tab.new(pane, self._gui, self._maid)
+	local tabObj = Tab.new(pane, self._gui, self._maid, self._canvas)
 
 	if tabIdx == 1 then self:_activateTab(1) end
 
@@ -1258,7 +1426,17 @@ function Window:_addTabToGroup(gEntry: any, name: string, icon: string?): any
 	paneLayout.Parent              = pane
 
 	-- Register in flat tabs array (with group reference)
-	local tabInfo = { name = name, btn = btn, pane = pane, indicator = indicator, grad = tabGrad, group = gEntry }
+	local iconSlotRef2 = btn:FindFirstChild("IconSlot")
+	local tabInfo = {
+		name     = name,
+		btn      = btn,
+		pane     = pane,
+		indicator = indicator,
+		grad     = tabGrad,
+		group    = gEntry,
+		iconSlot = iconSlotRef2,
+		hasIcon  = icon ~= nil and icon ~= "",
+	}
 	table.insert(tabs, tabInfo)
 	table.insert(gEntry._tabs, tabInfo)
 
@@ -1289,7 +1467,7 @@ function Window:_addTabToGroup(gEntry: any, name: string, icon: string?): any
 		end
 	end))
 
-	return Tab.new(pane, self._gui, self._maid)
+	return Tab.new(pane, self._gui, self._maid, self._canvas)
 end
 
 -- ── AddDropdown ───────────────────────────────────────────────────────────────
@@ -1309,22 +1487,352 @@ function Window:AddDropdown(config: {
 	return self:_addToContent(Components.Dropdown.new(c), c)
 end
 
+-- ── Collapse / expand ────────────────────────────────────────────────────────
+
+function Window:_toggleCollapse()
+	if self._closing or self._collapseAnimating then return end
+	self._collapseAnimating = true
+
+	local minusBtn = self._minusBtn :: TextButton?
+
+	if self._collapsed then
+		-- ── EXPAND ────────────────────────────────────────────────────────────
+		self._collapsed = false
+		if minusBtn then minusBtn.Text = "—" end
+		if self._handle then self._handle.Visible = true end
+
+		-- Grow the frame back first
+		TweenService:Create(self._root, TWEEN_EXPAND, {
+			Size = self._expandedSize,
+		}):Play()
+
+		-- Once the frame is large enough, reveal content and sidebar
+		task.delay(0.15, function()
+			if self._content  then self._content.Visible  = true end
+			if self._tabHost  then self._tabHost.Visible  = true end
+			if self._sidebar  then
+				TweenService:Create(self._sidebar,
+				TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+				{ GroupTransparency = 0 }
+				):Play()
+				local sidebarStroke = self._sidebar:FindFirstChildOfClass("UIStroke")
+				if sidebarStroke then
+					TweenService:Create(sidebarStroke,
+						TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+						{ Transparency = 0 }
+					):Play()
+				end
+				if self._tabList then self._tabList.Visible = true end
+			end
+		end)
+
+		task.delay(0.55, function()
+			self._collapseAnimating = false
+		end)
+	else
+		-- ── COLLAPSE — snapshot live size before shrinking ────────────────────
+		self._collapsed    = true
+		self._expandedSize = UDim2.fromOffset(
+			self._root.AbsoluteSize.X,
+			self._root.AbsoluteSize.Y
+		)
+		if minusBtn then minusBtn.Text = "▲" end
+		if self._handle then self._handle.Visible = false end
+
+		-- Hide content and sidebar immediately so nothing squashes
+		-- under the shrinking frame — same pattern as Rayfield's ToggleMinimise
+		if self._content then self._content.Visible = false end
+		if self._tabHost then self._tabHost.Visible = false end
+		if self._sidebar then
+			if self._tabList then self._tabList.Visible = false end
+			TweenService:Create(self._sidebar,
+			TweenInfo.new(0.18, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+			{ GroupTransparency = 1 }
+			):Play()
+			local sidebarStroke = self._sidebar:FindFirstChildOfClass("UIStroke")
+			if sidebarStroke then
+				TweenService:Create(sidebarStroke,
+					TweenInfo.new(0.18, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+					{ Transparency = 1 }
+				):Play()
+			end
+		end
+
+		-- Shrink the window to titlebar height
+		TweenService:Create(self._root, TWEEN_COLLAPSE, {
+			Size = UDim2.fromOffset(
+				self._root.AbsoluteSize.X,
+				Theme.TitleBarHeight + 2
+			),
+		}):Play()
+
+		task.delay(0.50, function()
+			self._collapseAnimating = false
+		end)
+	end
+end
+
+-- ── pill face ───────────────────────────────────────────────────────────────────
+
+function Window:_buildPillFace()
+	-- accent dot (left side)
+	local dot                  = Instance.new("Frame")
+	dot.Name                   = "PillDot"
+	dot.AnchorPoint            = Vector2.new(0, 0.5)
+	dot.Position               = UDim2.new(0, 14, 0.5, 0)
+	dot.Size                   = UDim2.fromOffset(8, 8)
+	dot.BackgroundColor3       = Theme.Colors.Accent
+	dot.BorderSizePixel        = 0
+	dot.BackgroundTransparency = 1
+	dot.ZIndex                 = 10
+	applyCorner(dot, 4)
+	dot.Parent = self._canvas
+
+	-- title
+	local pillTitle                  = Instance.new("TextLabel")
+	pillTitle.Name                   = "PillTitle"
+	pillTitle.AnchorPoint            = Vector2.new(0, 0.5)
+	pillTitle.Position               = UDim2.new(0, 30, 0.5, -7)
+	pillTitle.Size                   = UDim2.new(1, -38, 0, 16)
+	pillTitle.BackgroundTransparency = 1
+	pillTitle.Font                   = Theme.Font.Title
+	pillTitle.Text                   = self.Title
+	pillTitle.TextSize               = 13
+	pillTitle.TextColor3             = Theme.Colors.TextPrimary
+	pillTitle.TextXAlignment         = Enum.TextXAlignment.Left
+	pillTitle.TextTruncate           = Enum.TextTruncate.AtEnd
+	pillTitle.TextTransparency       = 1
+	pillTitle.ZIndex                 = 10
+	pillTitle.Parent                 = self._canvas
+
+	-- subtitle
+	local pillSub                    = Instance.new("TextLabel")
+	pillSub.Name                     = "PillSubtitle"
+	pillSub.AnchorPoint              = Vector2.new(0, 0.5)
+	pillSub.Position                 = UDim2.new(0, 30, 0.5, 8)
+	pillSub.Size                     = UDim2.new(1, -38, 0, 12)
+	pillSub.BackgroundTransparency   = 1
+	pillSub.Font                     = Theme.Font.Body
+	pillSub.Text                     = "Tap to show"
+	pillSub.TextSize                 = 11
+	pillSub.TextColor3               = Theme.Colors.TextSecondary
+	pillSub.TextXAlignment           = Enum.TextXAlignment.Left
+	pillSub.TextTruncate             = Enum.TextTruncate.AtEnd
+	pillSub.TextTransparency         = 1
+	pillSub.ZIndex                   = 10
+	pillSub.Parent                   = self._canvas
+
+	-- full-canvas interact (click to restore)
+	local interact                   = Instance.new("TextButton")
+	interact.Name                    = "PillInteract"
+	interact.Size                    = UDim2.fromScale(1, 1)
+	interact.BackgroundTransparency  = 1
+	interact.Text                    = ""
+	interact.TextTransparency        = 1
+	interact.Visible                 = false
+	interact.ZIndex                  = 20
+	interact.Parent                  = self._canvas
+
+	self._pillDot      = dot
+	self._pillTitle    = pillTitle
+	self._pillSub      = pillSub
+	self._pillInteract = interact
+
+	self._maid:GiveTask(interact.MouseButton1Click:Connect(function()
+		self:Show()
+	end))
+end
+
+-- ── Hide / Show / ToggleHide ──────────────────────────────────────────────────
+
+function Window:Hide()
+	if self._closing or self._hideAnimating or self._hidden then return end
+	self._hideAnimating = true
+	self._hidden        = true
+
+	-- Snapshot position + expanded size for restore
+	self._savedPosition = self._root.Position
+	if not self._collapsed then
+		self._expandedSize = UDim2.fromOffset(
+			self._root.AbsoluteSize.X,
+			self._root.AbsoluteSize.Y
+		)
+	end
+
+	-- Immediately hide all chrome — no fade, keeps morph clean
+	if self._titleBar then self._titleBar.Visible = false end
+	if self._sep      then self._sep.Visible      = false end
+	if self._content  then self._content.Visible  = false end
+	if self._tabHost  then self._tabHost.Visible  = false end
+	if self._handle   then self._handle.Visible   = false end
+	if self._tabList  then self._tabList.Visible  = false end
+
+	-- Sidebar: fold behind canvas — position accelerates in (Quint.In = "sucked in" feel),
+	-- transparency fades fast and independently
+	if self._sidebar then
+		TweenService:Create(self._sidebar,
+			TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.In),
+			{ Position = UDim2.new(0, 0, 0, 0) }
+		):Play()
+		TweenService:Create(self._sidebar,
+			TweenInfo.new(0.16, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+			{ GroupTransparency = 1 }
+		):Play()
+		local ss = self._sidebar:FindFirstChildOfClass("UIStroke")
+		if ss then
+			TweenService:Create(ss,
+				TweenInfo.new(0.16, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+				{ Transparency = 1 }
+			):Play()
+		end
+		task.delay(0.24, function()
+			if not self._hidden then return end
+			self._sidebar.Visible = false
+		end)
+	end
+
+	-- Stroke fades out quickly
+	TweenService:Create(self._stroke,
+		TweenInfo.new(0.18, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+		{ Transparency = 1 }
+	):Play()
+
+	-- Morph root → pill (canvas fills root via fromScale, clips naturally)
+	TweenService:Create(self._root, TWEEN_PILL_MORPH, {
+		Size     = PILL_SIZE,
+		Position = PILL_POS,
+	}):Play()
+
+	-- Corner → fully rounded (pill shape)
+	local corner = self._canvas:FindFirstChildOfClass("UICorner")
+	if corner then
+		TweenService:Create(corner, TWEEN_PILL_MORPH, { CornerRadius = UDim.new(1, 0) }):Play()
+	end
+
+	-- When morph is nearly done: fade pill face in
+	local faceInfo = TweenInfo.new(0.15, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+	task.delay(0.35, function()
+		if not self._hidden then return end
+
+		-- Reset pill face to transparent (safe against interrupted Show)
+		self._pillDot.BackgroundTransparency = 1
+		self._pillTitle.TextTransparency     = 1
+		self._pillSub.TextTransparency       = 1
+
+		TweenService:Create(self._pillDot,   faceInfo, { BackgroundTransparency = 0   }):Play()
+		TweenService:Create(self._pillTitle, faceInfo, { TextTransparency       = 0   }):Play()
+		TweenService:Create(self._pillSub,   faceInfo, { TextTransparency       = 0.4 }):Play()
+
+		task.delay(0.18, function()
+			if not self._hidden then return end
+			self._pillInteract.Visible = true
+			self._hideAnimating = false
+		end)
+	end)
+end
+
+function Window:Show()
+	if self._closing or self._hideAnimating or not self._hidden then return end
+	self._hideAnimating = true
+	self._hidden        = false
+
+	self._pillInteract.Visible = false
+
+	local fadeInfo   = TweenInfo.new(0.15, Enum.EasingStyle.Quint,       Enum.EasingDirection.Out)
+	local chromeFade = TweenInfo.new(0.30, Enum.EasingStyle.Quint,       Enum.EasingDirection.Out)
+	local cornerInfo = TweenInfo.new(0.50, Enum.EasingStyle.Exponential,  Enum.EasingDirection.Out)
+
+	-- Fade pill face out
+	TweenService:Create(self._pillDot,   fadeInfo, { BackgroundTransparency = 1 }):Play()
+	TweenService:Create(self._pillTitle, fadeInfo, { TextTransparency       = 1 }):Play()
+	TweenService:Create(self._pillSub,   fadeInfo, { TextTransparency       = 1 }):Play()
+
+	-- Morph root → window
+	local target = self._savedPosition or UDim2.fromScale(0.5, 0.5)
+	TweenService:Create(self._root, TWEEN_PILL_REVEAL, {
+		Size     = self._expandedSize,
+		Position = target,
+	}):Play()
+
+	-- Sidebar: spring out concurrent with root expand — Back easing gives overshoot,
+	-- transparency fades on a separate Quint curve so it doesn't over-dip
+	if self._sidebar then
+		local targetW = if self._sidebarExpanded then SIDEBAR_W_EXPANDED else SIDEBAR_W_COLLAPSED
+		self._sidebar.Position          = UDim2.new(0, 0, 0, 0)
+		self._sidebar.GroupTransparency = 1
+		self._sidebar.Visible           = true
+		if self._tabList then self._tabList.Visible = true end
+		TweenService:Create(self._sidebar,
+			TweenInfo.new(0.52, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+			{ Position = UDim2.new(0, -(targetW + SIDEBAR_GAP), 0, 0) }
+		):Play()
+		TweenService:Create(self._sidebar,
+			TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+			{ GroupTransparency = 0 }
+		):Play()
+		local ss = self._sidebar:FindFirstChildOfClass("UIStroke")
+		if ss then
+			TweenService:Create(ss,
+				TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+				{ Transparency = 0 }
+			):Play()
+		end
+	end
+
+	-- Corner → window roundness
+	local corner = self._canvas:FindFirstChildOfClass("UICorner")
+	if corner then
+		TweenService:Create(corner, cornerInfo, {
+			CornerRadius = UDim.new(0, Theme.Radius.Medium),
+		}):Play()
+	end
+
+	-- Halfway through morph: reveal chrome
+	-- Canvas stays at GT=0 (fully opaque) throughout — the old GT=0.97 snap
+	-- was bleeding the game background through for one frame, causing a white flash.
+	-- At t=0.22, Exponential.Out has already covered ~95% of the expand distance,
+	-- so chrome snapping visible here looks invisible in practice.
+	task.delay(0.22, function()
+		if self._hidden then return end
+		if self._titleBar then self._titleBar.Visible = true end
+		if self._sep      then self._sep.Visible      = not self._collapsed end
+		if self._content  then self._content.Visible  = not self._collapsed end
+		if self._tabHost  then self._tabHost.Visible  = not self._collapsed end
+		if self._handle   then self._handle.Visible   = not self._collapsed end
+		if self._tabList  then self._tabList.Visible  = true end
+		TweenService:Create(self._stroke, chromeFade, { Transparency = 0 }):Play()
+	end)
+
+	task.delay(0.58, function()
+		self._hideAnimating = false
+	end)
+end
+
+function Window:ToggleHide()
+	if self._hidden then
+		self:Show()
+	else
+		self:Hide()
+	end
+end
+
 -- ── lifecycle ─────────────────────────────────────────────────────────────────
 
 function Window:Close()
 	if self._closing then return end
 	self._closing = true
 
-	local canvas    = self._canvas
-	local closeSize = UDim2.new(
-		canvas.Size.X.Scale, canvas.Size.X.Offset * 0.88,
-		canvas.Size.Y.Scale, canvas.Size.Y.Offset * 0.88
-	)
+	local canvas = self._canvas
 
 	TweenService:Create(self._stroke, TWEEN_CLOSE, { Transparency = 1 }):Play()
+	if self._sidebar then
+		local sidebarStroke = self._sidebar:FindFirstChildOfClass("UIStroke")
+		if sidebarStroke then
+			TweenService:Create(sidebarStroke, TWEEN_CLOSE, { Transparency = 1 }):Play()
+		end
+	end
 
 	local tween = TweenService:Create(canvas, TWEEN_CLOSE, {
-		Size              = closeSize,
 		GroupTransparency = 1,
 	})
 	tween:Play()

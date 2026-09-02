@@ -39,6 +39,7 @@ export type ToggleConfig = {
 	Icon: string?,
 	Default: boolean?,
 	Enabled: boolean?,
+	Flag: string?,
 	LayoutOrder: number?,
 }
 
