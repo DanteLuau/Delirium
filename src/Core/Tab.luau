@@ -207,7 +207,6 @@ function Tab:AddDropdown(config: {
 })
 	local c = config :: any
 	c.LayoutOrder   = self:_nextOrder()
-	c.OverlayParent = self._gui
 	return self:_addToContent(Components.Dropdown.new(c), c)
 end
 

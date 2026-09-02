@@ -62,8 +62,6 @@ export type DropdownConfig = {
 	MultiSelect: boolean?,
 	-- initial selection: single value OR array of values
 	Default:     any?,
-	-- overlay parent required for z-ordering if inside a ScrollingFrame
-	OverlayParent: Instance?,
 	Flag: string?,
 }
 
@@ -103,15 +101,6 @@ type DropdownImpl = {
 
 local Dropdown = {} :: { __index: any }
 Dropdown.__index = Dropdown
-
--- ── helpers ───────────────────────────────────────────────────────────────────
-
-local function isInsideFrame(frame: GuiObject, pos: Vector2): boolean
-	local ap = frame.AbsolutePosition
-	local as = frame.AbsoluteSize
-	return pos.X >= ap.X and pos.X <= ap.X + as.X
-		and pos.Y >= ap.Y and pos.Y <= ap.Y + as.Y
-end
 
 -- Build the text shown in the header value label.
 local function headerText(
@@ -309,22 +298,15 @@ function Dropdown.new(config: DropdownConfig): DropdownImpl
 	hit.Parent                 = inner
 
 	-- ── list container ────────────────────────────────────────────────────────
-	local overlayParent = config.OverlayParent
-
 	local listWrap                  = Instance.new("Frame")
 	listWrap.Name                   = "ListWrap"
-	-- When overlayParent provided, position is set in screen-space on open.
-	-- Otherwise falls back to frame-relative (legacy, no overlay).
-	listWrap.Position               = if overlayParent
-		then UDim2.fromOffset(0, 0)
-		else UDim2.new(0, 0, 0, HEADER_H + LIST_GAP)
-	listWrap.Size                   = UDim2.fromOffset(0, 0)
+	listWrap.Position               = UDim2.new(0, 0, 0, HEADER_H + LIST_GAP)
+	listWrap.Size                   = UDim2.new(1, 0, 0, 0)
 	listWrap.BackgroundColor3       = Color3.fromHex("#1a1a1a")
 	listWrap.BackgroundTransparency = 1
 	listWrap.BorderSizePixel        = 0
 	listWrap.ClipsDescendants       = true
-	-- High ZIndex so it renders above all window chrome when in the ScreenGui overlay
-	listWrap.ZIndex                 = if overlayParent then 100 else 2
+	listWrap.ZIndex                 = 2
 	local listCorner                = Instance.new("UICorner")
 	listCorner.CornerRadius         = UDim.new(0, Theme.Radius.Small)
 	listCorner.Parent               = listWrap
@@ -334,17 +316,9 @@ function Dropdown.new(config: DropdownConfig): DropdownImpl
 	listStroke.Transparency         = 1
 	listStroke.ApplyStrokeMode      = Enum.ApplyStrokeMode.Border
 	listStroke.Parent               = listWrap
-	-- Parent to overlay ScreenGui so it isn't clipped by any ScrollingFrame ancestor.
-	-- This also lets optHit buttons receive click events regardless of scroll position.
-	listWrap.Parent                 = if overlayParent then overlayParent else frame
+	listWrap.Parent                 = frame
 	self._listWrap                  = listWrap
 	self._listStroke                = listStroke
-	self._overlayParent             = overlayParent
-
-	-- Maid owns listWrap so it's destroyed even when not a child of frame
-	if overlayParent then
-		self._maid:GiveTask(listWrap)
-	end
 
 	local scroll                   = Instance.new("ScrollingFrame")
 	scroll.Name                    = "OptionScroll"
@@ -373,27 +347,15 @@ function Dropdown.new(config: DropdownConfig): DropdownImpl
 	self._maid:GiveTask(changed)
 	self._maid:GiveTask(self._optionMaid)
 
-	-- ── open / close ──────────────────────────────────────────────────────────
-	-- Returns the UDim2 size for listWrap at a given height.
-	-- Overlay mode uses absolute screen-space pixels; legacy uses scale.
-	local function listSize(h: number): UDim2
-		if overlayParent then
-			return UDim2.fromOffset(frame.AbsoluteSize.X, h)
-		else
-			return UDim2.new(1, 0, 0, h)
-		end
-	end
-
+	-- ── open / close (inline accordion expand / collapse) ──────────────────────
 	local function closeDropdown()
 		if not self._open then return end
 		self._open = false
 		TweenService:Create(arrow,      TWEEN_ARROW,    { Rotation = 0 }):Play()
 		TweenService:Create(stroke,     TWEEN_STROKE,   { Color = Theme.Colors.Border }):Play()
-		TweenService:Create(listWrap,   TWEEN_COLLAPSE, { Size = listSize(0), BackgroundTransparency = 1 }):Play()
+		TweenService:Create(listWrap,   TWEEN_COLLAPSE, { Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1 }):Play()
 		TweenService:Create(listStroke, TWEEN_FADE,     { Transparency = 1 }):Play()
-		if not overlayParent then
-			TweenService:Create(frame, TWEEN_COLLAPSE, { Size = UDim2.new(1, 0, 0, HEADER_H) }):Play()
-		end
+		TweenService:Create(frame,      TWEEN_COLLAPSE, { Size = UDim2.new(1, 0, 0, HEADER_H) }):Play()
 	end
 
 	local function openDropdown()
@@ -401,36 +363,14 @@ function Dropdown.new(config: DropdownConfig): DropdownImpl
 		self._open = true
 		TweenService:Create(arrow,      TWEEN_ARROW,  { Rotation = -180 }):Play()
 		TweenService:Create(stroke,     TWEEN_STROKE, { Color = Theme.Colors.Accent }):Play()
-		if overlayParent then
-			local ap = frame.AbsolutePosition
-			listWrap.Position = UDim2.fromOffset(ap.X, ap.Y + HEADER_H + LIST_GAP)
-		end
-		TweenService:Create(listWrap,   TWEEN_EXPAND, { Size = listSize(self._targetH), BackgroundTransparency = 0 }):Play()
+		TweenService:Create(listWrap,   TWEEN_EXPAND, { Size = UDim2.new(1, 0, 0, self._targetH), BackgroundTransparency = 0 }):Play()
 		TweenService:Create(listStroke, TWEEN_FADE,   { Transparency = 0 }):Play()
-		if not overlayParent then
-			TweenService:Create(frame, TWEEN_EXPAND, { Size = UDim2.new(1, 0, 0, HEADER_H + LIST_GAP + self._targetH) }):Play()
-		end
+		TweenService:Create(frame,      TWEEN_EXPAND, { Size = UDim2.new(1, 0, 0, HEADER_H + LIST_GAP + self._targetH) }):Play()
 	end
 
 	-- Store references so buildOptions closure can reach them
 	self._openDropdown  = openDropdown
 	self._closeDropdown = closeDropdown
-
-	-- When the window is dragged, keep the overlay list in sync with the header
-	if overlayParent then
-		self._maid:GiveTask(frame:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
-			if not self._open then return end
-			local ap = frame.AbsolutePosition
-			listWrap.Position = UDim2.fromOffset(ap.X, ap.Y + HEADER_H + LIST_GAP)
-		end))
-		self._maid:GiveTask(frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-			if not self._open then return end
-			local ap = frame.AbsolutePosition
-			local aw = frame.AbsoluteSize.X
-			listWrap.Position = UDim2.fromOffset(ap.X, ap.Y + HEADER_H + LIST_GAP)
-			listWrap.Size     = UDim2.fromOffset(aw, listWrap.AbsoluteSize.Y)
-		end))
-	end
 
 	-- ── build option rows (internal) ──────────────────────────────────────────
 	local function buildOptions()
@@ -622,29 +562,6 @@ function Dropdown.new(config: DropdownConfig): DropdownImpl
 		end
 	end))
 
-	-- close on click outside
-	self._maid:GiveTask(UserInputService.InputBegan:Connect(function(input: InputObject)
-		if input.UserInputType ~= Enum.UserInputType.MouseButton1
-			and input.UserInputType ~= Enum.UserInputType.Touch then return end
-		if not self._open then return end
-		local mousePos = UserInputService:GetMouseLocation()
-		local ap  = frame.AbsolutePosition
-		local aw  = frame.AbsoluteSize.X
-		-- Header area check
-		local headerIn = mousePos.X >= ap.X and mousePos.X <= ap.X + aw
-			and mousePos.Y >= ap.Y and mousePos.Y <= ap.Y + HEADER_H
-		-- List area check — when using overlay, listWrap is in screen-space ScreenGui;
-		-- AbsolutePosition/Size are always screen-space regardless, so this works for both.
-		local lwAp = listWrap.AbsolutePosition
-		local lwAs = listWrap.AbsoluteSize
-		local listIn = lwAs.Y > 0
-			and mousePos.X >= lwAp.X and mousePos.X <= lwAp.X + lwAs.X
-			and mousePos.Y >= lwAp.Y and mousePos.Y <= lwAp.Y + lwAs.Y
-		if not headerIn and not listIn then
-			closeDropdown()
-		end
-	end))
-
 	-- ── SaveManager wiring ────────────────────────────────────────────────
 	do
 		local rawLabel = config.Label
@@ -683,12 +600,10 @@ function Dropdown:SetOptions(options: { any })
 	if self._open then
 		self._closeDropdown()
 		self._arrow.Rotation                  = 0
-		self._listWrap.Size                   = UDim2.fromOffset(self._frame.AbsoluteSize.X, 0)
+		self._listWrap.Size                   = UDim2.new(1, 0, 0, 0)
 		self._listWrap.BackgroundTransparency = 1
 		self._listStroke.Transparency         = 1
-		if not self._overlayParent then
-			self._frame.Size = UDim2.new(1, 0, 0, HEADER_H)
-		end
+		self._frame.Size                      = UDim2.new(1, 0, 0, HEADER_H)
 		TweenService:Create(self._stroke, TWEEN_STROKE, { Color = Theme.Colors.Border }):Play()
 	end
 
@@ -767,12 +682,10 @@ function Dropdown:SetEnabled(enabled: boolean)
 	if not enabled and self._open then
 		self._closeDropdown()
 		self._arrow.Rotation                  = 0
-		self._listWrap.Size                   = UDim2.fromOffset(self._frame.AbsoluteSize.X, 0)
+		self._listWrap.Size                   = UDim2.new(1, 0, 0, 0)
 		self._listWrap.BackgroundTransparency = 1
 		self._listStroke.Transparency         = 1
-		if not self._overlayParent then
-			self._frame.Size = UDim2.new(1, 0, 0, HEADER_H)
-		end
+		self._frame.Size                      = UDim2.new(1, 0, 0, HEADER_H)
 	end
 end
 

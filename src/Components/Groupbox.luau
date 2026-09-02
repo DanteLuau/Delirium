@@ -270,7 +270,6 @@ function Groupbox:AddDropdown(config: {
 })
 	local c = config :: any
 	c.LayoutOrder   = self:_nextOrder()
-	c.OverlayParent = self._gui   -- wired internally, never exposed to caller
 	return self:_addToContent(Dropdown.new(c), c)
 end
 
