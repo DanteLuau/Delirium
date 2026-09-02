@@ -316,12 +316,13 @@ function Slider.new(config: SliderConfig): SliderImpl
 	valLabel.Parent                 = inner
 	self._valLabel                  = valLabel
 
-	-- ── Label ─────────────────────────────────────────────────────────────────
-	local rightReserved = TRACK_W + VAL_W + GAP
+	-- ── Label — parented to inner so ClipsDescendants trims it on resize ───────
 	local label                  = Instance.new("TextLabel")
 	label.Name                   = "Label"
-	label.Position               = UDim2.fromOffset(Theme.Spacing.M, 0)
-	label.Size                   = UDim2.new(1, -(rightReserved + Theme.Spacing.M * 2 + GAP), 1, 0)
+	-- Position (0,0) inside inner; UIPadding on inner already gives M offset from frame edge
+	label.Position               = UDim2.fromOffset(0, 0)
+	-- Width = inner content width minus (track + valLabel + gaps)
+	label.Size                   = UDim2.new(1, -(TRACK_W + VAL_W + 2 * GAP), 1, 0)
 	label.BackgroundTransparency = 1
 	label.Font                   = Theme.Font.Body
 	label.Text                   = config.Label
@@ -332,7 +333,7 @@ function Slider.new(config: SliderConfig): SliderImpl
 	label.TextXAlignment         = Enum.TextXAlignment.Left
 	label.TextTruncate           = Enum.TextTruncate.AtEnd
 	label.ZIndex                 = 4
-	label.Parent                 = frame
+	label.Parent                 = inner   -- inside inner → clipped on small window resize
 	self._label                  = label
 
 	-- ── Hit target ────────────────────────────────────────────────────────────

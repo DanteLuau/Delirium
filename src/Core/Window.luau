@@ -1629,7 +1629,7 @@ function Window:_buildPillFace()
 	pillTitle.Size                   = UDim2.new(1, -24, 0, 16)
 	pillTitle.BackgroundTransparency = 1
 	pillTitle.Font                   = Theme.Font.Title
-	pillTitle.Text                   = game.Name
+	pillTitle.Text                   = self.Title  -- show window title, not game name
 	pillTitle.TextSize               = 12
 	pillTitle.TextColor3             = Theme.Colors.TextPrimary
 	pillTitle.TextXAlignment         = Enum.TextXAlignment.Center

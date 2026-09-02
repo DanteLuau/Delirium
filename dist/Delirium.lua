@@ -2076,15 +2076,22 @@ function Dropdown.new(config: DropdownConfig): DropdownImpl
 	hit.Parent                 = inner
 
 	-- ── list container ────────────────────────────────────────────────────────
+	local overlayParent = config.OverlayParent
+
 	local listWrap                  = Instance.new("Frame")
 	listWrap.Name                   = "ListWrap"
-	listWrap.Position               = UDim2.new(0, 0, 0, HEADER_H + LIST_GAP)
-	listWrap.Size                   = UDim2.new(1, 0, 0, 0)
+	-- When overlayParent provided, position is set in screen-space on open.
+	-- Otherwise falls back to frame-relative (legacy, no overlay).
+	listWrap.Position               = if overlayParent
+		then UDim2.fromOffset(0, 0)
+		else UDim2.new(0, 0, 0, HEADER_H + LIST_GAP)
+	listWrap.Size                   = UDim2.fromOffset(0, 0)
 	listWrap.BackgroundColor3       = Color3.fromHex("#1a1a1a")
 	listWrap.BackgroundTransparency = 1
 	listWrap.BorderSizePixel        = 0
 	listWrap.ClipsDescendants       = true
-	listWrap.ZIndex                 = 2
+	-- High ZIndex so it renders above all window chrome when in the ScreenGui overlay
+	listWrap.ZIndex                 = if overlayParent then 100 else 2
 	local listCorner                = Instance.new("UICorner")
 	listCorner.CornerRadius         = UDim.new(0, Theme.Radius.Small)
 	listCorner.Parent               = listWrap
@@ -2094,9 +2101,17 @@ function Dropdown.new(config: DropdownConfig): DropdownImpl
 	listStroke.Transparency         = 1
 	listStroke.ApplyStrokeMode      = Enum.ApplyStrokeMode.Border
 	listStroke.Parent               = listWrap
-	listWrap.Parent                 = frame
+	-- Parent to overlay ScreenGui so it isn't clipped by any ScrollingFrame ancestor.
+	-- This also lets optHit buttons receive click events regardless of scroll position.
+	listWrap.Parent                 = if overlayParent then overlayParent else frame
 	self._listWrap                  = listWrap
 	self._listStroke                = listStroke
+	self._overlayParent             = overlayParent
+
+	-- Maid owns listWrap so it's destroyed even when not a child of frame
+	if overlayParent then
+		self._maid:GiveTask(listWrap)
+	end
 
 	local scroll                   = Instance.new("ScrollingFrame")
 	scroll.Name                    = "OptionScroll"
@@ -2126,29 +2141,63 @@ function Dropdown.new(config: DropdownConfig): DropdownImpl
 	self._maid:GiveTask(self._optionMaid)
 
 	-- ── open / close ──────────────────────────────────────────────────────────
+	-- Returns the UDim2 size for listWrap at a given height.
+	-- Overlay mode uses absolute screen-space pixels; legacy uses scale.
+	local function listSize(h: number): UDim2
+		if overlayParent then
+			return UDim2.fromOffset(frame.AbsoluteSize.X, h)
+		else
+			return UDim2.new(1, 0, 0, h)
+		end
+	end
+
 	local function closeDropdown()
 		if not self._open then return end
 		self._open = false
 		TweenService:Create(arrow,      TWEEN_ARROW,    { Rotation = 0 }):Play()
 		TweenService:Create(stroke,     TWEEN_STROKE,   { Color = Theme.Colors.Border }):Play()
-		TweenService:Create(listWrap,   TWEEN_COLLAPSE, { Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1 }):Play()
+		TweenService:Create(listWrap,   TWEEN_COLLAPSE, { Size = listSize(0), BackgroundTransparency = 1 }):Play()
 		TweenService:Create(listStroke, TWEEN_FADE,     { Transparency = 1 }):Play()
-		TweenService:Create(frame,      TWEEN_COLLAPSE, { Size = UDim2.new(1, 0, 0, HEADER_H) }):Play()
+		if not overlayParent then
+			TweenService:Create(frame, TWEEN_COLLAPSE, { Size = UDim2.new(1, 0, 0, HEADER_H) }):Play()
+		end
 	end
 
 	local function openDropdown()
 		if self._open or not self._enabled then return end
 		self._open = true
-		TweenService:Create(arrow,      TWEEN_ARROW,   { Rotation = -180 }):Play()
-		TweenService:Create(stroke,     TWEEN_STROKE,  { Color = Theme.Colors.Accent }):Play()
-		TweenService:Create(listWrap,   TWEEN_EXPAND,  { Size = UDim2.new(1, 0, 0, self._targetH), BackgroundTransparency = 0 }):Play()
-		TweenService:Create(listStroke, TWEEN_FADE,    { Transparency = 0 }):Play()
-		TweenService:Create(frame,      TWEEN_EXPAND,  { Size = UDim2.new(1, 0, 0, HEADER_H + LIST_GAP + self._targetH) }):Play()
+		TweenService:Create(arrow,      TWEEN_ARROW,  { Rotation = -180 }):Play()
+		TweenService:Create(stroke,     TWEEN_STROKE, { Color = Theme.Colors.Accent }):Play()
+		if overlayParent then
+			local ap = frame.AbsolutePosition
+			listWrap.Position = UDim2.fromOffset(ap.X, ap.Y + HEADER_H + LIST_GAP)
+		end
+		TweenService:Create(listWrap,   TWEEN_EXPAND, { Size = listSize(self._targetH), BackgroundTransparency = 0 }):Play()
+		TweenService:Create(listStroke, TWEEN_FADE,   { Transparency = 0 }):Play()
+		if not overlayParent then
+			TweenService:Create(frame, TWEEN_EXPAND, { Size = UDim2.new(1, 0, 0, HEADER_H + LIST_GAP + self._targetH) }):Play()
+		end
 	end
 
 	-- Store references so buildOptions closure can reach them
 	self._openDropdown  = openDropdown
 	self._closeDropdown = closeDropdown
+
+	-- When the window is dragged, keep the overlay list in sync with the header
+	if overlayParent then
+		self._maid:GiveTask(frame:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
+			if not self._open then return end
+			local ap = frame.AbsolutePosition
+			listWrap.Position = UDim2.fromOffset(ap.X, ap.Y + HEADER_H + LIST_GAP)
+		end))
+		self._maid:GiveTask(frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+			if not self._open then return end
+			local ap = frame.AbsolutePosition
+			local aw = frame.AbsoluteSize.X
+			listWrap.Position = UDim2.fromOffset(ap.X, ap.Y + HEADER_H + LIST_GAP)
+			listWrap.Size     = UDim2.fromOffset(aw, listWrap.AbsoluteSize.Y)
+		end))
+	end
 
 	-- ── build option rows (internal) ──────────────────────────────────────────
 	local function buildOptions()
@@ -2341,20 +2390,24 @@ function Dropdown.new(config: DropdownConfig): DropdownImpl
 	end))
 
 	-- close on click outside
-	-- NOTE: use known target height instead of frame.AbsoluteSize — the frame is
-	-- mid-tween when the user clicks quickly, so AbsoluteSize hasn't reached its
-	-- final value yet. Checking the animated size causes options near the bottom
-	-- of a short list to register as "outside" and close before the click lands.
 	self._maid:GiveTask(UserInputService.InputBegan:Connect(function(input: InputObject)
 		if input.UserInputType ~= Enum.UserInputType.MouseButton1
 			and input.UserInputType ~= Enum.UserInputType.Touch then return end
 		if not self._open then return end
 		local mousePos = UserInputService:GetMouseLocation()
-		local ap    = frame.AbsolutePosition
-		local fullH = HEADER_H + LIST_GAP + self._targetH
-		local inside = mousePos.X >= ap.X and mousePos.X <= ap.X + frame.AbsoluteSize.X
-			and mousePos.Y >= ap.Y and mousePos.Y <= ap.Y + fullH
-		if not inside then
+		local ap  = frame.AbsolutePosition
+		local aw  = frame.AbsoluteSize.X
+		-- Header area check
+		local headerIn = mousePos.X >= ap.X and mousePos.X <= ap.X + aw
+			and mousePos.Y >= ap.Y and mousePos.Y <= ap.Y + HEADER_H
+		-- List area check — when using overlay, listWrap is in screen-space ScreenGui;
+		-- AbsolutePosition/Size are always screen-space regardless, so this works for both.
+		local lwAp = listWrap.AbsolutePosition
+		local lwAs = listWrap.AbsoluteSize
+		local listIn = lwAs.Y > 0
+			and mousePos.X >= lwAp.X and mousePos.X <= lwAp.X + lwAs.X
+			and mousePos.Y >= lwAp.Y and mousePos.Y <= lwAp.Y + lwAs.Y
+		if not headerIn and not listIn then
 			closeDropdown()
 		end
 	end))
@@ -2396,11 +2449,13 @@ end
 function Dropdown:SetOptions(options: { any })
 	if self._open then
 		self._closeDropdown()
-		self._arrow.Rotation                    = 0
-		self._listWrap.Size                     = UDim2.new(1, 0, 0, 0)
-		self._listWrap.BackgroundTransparency   = 1
-		self._listStroke.Transparency           = 1
-		self._frame.Size                        = UDim2.new(1, 0, 0, HEADER_H)
+		self._arrow.Rotation                  = 0
+		self._listWrap.Size                   = UDim2.fromOffset(self._frame.AbsoluteSize.X, 0)
+		self._listWrap.BackgroundTransparency = 1
+		self._listStroke.Transparency         = 1
+		if not self._overlayParent then
+			self._frame.Size = UDim2.new(1, 0, 0, HEADER_H)
+		end
 		TweenService:Create(self._stroke, TWEEN_STROKE, { Color = Theme.Colors.Border }):Play()
 	end
 
@@ -2479,10 +2534,12 @@ function Dropdown:SetEnabled(enabled: boolean)
 	if not enabled and self._open then
 		self._closeDropdown()
 		self._arrow.Rotation                  = 0
-		self._listWrap.Size                   = UDim2.new(1, 0, 0, 0)
+		self._listWrap.Size                   = UDim2.fromOffset(self._frame.AbsoluteSize.X, 0)
 		self._listWrap.BackgroundTransparency = 1
 		self._listStroke.Transparency         = 1
-		self._frame.Size                      = UDim2.new(1, 0, 0, HEADER_H)
+		if not self._overlayParent then
+			self._frame.Size = UDim2.new(1, 0, 0, HEADER_H)
+		end
 	end
 end
 
@@ -3789,12 +3846,13 @@ function Slider.new(config: SliderConfig): SliderImpl
 	valLabel.Parent                 = inner
 	self._valLabel                  = valLabel
 
-	-- ── Label ─────────────────────────────────────────────────────────────────
-	local rightReserved = TRACK_W + VAL_W + GAP
+	-- ── Label — parented to inner so ClipsDescendants trims it on resize ───────
 	local label                  = Instance.new("TextLabel")
 	label.Name                   = "Label"
-	label.Position               = UDim2.fromOffset(Theme.Spacing.M, 0)
-	label.Size                   = UDim2.new(1, -(rightReserved + Theme.Spacing.M * 2 + GAP), 1, 0)
+	-- Position (0,0) inside inner; UIPadding on inner already gives M offset from frame edge
+	label.Position               = UDim2.fromOffset(0, 0)
+	-- Width = inner content width minus (track + valLabel + gaps)
+	label.Size                   = UDim2.new(1, -(TRACK_W + VAL_W + 2 * GAP), 1, 0)
 	label.BackgroundTransparency = 1
 	label.Font                   = Theme.Font.Body
 	label.Text                   = config.Label
@@ -3805,7 +3863,7 @@ function Slider.new(config: SliderConfig): SliderImpl
 	label.TextXAlignment         = Enum.TextXAlignment.Left
 	label.TextTruncate           = Enum.TextTruncate.AtEnd
 	label.ZIndex                 = 4
-	label.Parent                 = frame
+	label.Parent                 = inner   -- inside inner → clipped on small window resize
 	self._label                  = label
 
 	-- ── Hit target ────────────────────────────────────────────────────────────
@@ -7667,7 +7725,7 @@ function Window:_buildPillFace()
 	pillTitle.Size                   = UDim2.new(1, -24, 0, 16)
 	pillTitle.BackgroundTransparency = 1
 	pillTitle.Font                   = Theme.Font.Title
-	pillTitle.Text                   = game.Name
+	pillTitle.Text                   = self.Title  -- show window title, not game name
 	pillTitle.TextSize               = 12
 	pillTitle.TextColor3             = Theme.Colors.TextPrimary
 	pillTitle.TextXAlignment         = Enum.TextXAlignment.Center
@@ -8545,13 +8603,6 @@ local ObjectTree = {
         },
         {
             {
-                28,
-                2,
-                {
-                    "types"
-                }
-            },
-            {
                 23,
                 1,
                 {
@@ -8559,10 +8610,10 @@ local ObjectTree = {
                 },
                 {
                     {
-                        27,
+                        24,
                         2,
                         {
-                            "SmoothScroll"
+                            "ErrorHandling"
                         }
                     },
                     {
@@ -8573,40 +8624,17 @@ local ObjectTree = {
                         }
                     },
                     {
+                        27,
+                        2,
+                        {
+                            "SmoothScroll"
+                        }
+                    },
+                    {
                         26,
                         2,
                         {
                             "Signal"
-                        }
-                    },
-                    {
-                        24,
-                        2,
-                        {
-                            "ErrorHandling"
-                        }
-                    }
-                }
-            },
-            {
-                20,
-                2,
-                {
-                    "Theme"
-                },
-                {
-                    {
-                        22,
-                        2,
-                        {
-                            "Icons"
-                        }
-                    },
-                    {
-                        21,
-                        2,
-                        {
-                            "Colors"
                         }
                     }
                 }
@@ -8618,6 +8646,20 @@ local ObjectTree = {
                     "Core"
                 },
                 {
+                    {
+                        18,
+                        2,
+                        {
+                            "Tab"
+                        }
+                    },
+                    {
+                        19,
+                        2,
+                        {
+                            "Window"
+                        }
+                    },
                     {
                         17,
                         2,
@@ -8638,20 +8680,6 @@ local ObjectTree = {
                         {
                             "Popup"
                         }
-                    },
-                    {
-                        18,
-                        2,
-                        {
-                            "Tab"
-                        }
-                    },
-                    {
-                        19,
-                        2,
-                        {
-                            "Window"
-                        }
                     }
                 }
             },
@@ -8663,10 +8691,10 @@ local ObjectTree = {
                 },
                 {
                     {
-                        7,
+                        10,
                         2,
                         {
-                            "Dropdown"
+                            "Label"
                         }
                     },
                     {
@@ -8677,52 +8705,10 @@ local ObjectTree = {
                         }
                     },
                     {
-                        9,
-                        2,
-                        {
-                            "Keybind"
-                        }
-                    },
-                    {
-                        5,
-                        2,
-                        {
-                            "Description"
-                        }
-                    },
-                    {
-                        12,
-                        2,
-                        {
-                            "Textbox"
-                        }
-                    },
-                    {
-                        11,
-                        2,
-                        {
-                            "Slider"
-                        }
-                    },
-                    {
                         4,
                         2,
                         {
                             "ColorPicker"
-                        }
-                    },
-                    {
-                        13,
-                        2,
-                        {
-                            "Toggle"
-                        }
-                    },
-                    {
-                        10,
-                        2,
-                        {
-                            "Label"
                         }
                     },
                     {
@@ -8737,6 +8723,78 @@ local ObjectTree = {
                         2,
                         {
                             "Divider"
+                        }
+                    },
+                    {
+                        9,
+                        2,
+                        {
+                            "Keybind"
+                        }
+                    },
+                    {
+                        11,
+                        2,
+                        {
+                            "Slider"
+                        }
+                    },
+                    {
+                        13,
+                        2,
+                        {
+                            "Toggle"
+                        }
+                    },
+                    {
+                        12,
+                        2,
+                        {
+                            "Textbox"
+                        }
+                    },
+                    {
+                        5,
+                        2,
+                        {
+                            "Description"
+                        }
+                    },
+                    {
+                        7,
+                        2,
+                        {
+                            "Dropdown"
+                        }
+                    }
+                }
+            },
+            {
+                28,
+                2,
+                {
+                    "types"
+                }
+            },
+            {
+                20,
+                2,
+                {
+                    "Theme"
+                },
+                {
+                    {
+                        21,
+                        2,
+                        {
+                            "Colors"
+                        }
+                    },
+                    {
+                        22,
+                        2,
+                        {
+                            "Icons"
                         }
                     }
                 }
@@ -8754,26 +8812,26 @@ local LineOffsets = {
     1568,
     1687,
     1768,
-    2503,
-    2803,
-    3404,
-    3474,
-    3996,
-    4284,
-    4713,
-    4724,
-    5059,
-    5571,
-    5758,
-    6039,
-    7930,
-    7977,
-    8025,
-    [24] = 8094,
-    [25] = 8154,
-    [26] = 8211,
-    [27] = 8289,
-    [28] = 8477
+    2560,
+    2860,
+    3461,
+    3531,
+    4054,
+    4342,
+    4771,
+    4782,
+    5117,
+    5629,
+    5816,
+    6097,
+    7988,
+    8035,
+    8083,
+    [24] = 8152,
+    [25] = 8212,
+    [26] = 8269,
+    [27] = 8347,
+    [28] = 8535
 }
 
 -- Misc AOT variable imports
