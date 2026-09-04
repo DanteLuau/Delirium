@@ -61,11 +61,17 @@ end)
 ### `Delirium:CreateWindow(title, options?)`
 Creates and opens a window. Returns a `Window`.
 
-| Option | Type | Default |
-|---|---|---|
-| `Size` | `UDim2` | `500×340` |
-| `Position` | `UDim2` | `0.5, 0.5 (centered)` |
-| `MinSize` | `Vector2` | `300×200` |
+| Option | Type | Default | Notes |
+|---|---|---|---|
+| `Size` | `UDim2` | `500×340` (desktop) / `320×360` (mobile) | Auto-clamped to viewport + safe inset. |
+| `Position` | `UDim2` | `0.5, 0.5 (centered)` | Clamped so the title bar stays reachable. |
+| `MinSize` | `Vector2` | `300×200` (desktop) / `240×260` (mobile) | |
+| `AutoScale` | `boolean` | `true` | Set `false` to disable viewport clamping / mobile defaults. |
+
+Mobile is detected via `UserInputService.TouchEnabled && !KeyboardEnabled && !MouseEnabled`,
+with a viewport-size fallback (`< 1024×768`) matching Rayfield's heuristic.  Size and
+position are clamped to `viewport − safeInset − 24px` on every drag, resize, and
+viewport change (orientation flip / window resize).
 
 ---
 

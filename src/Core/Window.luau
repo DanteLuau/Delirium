@@ -4,6 +4,7 @@ local TweenService     = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService       = game:GetService("RunService")
 local Players          = game:GetService("Players")
+local GuiService        = game:GetService("GuiService")
 
 local Maid         = require(script.Parent.Parent.Utils.Maid)
 local Theme        = require(script.Parent.Parent.Theme)
@@ -21,12 +22,19 @@ local TWEEN_EXPAND   = TweenInfo.new(0.50, Enum.EasingStyle.Exponential, Enum.Ea
 
 -- Pill (hide/show morph) ─ same concept as Rayfield's collapsed pill
 local PILL_SIZE = UDim2.fromOffset(185, 50)
-local PILL_POS  = UDim2.new(0.5, 0, 0, 45) -- AnchorPoint(0.5,0.5) so center = 20+25 from top
+local PILL_POS  = UDim2.new(0.5, -92, 0, 45) -- AnchorPoint(0,0); centered horizontally (PILL_W=185, so offset = -w/2)
 local TWEEN_PILL_MORPH  = TweenInfo.new(0.45, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut)
 local TWEEN_PILL_REVEAL = TweenInfo.new(0.50, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
 
-local DEFAULT_SIZE        = UDim2.fromOffset(500, 340)
-local MIN_SIZE            = Vector2.new(300, 200)
+-- Rayfield uses these two fixed sizes — desktop 500×475, mobile 500×275.  The mobile
+-- variant is just the desktop width with a shorter body (no per-viewport adapt).
+-- Replicated here so Delirium can default to the same shape on first open.
+local DEFAULT_SIZE_DESKTOP = UDim2.fromOffset(500, 475)
+local DEFAULT_SIZE_MOBILE  = UDim2.fromOffset(500, 275)
+local MIN_SIZE             = Vector2.new(300, 200)
+local MIN_SIZE_MOBILE      = Vector2.new(240, 260)
+local VIEWPORT_BREAKPOINT  = Vector2.new(1024, 768)   -- Rayfield's exact threshold
+local VIEWPORT_EDGE_MARGIN = 4                        -- small breathing room; Rayfield uses ~0
 local SIDEBAR_W_EXPANDED  = 136        -- trimmed from 148
 local SIDEBAR_W_COLLAPSED = 40
 local SIDEBAR_HEADER_H    = 44
@@ -51,7 +59,83 @@ export type WindowConfig = {
 	Size: UDim2?,
 	Position: UDim2?,
 	MinSize: Vector2?,
+	AutoScale: boolean?, -- default true — clamp window to viewport, smaller default on mobile
 }
+
+-- ── platform detection (Rayfield-style) ──────────────────────────────────────
+
+-- Rayfield's only detection: viewport-pixel-based.  If BOTH axes are below 1024×768,
+-- treat as mobile.  This is what useMobileSizing in Rayfield source.lua does.
+local function detectMobile(viewport: Vector2): boolean
+	return viewport.X < VIEWPORT_BREAKPOINT.X and viewport.Y < VIEWPORT_BREAKPOINT.Y
+end
+
+-- ── viewport helpers ──────────────────────────────────────────────────────────
+
+-- Bounds where the window can live.  We use Camera.ViewportSize (the actual render area)
+-- because our ScreenGui has IgnoreGuiInset = true, so 0,0 maps to the visual top-left.
+local function viewportSize(): Vector2
+	local cam = workspace.CurrentCamera
+	if cam then
+		local vs = cam.ViewportSize
+		if vs.X > 0 and vs.Y > 0 then return vs end
+	end
+	return Vector2.new(1024, 768)
+end
+
+local function safeInsets(): Vector2
+	-- GuiInset = Roblox topbar (mobile status bar + back button).  Even with
+	-- IgnoreGuiInset=true on the parent ScreenGui, we still want to keep the window
+	-- BELOW the Roblox topbar so it doesn't visually clash with it.
+	local ok, inset = pcall(function() return GuiService:GetGuiInset() end)
+	if not ok then return Vector2.zero end
+	return Vector2.new(inset.X, inset.Y)
+end
+
+-- ── clamp helpers — Obsidian-style snap + hard bounds ────────────────────────
+
+-- Clamp a window size (UDim2 in Offset form) so it always fits inside the viewport.
+local function clampSizeToViewport(size: UDim2, minSize: Vector2): UDim2
+	if size.X.Scale ~= 0 or size.Y.Scale ~= 0 then return size end
+	local vp   = viewportSize()
+	local ins  = safeInsets()
+	-- Allow the window to fill the viewport horizontally, but reserve the top inset
+	-- vertically so the title bar never slides under the Roblox topbar.
+	local maxW = math.max(minSize.X, vp.X)
+	local maxH = math.max(minSize.Y, vp.Y - ins.Y)
+	if maxW < minSize.X then maxW = minSize.X end
+	if maxH < minSize.Y then maxH = minSize.Y end
+	local w = math.clamp(size.X.Offset, minSize.X, maxW)
+	local h = math.clamp(size.Y.Offset, minSize.Y, maxH)
+	return UDim2.fromOffset(w, h)
+end
+
+-- Clamp a window position (AnchorPoint 0,0 — pos.Offset IS the screen-space top-left).
+-- Top bound = ins.Y so the title bar stays below the Roblox topbar.
+-- Left/right/bottom = exactly the edge (no margin).
+local function clampPositionToViewport(pos: UDim2, size: UDim2): UDim2
+	local vp  = viewportSize()
+	local ins = safeInsets()
+	local w   = size.X.Offset
+	local h   = size.Y.Offset
+
+	-- Resolve to absolute screen coordinates (handles both Scale-based and Offset input).
+	local inX = pos.X.Scale * vp.X + pos.X.Offset
+	local inY = pos.Y.Scale * vp.Y + pos.Y.Offset
+
+	-- Bounds: top-left at (0, ins.Y), bottom-right at (vp.X, vp.Y)
+	local minX = 0
+	local maxX = math.max(0, vp.X - w)
+	local minY = ins.Y
+	local maxY = math.max(ins.Y, vp.Y - h)
+
+	-- Degenerate viewport — skip clamp.
+	if minX > maxX or minY > maxY then return pos end
+
+	local x = math.clamp(inX, minX, maxX)
+	local y = math.clamp(inY, minY, maxY)
+	return UDim2.fromOffset(x, y)
+end
 
 -- ── GUI parenting ─────────────────────────────────────────────────────────────
 
@@ -109,15 +193,16 @@ end
 
 -- ── window hierarchy ──────────────────────────────────────────────────────────
 
-local function buildWindow(title: string, cfg: WindowConfig)
+local function buildWindow(title: string, cfg: WindowConfig, minSize: Vector2)
 	local targetSize = cfg.Size or DEFAULT_SIZE
+	targetSize = clampSizeToViewport(targetSize, minSize)
 
 	-- Root frame: unified container that holds both canvas (window) and sidebar as siblings
 	local root                  = Instance.new("Frame")
 	root.Name                   = "WindowRoot"
 	root.Size                   = targetSize
-	root.AnchorPoint            = Vector2.new(0.5, 0.5)
-	root.Position               = cfg.Position or UDim2.fromScale(0.5, 0.5)
+	root.AnchorPoint            = Vector2.new(0, 0)
+	root.Position               = cfg.Position or UDim2.fromOffset(0, 0)
 	root.BackgroundTransparency = 1
 	root.BorderSizePixel        = 0
 	root.ClipsDescendants       = false
@@ -264,7 +349,7 @@ end
 
 -- ── interaction setup ─────────────────────────────────────────────────────────
 
-local function setupDrag(maid: any, titleBar: Frame, root: Frame)
+local function setupDrag(maid: any, titleBar: Frame, root: Frame, autoScale: boolean)
 	local dragging  = false
 	local dragStart = Vector3.zero
 	local startPos  = UDim2.fromOffset(0, 0)
@@ -295,10 +380,16 @@ local function setupDrag(maid: any, titleBar: Frame, root: Frame)
 			and input.UserInputType ~= Enum.UserInputType.Touch then return end
 
 		local delta = input.Position - dragStart
-		root.Position = UDim2.new(
+		-- Match Obsidian/Starlight pattern: preserve Scale, add delta to Offset only.
+		local nextPos = UDim2.new(
 			startPos.X.Scale, startPos.X.Offset + delta.X,
 			startPos.Y.Scale, startPos.Y.Offset + delta.Y
 		)
+		if autoScale then
+			root.Position = clampPositionToViewport(nextPos, root.Size)
+		else
+			root.Position = nextPos
+		end
 	end))
 
 	maid:GiveTask(UserInputService.InputEnded:Connect(function(input: InputObject)
@@ -309,7 +400,7 @@ local function setupDrag(maid: any, titleBar: Frame, root: Frame)
 	end))
 end
 
-local function setupResize(maid: any, handle: Frame, root: Frame, minSize: Vector2)
+local function setupResize(maid: any, handle: Frame, root: Frame, minSize: Vector2, autoScale: boolean)
 	local resizing    = false
 	local resizeStart = Vector3.zero
 	local startSize   = UDim2.fromOffset(0, 0)
@@ -328,8 +419,16 @@ local function setupResize(maid: any, handle: Frame, root: Frame, minSize: Vecto
 			and input.UserInputType ~= Enum.UserInputType.Touch then return end
 
 		local delta = input.Position - resizeStart
-		local newW  = math.max(minSize.X, startSize.X.Offset + delta.X)
-		local newH  = math.max(minSize.Y, startSize.Y.Offset + delta.Y)
+		local vp    = if autoScale then viewportSize() else Vector2.new(math.huge, math.huge)
+		local ins   = if autoScale then safeInsets()        else Vector2.zero
+		local maxW  = if autoScale
+			then math.max(minSize.X, vp.X - ins.X - VIEWPORT_EDGE_MARGIN * 2)
+			else  math.huge
+		local maxH  = if autoScale
+			then math.max(minSize.Y, vp.Y - ins.Y - VIEWPORT_EDGE_MARGIN * 2)
+			else  math.huge
+		local newW  = math.clamp(startSize.X.Offset + delta.X, minSize.X, maxW)
+		local newH  = math.clamp(startSize.Y.Offset + delta.Y, minSize.Y, maxH)
 		root.Size   = UDim2.new(startSize.X.Scale, newW, startSize.Y.Scale, newH)
 	end))
 
@@ -388,12 +487,30 @@ function Window.new(title: string, options: WindowConfig?)
 	local cfg  = options or {}
 	local self = setmetatable({}, Window)
 
+	-- Platform-aware defaults — Rayfield-style viewport-pixel check.
+	-- Mobile is detected exactly once, against the viewport at construction time.
+	local vp          = viewportSize()
+	local isMobile    = detectMobile(vp)
+	self._isMobile    = isMobile
+
+	local defaultSize = if isMobile then DEFAULT_SIZE_MOBILE else DEFAULT_SIZE_DESKTOP
+	local defaultMin  = if isMobile then MIN_SIZE_MOBILE     else MIN_SIZE
+	local userSize    = cfg.Size or defaultSize
+	local userMinSize = cfg.MinSize or defaultMin
+
+	-- Pre-clamp to viewport so DEFAULT_SIZE never overflows a phone screen.
+	local resolvedSize  = clampSizeToViewport(userSize, userMinSize)
+	local resolvedMin   = Vector2.new(
+		math.min(userMinSize.X, resolvedSize.X.Offset),
+		math.min(userMinSize.Y, resolvedSize.Y.Offset)
+	)
+
 	self._maid             = Maid.new()
 	self.Title             = title
 	self._closing          = false
 	self._collapsed        = false
 	self._collapseAnimating = false
-	self._expandedSize     = cfg.Size or DEFAULT_SIZE
+	self._expandedSize     = resolvedSize
 	self._collapseBtn      = nil :: any
 	self._minusBtn         = nil :: any
 	self._handle           = nil :: any
@@ -406,12 +523,23 @@ function Window.new(title: string, options: WindowConfig?)
 	self._sidebarExpanded  = true
 	self._sidebarW         = SIDEBAR_W_EXPANDED
 	self._activeTabIdx     = 0
+	self._minSize          = resolvedMin
+	self._autoScale        = cfg.AutoScale ~= false   -- default true
 
 	local gui = getGui()
 	self._gui = gui
 	self._maid:GiveTask(gui)
 
-	local root, canvas, titleBar, content, handle, stroke, titleLabel, sep = buildWindow(title, cfg)
+	local buildCfg          = table.clone(cfg) :: any
+	buildCfg.Size           = resolvedSize
+	-- Default to top-left position (UDim2.fromOffset(EDGE, EDGE+ins.Y)) so the window
+	-- never sits off-center on first open.  Respects top inset for mobile status bar.
+	buildCfg.Position       = clampPositionToViewport(
+		cfg.Position or UDim2.fromOffset(VIEWPORT_EDGE_MARGIN, VIEWPORT_EDGE_MARGIN + safeInsets().Y),
+		resolvedSize
+	)
+
+	local root, canvas, titleBar, content, handle, stroke, titleLabel, sep = buildWindow(title, buildCfg, resolvedMin)
 	root.Parent       = gui
 	self._root        = root
 	self._canvas      = canvas
@@ -433,10 +561,10 @@ function Window.new(title: string, options: WindowConfig?)
 	self._pillSub       = nil :: any
 	self._pillInteract  = nil :: any
 
-	local minSize = cfg.MinSize or MIN_SIZE
+	local minSize = resolvedMin
 
-	setupDrag(self._maid, titleBar, root)
-	setupResize(self._maid, handle, root, minSize)
+	setupDrag(self._maid, titleBar, root, self._autoScale)
+	setupResize(self._maid, handle, root, minSize, self._autoScale)
 
 	self._maid:GiveTask(SmoothScroll.blockRegion(root))
 	self._maid:GiveTask(SmoothScroll.blockRegion(titleBar))
@@ -486,6 +614,28 @@ function Window.new(title: string, options: WindowConfig?)
 	end)
 
 	self:_buildPillFace()
+
+	-- ── viewport resize listener (orientation change, window resize, screen flip) ──
+	-- Re-clamps size + position so the window can never escape the screen even on mobile.
+	if self._autoScale then
+		local function refit()
+			if self._closing then return end
+			if self._hidden or self._collapsed then return end
+			local clamped = clampSizeToViewport(self._root.Size, self._minSize)
+			if clamped ~= self._root.Size then
+				self._root.Size = clamped
+				self._expandedSize = clamped
+			end
+			local pos = clampPositionToViewport(self._root.Position, self._root.Size)
+			if pos ~= self._root.Position then
+				self._root.Position = pos
+			end
+		end
+		local cam = workspace.CurrentCamera
+		if cam then
+			self._maid:GiveTask(cam:GetPropertyChangedSignal("ViewportSize"):Connect(refit))
+		end
+	end
 
 	return self
 end
@@ -1782,7 +1932,15 @@ function Window:Show()
 	TweenService:Create(self._pillSub,   fadeInfo, { TextTransparency       = 1 }):Play()
 
 	-- Morph root → window
+	-- Re-clamp saved size + position to the current viewport in case the device
+	-- changed orientation / window resized while we were hidden.
+	if self._autoScale then
+		self._expandedSize = clampSizeToViewport(self._expandedSize, self._minSize)
+	end
 	local target = self._savedPosition or UDim2.fromScale(0.5, 0.5)
+	if self._autoScale then
+		target = clampPositionToViewport(target, self._expandedSize)
+	end
 	TweenService:Create(self._root, TWEEN_PILL_REVEAL, {
 		Size     = self._expandedSize,
 		Position = target,
