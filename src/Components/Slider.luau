@@ -7,6 +7,7 @@ local Maid        = require(script.Parent.Parent.Utils.Maid)
 local Signal      = require(script.Parent.Parent.Utils.Signal)
 local Theme       = require(script.Parent.Parent.Theme)
 local SaveManager = require(script.Parent.Parent.Core.SaveManager)
+local Tooltip     = require(script.Parent.Parent.Utils.Tooltip)
 
 -- ── Tween presets ──────────────────────────────────────────────────────────────
 local TWEEN_FILL        = TweenInfo.new(0.18, Enum.EasingStyle.Quint,        Enum.EasingDirection.Out)
@@ -26,15 +27,9 @@ local SHADOW_REST  = { BackgroundTransparency = 0.75, Position = UDim2.new(0.5, 
 local SHADOW_HOVER = { BackgroundTransparency = 0.65, Position = UDim2.new(0.5, 0, 0.5, 5) }
 
 -- ── Track / knob geometry ───────────────────────────────────────────────────────
-local TRACK_W  = 120    -- total track width
-local TRACK_H  = 15     -- slim pill track
+local TRACK_H  = 15     -- slim pill track height
 local KNOB_W   = 30     -- knob width  (flat pill, wider than tall)
-local KNOB_H   = 18     -- knob height (gepeng)
-local KNOB_PAD = 0      -- gap between knob edge and track edge at extremes
-
--- Knob X-center bounds (keeps knob fully inside the track)
-local KNOB_X_MIN = KNOB_W / 2 + KNOB_PAD          -- left extreme
-local KNOB_X_MAX = TRACK_W - KNOB_W / 2 - KNOB_PAD -- right extreme
+local KNOB_H   = 18     -- knob height
 
 local VAL_W = 34
 local GAP   = 8
@@ -44,11 +39,9 @@ local KNOB_SCALE_REST  = 1.00
 local KNOB_SCALE_HOVER = 1.10
 local KNOB_SCALE_PRESS = 0.92
 
--- Knob X-center range (pixels): knob travels [KNOB_X_MIN, KNOB_X_MAX]
--- Fill visible width is driven by a ClipFrame that matches knob center X,
--- so fill always ends exactly at the knob center with no offset error.
--- Fill itself is statically wide (TRACK_W * 2) so the right rounded corner
--- is always beyond the clip boundary → clean flat right edge always visible.
+-- Track fills the full container width (UDim2.new(1,0,...)).
+-- Clip frame and knob positions are scale-based [0..1] → auto-adapt to any width.
+
 
 export type SliderConfig = {
 	Label:       string,
@@ -59,6 +52,7 @@ export type SliderConfig = {
 	Enabled:     boolean?,
 	LayoutOrder: number?,
 	Flag:        string?,
+	Tooltip:     string?,
 }
 
 type SliderImpl = {
@@ -108,20 +102,13 @@ local function fmt(value: number, step: number): string
 	end
 end
 
--- Returns the knob X-center pixel position for a normalized t ∈ [0, 1]
-local function knobX(t: number): number
-	return KNOB_X_MIN + t * (KNOB_X_MAX - KNOB_X_MIN)
-end
-
 -- Returns the normalized t from a mouse X position relative to track
 local function tFromMouseX(track: Frame, mouseX: number): number
 	local relX = mouseX - track.AbsolutePosition.X
-	-- Map from KNOB_X_MIN..KNOB_X_MAX
-	return math.clamp(
-		(relX - KNOB_X_MIN) / (KNOB_X_MAX - KNOB_X_MIN),
-		0, 1
-	)
+	local tw   = track.AbsoluteSize.X
+	return math.clamp(relX / math.max(tw, 1), 0, 1)
 end
+
 
 -- ── Constructor ───────────────────────────────────────────────────────────────
 
@@ -140,9 +127,15 @@ function Slider.new(config: SliderConfig): SliderImpl
 	local t0 = (self._value - self._min) / math.max(self._max - self._min, 1e-9)
 
 	-- ── Outer container ───────────────────────────────────────────────────────
+	-- Two-row layout: top row = label + value readout, bottom row = track
+	-- This makes the label always readable at any container width.
+	local FRAME_H   = 52   -- total row height (was 36)
+	local HEADER_H  = 18   -- top row: label + value
+	local TRACK_ROW = 14   -- vertical center offset for track within the bottom half
+
 	local frame                  = Instance.new("Frame")
 	frame.Name                   = "Slider"
-	frame.Size                   = UDim2.new(1, 0, 0, 36)
+	frame.Size                   = UDim2.new(1, 0, 0, FRAME_H)
 	frame.BackgroundTransparency = 1
 	frame.BorderSizePixel        = 0
 	frame.LayoutOrder            = config.LayoutOrder or 0
@@ -217,11 +210,50 @@ function Slider.new(config: SliderConfig): SliderImpl
 	flash.Parent                 = inner
 	self._flash                  = flash
 
-	-- ── Track (iOS pill) ──────────────────────────────────────────────────────
+	-- ── Label (top-left of inner) ─────────────────────────────────────────────
+	-- Gets its own full-width row so it never competes with the track for space.
+	local label                  = Instance.new("TextLabel")
+	label.Name                   = "Label"
+	label.Position               = UDim2.fromOffset(0, 0)
+	label.Size                   = UDim2.new(1, -(VAL_W + GAP), 0, HEADER_H)
+	label.BackgroundTransparency = 1
+	label.Font                   = Theme.Font.Body
+	label.Text                   = config.Label
+	label.TextSize               = Theme.TextSize.Body
+	label.TextColor3             = if self._enabled
+		then Theme.Colors.TextPrimary
+		else Theme.Colors.TextDisabled
+	label.TextXAlignment         = Enum.TextXAlignment.Left
+	label.TextYAlignment         = Enum.TextYAlignment.Center
+	label.TextTruncate           = Enum.TextTruncate.AtEnd
+	label.ZIndex                 = 4
+	label.Parent                 = inner
+	self._label                  = label
+
+	-- ── Value readout (top-right of inner) ───────────────────────────────────
+	local valLabel                  = Instance.new("TextLabel")
+	valLabel.Name                   = "ValueLabel"
+	valLabel.AnchorPoint            = Vector2.new(1, 0)
+	valLabel.Position               = UDim2.new(1, 0, 0, 0)
+	valLabel.Size                   = UDim2.fromOffset(VAL_W, HEADER_H)
+	valLabel.BackgroundTransparency = 1
+	valLabel.Font                   = Theme.Font.Body
+	valLabel.Text                   = fmt(self._value, self._step)
+	valLabel.TextSize               = Theme.TextSize.Body
+	valLabel.TextColor3             = Theme.Colors.TextSecondary
+	valLabel.TextXAlignment         = Enum.TextXAlignment.Right
+	valLabel.TextYAlignment         = Enum.TextYAlignment.Center
+	valLabel.ZIndex                 = 4
+	valLabel.Parent                 = inner
+	self._valLabel                  = valLabel
+
+	-- ── Track (iOS pill) — sits in the bottom half of the inner frame ─────────
+	-- Vertical center of track: HEADER_H + TRACK_ROW pixels from top of inner.
+	local TRACK_Y    = HEADER_H + TRACK_ROW - TRACK_H / 2
 	local track              = Instance.new("Frame")
 	track.Name               = "Track"
-	track.Size               = UDim2.fromOffset(TRACK_W, TRACK_H)
-	track.Position           = UDim2.new(1, -TRACK_W, 0.5, -(TRACK_H / 2))
+	track.Size               = UDim2.new(1, 0, 0, TRACK_H)
+	track.Position           = UDim2.fromOffset(0, TRACK_Y)
 	track.BackgroundColor3   = Theme.Colors.Border
 	track.BorderSizePixel    = 0
 	track.ZIndex             = 4
@@ -232,13 +264,22 @@ function Slider.new(config: SliderConfig): SliderImpl
 	track.Parent             = inner
 	self._track              = track
 
+	-- Recompute knobX bounds to use dynamic track width via AbsoluteSize.
+	-- During construction AbsoluteSize is 0, so we keep the static constants
+	-- for layout; the drag handler calls tFromMouseX which uses AbsoluteSize
+	-- live.  FillClip also uses the track's full pixel width at runtime.
+	local function dynKnobX(t: number): number
+		local tw = track.AbsoluteSize.X
+		if tw <= 0 then tw = 200 end -- safe fallback before first render
+		local kmin = KNOB_W / 2
+		local kmax = tw - KNOB_W / 2
+		return kmin + t * (kmax - kmin)
+	end
+
 	-- FillClip: controls the visible right boundary of the fill.
-	-- By animating THIS frame's width (= knobX(t) pixels), the fill always
-	-- ends exactly at the knob center. ClipsDescendants trims the fill's
-	-- right edge cleanly so the fill's own rounded corners never deform.
 	local clipFrame                  = Instance.new("Frame")
 	clipFrame.Name                   = "FillClip"
-	clipFrame.Size                   = UDim2.fromOffset(knobX(t0), TRACK_H)
+	clipFrame.Size                   = UDim2.new(t0, 0, 1, 0)   -- scale-based → auto-adapts
 	clipFrame.Position               = UDim2.fromOffset(0, 0)
 	clipFrame.BackgroundTransparency = 1
 	clipFrame.ClipsDescendants       = true
@@ -247,11 +288,10 @@ function Slider.new(config: SliderConfig): SliderImpl
 	clipFrame.Parent                 = track
 	self._clipFrame                  = clipFrame
 
-	-- Fill: static width (2× track) so its right pill corner is always
-	-- beyond the clip boundary → right edge is always a clean flat cut.
+	-- Fill: static width so right pill corner is beyond clip → clean flat cut.
 	local fill            = Instance.new("Frame")
 	fill.Name             = "Fill"
-	fill.Size             = UDim2.fromOffset(TRACK_W * 2, TRACK_H)
+	fill.Size             = UDim2.new(2, 0, 1, 0)   -- 2× track width, scale-based
 	fill.BackgroundColor3 = Theme.Colors.Accent
 	fill.BorderSizePixel  = 0
 	fill.ZIndex           = 5
@@ -261,12 +301,13 @@ function Slider.new(config: SliderConfig): SliderImpl
 	fill.Parent           = clipFrame
 	self._fill            = fill
 
-	-- ── Knob — AnchorPoint 0.5,0.5 so UIScale animates around center ──────────
+	-- ── Knob — centered vertically in the track ───────────────────────────────
 	local knob            = Instance.new("Frame")
 	knob.Name             = "Knob"
 	knob.AnchorPoint      = Vector2.new(0.5, 0.5)
 	knob.Size             = UDim2.fromOffset(KNOB_W, KNOB_H)
-	knob.Position         = UDim2.fromOffset(knobX(t0), TRACK_H / 2)
+	-- Position X set via scale on clip; just center Y here. X repositioned via dynKnobX after render.
+	knob.Position         = UDim2.new(t0, 0, 0.5, 0)
 	knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	knob.BorderSizePixel  = 0
 	knob.ZIndex           = 6
@@ -300,42 +341,6 @@ function Slider.new(config: SliderConfig): SliderImpl
 	knob.Parent = track
 	self._knob  = knob
 
-	-- ── Value readout ─────────────────────────────────────────────────────────
-	local valLabel                  = Instance.new("TextLabel")
-	valLabel.Name                   = "ValueLabel"
-	valLabel.AnchorPoint            = Vector2.new(0, 0.5)
-	valLabel.Position               = UDim2.new(1, -(TRACK_W + VAL_W + GAP), 0.5, 0)
-	valLabel.Size                   = UDim2.fromOffset(VAL_W, 36)
-	valLabel.BackgroundTransparency = 1
-	valLabel.Font                   = Theme.Font.Body
-	valLabel.Text                   = fmt(self._value, self._step)
-	valLabel.TextSize               = Theme.TextSize.Body
-	valLabel.TextColor3             = Theme.Colors.TextSecondary
-	valLabel.TextXAlignment         = Enum.TextXAlignment.Right
-	valLabel.ZIndex                 = 4
-	valLabel.Parent                 = inner
-	self._valLabel                  = valLabel
-
-	-- ── Label — parented to inner so ClipsDescendants trims it on resize ───────
-	local label                  = Instance.new("TextLabel")
-	label.Name                   = "Label"
-	-- Position (0,0) inside inner; UIPadding on inner already gives M offset from frame edge
-	label.Position               = UDim2.fromOffset(0, 0)
-	-- Width = inner content width minus (track + valLabel + gaps)
-	label.Size                   = UDim2.new(1, -(TRACK_W + VAL_W + 2 * GAP), 1, 0)
-	label.BackgroundTransparency = 1
-	label.Font                   = Theme.Font.Body
-	label.Text                   = config.Label
-	label.TextSize               = Theme.TextSize.Body
-	label.TextColor3             = if self._enabled
-		then Theme.Colors.TextPrimary
-		else Theme.Colors.TextDisabled
-	label.TextXAlignment         = Enum.TextXAlignment.Left
-	label.TextTruncate           = Enum.TextTruncate.AtEnd
-	label.ZIndex                 = 4
-	label.Parent                 = inner   -- inside inner → clipped on small window resize
-	self._label                  = label
-
 	-- ── Hit target ────────────────────────────────────────────────────────────
 	local hit                  = Instance.new("TextButton")
 	hit.Name                   = "Hit"
@@ -367,20 +372,18 @@ function Slider.new(config: SliderConfig): SliderImpl
 		self.Value     = value
 		valLabel.Text  = fmt(value, self._step)
 
-		-- ClipFrame: drive visible fill width to match knob center (pixels)
+		-- ClipFrame: scale-based → always matches track width automatically
 		TweenService:Create(clipFrame, TweenInfo.new(0.06, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Size = UDim2.fromOffset(knobX(st), TRACK_H),
+			Size = UDim2.new(st, 0, 1, 0),
 		}):Play()
 
-		-- Knob: direct set — zero lag while dragging
-		knob.Position = UDim2.fromOffset(knobX(st), TRACK_H / 2)
+		-- Knob: direct set — zero lag while dragging (scale-based X)
+		knob.Position = UDim2.new(st, 0, 0.5, 0)
 
 		changed:Fire(value)
 	end
 
 	-- ── Row hover (stroke / flash / shadow) — full inner area ──────────────────
-	-- Knob scale is intentionally NOT here; it lives on knob.MouseEnter/Leave
-	-- so it only fires when the cursor is actually over the knob.
 	self._maid:GiveTask(hit.MouseEnter:Connect(function()
 		if not self._enabled then return end
 		hovering = true
@@ -399,9 +402,7 @@ function Slider.new(config: SliderConfig): SliderImpl
 		end
 	end))
 
-	-- ── Knob hover (scale only) — fires only when cursor is over the knob ──────
-	-- GuiObject.MouseEnter/Leave fire on bounding-box position regardless of
-	-- ZIndex occlusion, so this works even though hit (ZIndex 7) sits on top.
+	-- ── Knob hover (scale only) ───────────────────────────────────────────────
 	self._maid:GiveTask(knob.MouseEnter:Connect(function()
 		if not self._enabled or dragging then return end
 		TweenService:Create(knobScale, TWEEN_KNOB_HOVER, { Scale = KNOB_SCALE_HOVER }):Play()
@@ -413,17 +414,18 @@ function Slider.new(config: SliderConfig): SliderImpl
 	end))
 
 	-- ── Press (scale down) ────────────────────────────────────────────────────
-	-- Guard: only start drag when the click lands within the track's horizontal
-	-- bounds. Without this, clicking the label on the left calls tFromMouseX
-	-- with a negative relX → clamps to 0 → silently zeros the value.
-	self._maid:GiveTask(hit.MouseButton1Down:Connect(function()
+	self._maid:GiveTask(hit.InputBegan:Connect(function(input: InputObject)
 		if not self._enabled then return end
-		local mouseX    = UserInputService:GetMouseLocation().X
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1
+			and input.UserInputType ~= Enum.UserInputType.Touch then return end
+
+		local touchX    = input.Position.X
 		local trackLeft = track.AbsolutePosition.X
-		if mouseX < trackLeft or mouseX > trackLeft + TRACK_W + KNOB_W / 2 then return end
+		local trackRight = trackLeft + track.AbsoluteSize.X
+		if touchX < (trackLeft - 24) or touchX > (trackRight + KNOB_W / 2 + 24) then return end
 		dragging = true
 		TweenService:Create(knobScale, TWEEN_KNOB_PRESS, { Scale = KNOB_SCALE_PRESS }):Play()
-		applyT(tFromMouseX(track, mouseX))
+		applyT(tFromMouseX(track, touchX))
 	end))
 
 	-- ── Drag move ─────────────────────────────────────────────────────────────
@@ -438,8 +440,6 @@ function Slider.new(config: SliderConfig): SliderImpl
 	local function onRelease()
 		if not dragging then return end
 		dragging = false
-		-- Always restore to rest; knob.MouseEnter will re-trigger hover scale
-		-- if the cursor is still over the knob after release.
 		TweenService:Create(knobScale, TWEEN_KNOB_REL, { Scale = KNOB_SCALE_REST }):Play()
 		if not hovering then
 			TweenService:Create(stroke, TWEEN_STROKE, { Color = Theme.Colors.Border }):Play()
@@ -476,6 +476,10 @@ function Slider.new(config: SliderConfig): SliderImpl
 		end))
 	end
 
+	if config.Tooltip and #config.Tooltip > 0 then
+		self._maid:GiveTask(Tooltip.bind(inner, config.Tooltip))
+	end
+
 	return self
 end
 
@@ -489,11 +493,12 @@ function Slider:SetValue(value: number)
 	self.Value          = clamped
 	self._valLabel.Text = fmt(clamped, self._step)
 
+	-- Scale-based: auto-adapts to container width
 	TweenService:Create(self._clipFrame, TWEEN_FILL, {
-		Size = UDim2.fromOffset(knobX(t), TRACK_H),
+		Size = UDim2.new(t, 0, 1, 0),
 	}):Play()
 	TweenService:Create(self._knob, TWEEN_KNOB_SLIDE, {
-		Position = UDim2.fromOffset(knobX(t), TRACK_H / 2),
+		Position = UDim2.new(t, 0, 0.5, 0),
 	}):Play()
 end
 

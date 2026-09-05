@@ -37,6 +37,10 @@ export type GroupboxImpl = {
 	_frame:         Frame,
 	_gui:           ScreenGui,
 	_canvas:        Frame?,
+	_win:           any?,
+	_tabName:       string?,
+	_tabIdx:        number?,
+	_groupTitle:    string?,
 	_layoutOrder:   number,
 }
 
@@ -46,17 +50,21 @@ local Groupbox = {} :: { __index: any }
 Groupbox.__index = Groupbox
 
 --[[
-	Groupbox.new(title, gui, parentMaid)
+	Groupbox.new(title, gui, parentMaid, canvas, window, tabName, tabIdx)
 
 	title      — text shown at the top-left of the bordered box
 	gui        — ScreenGui root forwarded to Dropdown as OverlayParent
 	parentMaid — the Tab's maid; owns this groupbox's maid (cascade cleanup)
 ]]
-function Groupbox.new(title: string, gui: ScreenGui, parentMaid: any, canvas: Frame?): GroupboxImpl
-	local self        = setmetatable({}, Groupbox) :: GroupboxImpl
+function Groupbox.new(title: string, gui: ScreenGui, parentMaid: any, canvas: Frame?, window: any?, tabName: string?, tabIdx: number?): GroupboxImpl
+	local self        = setmetatable({}, Groupbox) :: any
 	self._maid        = Maid.new()
 	self._gui         = gui
 	self._canvas      = canvas
+	self._win         = window
+	self._tabName     = tabName or "Main"
+	self._tabIdx      = tabIdx or 1
+	self._groupTitle  = if #title > 0 then title else nil
 	self._layoutOrder = 0
 	parentMaid:GiveTask(self._maid)
 
@@ -130,7 +138,7 @@ end
 	Supports optional `description` key for inline sub-labels.
 	ComponentWrapper has ClipsDescendants = false so Dropdown overlays escape.
 ]]
-function Groupbox:_addToContent(comp: any, config: any?): any
+function Groupbox:_addToContent(comp: any, config: any?, typeName: string?): any
 	local desc = config and (config.description or config.Description)
 
 	if typeof(desc) == "string" and #desc > 0 then
@@ -189,6 +197,21 @@ function Groupbox:_addToContent(comp: any, config: any?): any
 		comp:GetFrame().Parent = self._frame
 	end
 
+	if self._win and self._win._search and config and comp.GetFrame then
+		local label = config.Label or config.Title or config.Text or config.Name or ""
+		if typeof(label) == "string" and #label > 0 then
+			self._win._search:Register({
+				Label     = label,
+				TabName   = self._tabName or "Main",
+				TabIdx    = self._tabIdx or 1,
+				GroupName = self._groupTitle,
+				TypeName  = typeName or "Control",
+				Comp      = comp,
+				Frame     = comp:GetFrame(),
+			})
+		end
+	end
+
 	self._maid:GiveTask(comp)
 	return comp
 end
@@ -196,19 +219,19 @@ end
 -- ── Public Add* API ────────────────────────────────────────────────────────
 
 function Groupbox:AddButton(config: {
-	Label: string, Variant: number?, Enabled: boolean?, description: string?,
+	Label: string, Variant: number?, Enabled: boolean?, description: string?, Tooltip: string?,
 })
 	local c = config :: any
 	c.LayoutOrder = self:_nextOrder()
-	return self:_addToContent(Button.new(c), c)
+	return self:_addToContent(Button.new(c), c, "Button")
 end
 
 function Groupbox:AddToggle(config: {
-	Label: string, Icon: string?, Default: boolean?, Enabled: boolean?, description: string?,
+	Label: string, Icon: string?, Default: boolean?, Enabled: boolean?, description: string?, Tooltip: string?,
 })
 	local c = config :: any
 	c.LayoutOrder = self:_nextOrder()
-	return self:_addToContent(Toggle.new(c), c)
+	return self:_addToContent(Toggle.new(c), c, "Toggle")
 end
 
 function Groupbox:AddLabel(text: string, color: Color3?)
@@ -217,7 +240,7 @@ function Groupbox:AddLabel(text: string, color: Color3?)
 		Color       = color,
 		LayoutOrder = self:_nextOrder(),
 	})
-	return self:_addToContent(lbl, nil)
+	return self:_addToContent(lbl, nil, "Label")
 end
 
 function Groupbox:AddDescription(config: { Title: string?, Description: string })
@@ -234,54 +257,54 @@ function Groupbox:AddDivider(text: string?)
 		Text        = text,
 		LayoutOrder = self:_nextOrder(),
 	})
-	return self:_addToContent(div, nil)
+	return self:_addToContent(div, nil, "Divider")
 end
 
 function Groupbox:AddSlider(config: {
 	Label: string, Min: number?, Max: number?,
-	Default: number?, Step: number?, Enabled: boolean?, description: string?,
+	Default: number?, Step: number?, Enabled: boolean?, description: string?, Tooltip: string?,
 })
 	local c = config :: any
 	c.LayoutOrder = self:_nextOrder()
-	return self:_addToContent(Slider.new(c), c)
+	return self:_addToContent(Slider.new(c), c, "Slider")
 end
 
 function Groupbox:AddTextbox(config: {
 	Label: string?, Placeholder: string?, Default: string?,
-	MaxLength: number?, ClearOnFocus: boolean?, Enabled: boolean?, description: string?,
+	MaxLength: number?, ClearOnFocus: boolean?, Enabled: boolean?, description: string?, Tooltip: string?,
 })
 	local c = config :: any
 	c.LayoutOrder = self:_nextOrder()
-	return self:_addToContent(Textbox.new(c), c)
+	return self:_addToContent(Textbox.new(c), c, "Textbox")
 end
 
 function Groupbox:AddKeybind(config: {
 	Label: string, Default: Enum.KeyCode?,
-	Blacklist: { any }?, Enabled: boolean?, description: string?,
+	Blacklist: { any }?, Enabled: boolean?, description: string?, Tooltip: string?,
 })
 	local c = config :: any
 	c.LayoutOrder = self:_nextOrder()
-	return self:_addToContent(Keybind.new(c), c)
+	return self:_addToContent(Keybind.new(c), c, "Keybind")
 end
 
 function Groupbox:AddDropdown(config: {
 	Label: string?, Options: { any }, MultiSelect: boolean?,
-	Default: any?, Placeholder: string?, Enabled: boolean?, description: string?,
+	Default: any?, Placeholder: string?, Enabled: boolean?, description: string?, Tooltip: string?,
 })
 	local c = config :: any
 	c.LayoutOrder   = self:_nextOrder()
-	return self:_addToContent(Dropdown.new(c), c)
+	return self:_addToContent(Dropdown.new(c), c, "Dropdown")
 end
 
 function Groupbox:AddColorPicker(config: {
 	Label: string, Default: Color3?, ShowAlpha: boolean?,
-	Flag: string?, Risky: boolean?, Enabled: boolean?, description: string?,
+	Flag: string?, Risky: boolean?, Enabled: boolean?, description: string?, Tooltip: string?,
 })
 	local c = config :: any
 	c.LayoutOrder   = self:_nextOrder()
 	c.OverlayParent = self._gui
 	c.Canvas        = self._canvas
-	return self:_addToContent(ColorPicker.new(c), c)
+	return self:_addToContent(ColorPicker.new(c), c, "ColorPicker")
 end
 
 -- ── Lifecycle ─────────────────────────────────────────────────────────────

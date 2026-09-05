@@ -6,6 +6,7 @@ local Maid        = require(script.Parent.Parent.Utils.Maid)
 local Signal      = require(script.Parent.Parent.Utils.Signal)
 local Theme       = require(script.Parent.Parent.Theme)
 local SaveManager = require(script.Parent.Parent.Core.SaveManager)
+local Tooltip     = require(script.Parent.Parent.Utils.Tooltip)
 
 local TWEEN_STROKE = TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 local TWEEN_HOVER  = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
@@ -27,6 +28,7 @@ export type TextboxConfig = {
 	Enabled: boolean?,
 	LayoutOrder: number?,
 	Flag: string?,
+	Tooltip: string?,
 }
 
 type TextboxImpl = {
@@ -251,6 +253,10 @@ function Textbox.new(config: TextboxConfig): TextboxImpl
 				SaveManager._scheduleAutoSave()
 			end))
 		end
+	end
+
+	if config.Tooltip and #config.Tooltip > 0 then
+		self._maid:GiveTask(Tooltip.bind(inner, config.Tooltip))
 	end
 
 	return self

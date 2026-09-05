@@ -21,6 +21,7 @@ local Signal      = require(script.Parent.Parent.Utils.Signal)
 local Theme       = require(script.Parent.Parent.Theme)
 local SaveManager = require(script.Parent.Parent.Core.SaveManager)
 local SmoothScroll = require(script.Parent.Parent.Utils.SmoothScroll)
+local Tooltip     = require(script.Parent.Parent.Utils.Tooltip)
 
 -- ── Container interaction constants (mirrors Button / Toggle exactly) ─────────
 
@@ -117,6 +118,7 @@ export type ColorPickerConfig = {
 	Canvas:        Frame?,
 	LayoutOrder:   number?,
 	description:   string?,
+	Tooltip:       string?,
 }
 
 export type ColorPickerImpl = {
@@ -165,10 +167,11 @@ local function hexToColor(raw: string): Color3?
 	return Color3.fromRGB(r, g, b)
 end
 
-local function relPos(frame: GuiObject): Vector2
-	local m  = UserInputService:GetMouseLocation()
+local function relPos(frame: GuiObject, customPos: Vector2?): Vector2
+	local m  = customPos or UserInputService:GetMouseLocation()
 	local ap = frame.AbsolutePosition
 	local as = frame.AbsoluteSize
+	if as.X <= 0 or as.Y <= 0 then return Vector2.zero end
 	return Vector2.new(
 		clamp01((m.X - ap.X) / as.X),
 		clamp01((m.Y - ap.Y) / as.Y)
@@ -395,14 +398,32 @@ function ColorPicker.new(config: ColorPickerConfig): ColorPickerImpl
 	local popup = Instance.new("Frame")
 	popup.Name  = "ColorPickerPopup"
 	popup.Size  = UDim2.fromOffset(POPUP_W, POPUP_H)
-	popup.BackgroundColor3 = Theme.Colors.Surface
+	popup.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
 	popup.BackgroundTransparency = 1
 	popup.BorderSizePixel  = 0
 	popup.ZIndex           = POPUP_Z
 	popup.Visible          = false
-	mkCorner(popup, Theme.Radius.Medium)
-	mkStroke(popup, Theme.Colors.Border, 1)
+	mkCorner(popup, 8)
+	mkStroke(popup, Color3.fromRGB(48, 48, 56), 1)
 	maid:GiveTask(popup)
+
+	local bottomGlow                  = Instance.new("Frame")
+	bottomGlow.Name                   = "BottomGlow"
+	bottomGlow.Position               = UDim2.new(0, 0, 1, -1)
+	bottomGlow.Size                   = UDim2.new(1, 0, 0, 1)
+	bottomGlow.BackgroundColor3       = Color3.fromHSV(h, s, v)
+	bottomGlow.BorderSizePixel        = 0
+	bottomGlow.ZIndex                 = POPUP_Z + 1
+	bottomGlow.Parent                 = popup
+
+	local glowGrad = Instance.new("UIGradient")
+	glowGrad.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(0.35, 0.45),
+		NumberSequenceKeypoint.new(0.65, 0.45),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	glowGrad.Parent = bottomGlow
 
 	local popupScale  = Instance.new("UIScale")
 	popupScale.Scale  = 1
@@ -742,6 +763,7 @@ function ColorPicker.new(config: ColorPickerConfig): ColorPickerImpl
 			pill.BackgroundColor3      = color
 			pill.BackgroundTransparency = 1 - a
 			swatch.BackgroundColor3    = color
+			bottomGlow.BackgroundColor3 = color
 			if showAlpha and alphaBar and alphaHandle then
 				alphaBar.BackgroundColor3    = color
 				alphaHandle.Position         = UDim2.new(0.5, 0, 1 - a, 0)
@@ -758,6 +780,7 @@ function ColorPicker.new(config: ColorPickerConfig): ColorPickerImpl
 			}):Play()
 			TweenService:Create(pill,   ti, { BackgroundColor3 = color, BackgroundTransparency = 1 - a }):Play()
 			TweenService:Create(swatch, ti, { BackgroundColor3 = color }):Play()
+			bottomGlow.BackgroundColor3 = color
 			if showAlpha and alphaBar and alphaHandle then
 				TweenService:Create(alphaBar, ti, { BackgroundColor3 = color }):Play()
 				TweenService:Create(alphaHandle, ti, {
@@ -790,39 +813,34 @@ function ColorPicker.new(config: ColorPickerConfig): ColorPickerImpl
 
 	-- ── Drag pump ─────────────────────────────────────────────────────────────
 
-	local function pump()
+	local function pump(pos: Vector2?)
 		if dragging == "canvas" then
-			local p = relPos(canvas)
+			local p = relPos(canvas, pos)
 			s, v = p.X, 1 - p.Y
 		elseif dragging == "hue" then
-			h = relPos(hueBar).Y
+			h = relPos(hueBar, pos).Y
 		elseif dragging == "alpha" and alphaBar then
-			a = 1 - relPos(alphaBar).Y
+			a = 1 - relPos(alphaBar, pos).Y
 		end
 		refresh("drag")
 		fireChanged()
 	end
 
-	local function beginDrag(target: DragTarget)
+	local function beginDrag(target: DragTarget, input: InputObject?)
 		if not isEnabled then return end
 		dragging = target
 		setHeld(target)
-		pump()
-		if dragConn then dragConn:Disconnect() end
-		dragConn = RunService.RenderStepped:Connect(function()
-			if not dragging then
-				dragConn:Disconnect(); dragConn = nil
-				return
-			end
-			if not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
-				dragging = nil
-				setHeld(nil)
-				dragConn:Disconnect(); dragConn = nil
-				return
-			end
-			pump()
-		end)
+		local initPos = if input then Vector2.new(input.Position.X, input.Position.Y) else nil
+		pump(initPos)
 	end
+
+	maid:GiveTask(UserInputService.InputChanged:Connect(function(input: InputObject)
+		if not dragging then return end
+		if input.UserInputType == Enum.UserInputType.MouseMovement
+			or input.UserInputType == Enum.UserInputType.Touch then
+			pump(Vector2.new(input.Position.X, input.Position.Y))
+		end
+	end))
 
 	maid:GiveTask(UserInputService.InputEnded:Connect(function(input: InputObject)
 		if input.UserInputType ~= Enum.UserInputType.MouseButton1
@@ -830,7 +848,6 @@ function ColorPicker.new(config: ColorPickerConfig): ColorPickerImpl
 		if dragging then
 			dragging = nil
 			setHeld(nil)
-			if dragConn then dragConn:Disconnect(); dragConn = nil end
 		end
 	end))
 
@@ -839,14 +856,14 @@ function ColorPicker.new(config: ColorPickerConfig): ColorPickerImpl
 	maid:GiveTask(canvasBtn.InputBegan:Connect(function(input: InputObject)
 		if input.UserInputType == Enum.UserInputType.MouseButton1
 			or input.UserInputType == Enum.UserInputType.Touch then
-			beginDrag("canvas")
+			beginDrag("canvas", input)
 		end
 	end))
 
 	maid:GiveTask(hueBtn.InputBegan:Connect(function(input: InputObject)
 		if input.UserInputType == Enum.UserInputType.MouseButton1
 			or input.UserInputType == Enum.UserInputType.Touch then
-			beginDrag("hue")
+			beginDrag("hue", input)
 		end
 	end))
 
@@ -855,7 +872,7 @@ function ColorPicker.new(config: ColorPickerConfig): ColorPickerImpl
 		maid:GiveTask(abtn.InputBegan:Connect(function(input: InputObject)
 			if input.UserInputType == Enum.UserInputType.MouseButton1
 				or input.UserInputType == Enum.UserInputType.Touch then
-				beginDrag("alpha")
+				beginDrag("alpha", input)
 			end
 		end))
 	end
@@ -963,15 +980,24 @@ function ColorPicker.new(config: ColorPickerConfig): ColorPickerImpl
 			SmoothScroll.setPaused(true)
 		end
 
-		-- Center in the overlay parent; clamp to screen on mobile
+		-- Center on the window canvas frame; fall back to full-screen center
 		local screenW = overlayParent.AbsoluteSize.X
 		local screenH = overlayParent.AbsoluteSize.Y
 		local pw = math.min(POPUP_W, screenW - 16)
 		local ph = POPUP_H
 		popup.Size = UDim2.fromOffset(pw, ph)
-		-- Re-center after size change so it stays in bounds
-		local cx = math.clamp(screenW / 2, pw / 2 + 8, screenW - pw / 2 - 8)
-		local cy = math.clamp(screenH / 2, ph / 2 + 8, screenH - ph / 2 - 8)
+		local cx, cy
+		if windowCanvas and windowCanvas.Parent then
+			local canvasPos  = windowCanvas.AbsolutePosition
+			local canvasSize = windowCanvas.AbsoluteSize
+			cx = canvasPos.X + canvasSize.X / 2
+			cy = canvasPos.Y + canvasSize.Y / 2
+		else
+			cx = screenW / 2
+			cy = screenH / 2
+		end
+		cx = math.clamp(cx, pw / 2 + 8, screenW - pw / 2 - 8)
+		cy = math.clamp(cy, ph / 2 + 8, screenH - ph / 2 - 8)
 		popup.AnchorPoint            = Vector2.new(0.5, 0.5)
 		popup.Position               = UDim2.fromOffset(cx, cy)
 		popup.BackgroundTransparency = 1
@@ -1062,6 +1088,10 @@ function ColorPicker.new(config: ColorPickerConfig): ColorPickerImpl
 				refresh("instant")
 			end
 		)
+	end
+
+	if config.Tooltip and #config.Tooltip > 0 then
+		maid:GiveTask(Tooltip.bind(inner, config.Tooltip))
 	end
 
 	refresh("instant")

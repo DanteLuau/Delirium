@@ -3,9 +3,10 @@
 local TweenService     = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
-local Maid   = require(script.Parent.Parent.Utils.Maid)
-local Signal = require(script.Parent.Parent.Utils.Signal)
-local Theme  = require(script.Parent.Parent.Theme)
+local Maid    = require(script.Parent.Parent.Utils.Maid)
+local Signal  = require(script.Parent.Parent.Utils.Signal)
+local Theme   = require(script.Parent.Parent.Theme)
+local Tooltip = require(script.Parent.Parent.Utils.Tooltip)
 
 local TWEEN_HOVER   = TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
 local TWEEN_PRESS   = TweenInfo.new(0.18, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
@@ -24,6 +25,7 @@ export type ButtonConfig = {
 	Variant: number?,
 	Enabled: boolean?,
 	LayoutOrder: number?,
+	Tooltip: string?,
 	-- When true, label renders in Theme.Colors.Error (visual-only danger signal).
 	-- Does not affect click behaviour or any other logic.
 	Risky: boolean?,
@@ -330,7 +332,8 @@ function Button.new(config: ButtonConfig): ButtonImpl
 	end))
 
 	self._maid:GiveTask(UserInputService.InputEnded:Connect(function(input: InputObject)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch then
 			releasePress()
 		end
 	end))
@@ -339,6 +342,10 @@ function Button.new(config: ButtonConfig): ButtonImpl
 		if not self._enabled then return end
 		clicked:Fire()
 	end))
+
+	if config.Tooltip and #config.Tooltip > 0 then
+		self._maid:GiveTask(Tooltip.bind(inner, config.Tooltip))
+	end
 
 	return self
 end

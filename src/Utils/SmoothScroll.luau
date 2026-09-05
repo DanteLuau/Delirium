@@ -115,11 +115,13 @@ end
 ]]
 function SmoothScroll.apply(frame: ScrollingFrame, step: number?): () -> ()
 	local scrollStep = step or DEFAULT_STEP
+	local isPureTouch = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
 
-	-- Disable native snap-scroll so we drive CanvasPosition ourselves.
-	frame.ScrollingEnabled = false
-	-- Active = true → camera ignores wheel; does NOT affect UIS.InputChanged.
-	frame.Active = true
+	-- On pure touch devices (mobile/tablet), keep ScrollingEnabled = true for native inertia swipe.
+	-- On desktop/mouse devices, disable native snap-scroll to drive custom smooth CanvasPosition.
+	frame.ScrollingEnabled = isPureTouch
+	frame.ElasticBehavior  = Enum.ElasticBehavior.WhenScrollable
+	frame.Active           = true
 
 	local entry: ManagedEntry = { frame = frame }
 	table.insert(_managed, entry)
@@ -127,9 +129,21 @@ function SmoothScroll.apply(frame: ScrollingFrame, step: number?): () -> ()
 	local targetY: number     = frame.CanvasPosition.Y
 	local activeTween: Tween? = nil
 
+	-- For hybrid touch-enabled PC/laptops: enable native scroll when touch begins
+	local touchBeganConn = frame.InputBegan:Connect(function(input: InputObject)
+		if input.UserInputType == Enum.UserInputType.Touch then
+			frame.ScrollingEnabled = true
+		end
+	end)
+
 	local inputConn = UserInputService.InputChanged:Connect(function(input: InputObject)
 		if _paused then return end
 		if input.UserInputType ~= Enum.UserInputType.MouseWheel then return end
+
+		-- Ensure desktop mouse wheel uses custom smooth tween
+		if frame.ScrollingEnabled and not isPureTouch then
+			frame.ScrollingEnabled = false
+		end
 
 		local mousePos = UserInputService:GetMouseLocation()
 
@@ -137,7 +151,6 @@ function SmoothScroll.apply(frame: ScrollingFrame, step: number?): () -> ()
 		if not isInBounds(frame, mousePos) then return end
 
 		-- Priority: yield to a managed descendant that's also under the cursor.
-		-- (e.g. dropdown list scroll inside the window content scroll)
 		if hasActiveDescendantScroll(frame, mousePos) then return end
 
 		local maxY = math.max(0, frame.AbsoluteCanvasSize.Y - frame.AbsoluteSize.Y)
@@ -159,13 +172,13 @@ function SmoothScroll.apply(frame: ScrollingFrame, step: number?): () -> ()
 	end)
 
 	-- Clamp targetY ceiling whenever canvas content grows or shrinks
-	-- (e.g. dropdown rebuilds its option list while open)
 	local sizeConn = frame:GetPropertyChangedSignal("AbsoluteCanvasSize"):Connect(function()
 		local maxY = math.max(0, frame.AbsoluteCanvasSize.Y - frame.AbsoluteSize.Y)
 		targetY = math.clamp(targetY, 0, maxY)
 	end)
 
 	return function()
+		touchBeganConn:Disconnect()
 		inputConn:Disconnect()
 		sizeConn:Disconnect()
 		if activeTween then

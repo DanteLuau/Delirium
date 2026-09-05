@@ -12,6 +12,8 @@ local Components   = require(script.Parent.Parent.Components)
 local SmoothScroll = require(script.Parent.Parent.Utils.SmoothScroll)
 local Tab          = require(script.Parent.Tab)
 local Notification = require(script.Parent.Notification)
+local Search       = require(script.Parent.Search)
+local Tooltip      = require(script.Parent.Parent.Utils.Tooltip)
 
 local TWEEN_OPEN     = TweenInfo.new(0.3,  Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
 local TWEEN_CLOSE    = TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
@@ -20,9 +22,22 @@ local TWEEN_GROUP    = TweenInfo.new(0.20, Enum.EasingStyle.Quint, Enum.EasingDi
 local TWEEN_COLLAPSE = TweenInfo.new(0.45, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut)
 local TWEEN_EXPAND   = TweenInfo.new(0.50, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
 
--- Pill (hide/show morph) ─ same concept as Rayfield's collapsed pill
-local PILL_SIZE = UDim2.fromOffset(185, 50)
-local PILL_POS  = UDim2.new(0.5, -92, 0, 45) -- AnchorPoint(0,0); centered horizontally (PILL_W=185, so offset = -w/2)
+-- Pill (hide/show morph)
+export type PillPosition = "Top" | "Bottom" | "Left" | "Right"
+
+local function getPillGeometry(side: PillPosition?): (UDim2, UDim2)
+	local s = side or "Top"
+	if s == "Bottom" then
+		return UDim2.fromOffset(170, 36), UDim2.new(0.5, -85, 1, -36)
+	elseif s == "Left" then
+		return UDim2.fromOffset(130, 36), UDim2.new(0, 0, 0.5, -18)
+	elseif s == "Right" then
+		return UDim2.fromOffset(130, 36), UDim2.new(1, -130, 0.5, -18)
+	else -- "Top"
+		return UDim2.fromOffset(170, 36), UDim2.new(0.5, -85, 0, 0)
+	end
+end
+
 local TWEEN_PILL_MORPH  = TweenInfo.new(0.45, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut)
 local TWEEN_PILL_REVEAL = TweenInfo.new(0.50, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
 
@@ -30,17 +45,17 @@ local TWEEN_PILL_REVEAL = TweenInfo.new(0.50, Enum.EasingStyle.Exponential, Enum
 -- variant is just the desktop width with a shorter body (no per-viewport adapt).
 -- Replicated here so Delirium can default to the same shape on first open.
 local DEFAULT_SIZE_DESKTOP = UDim2.fromOffset(500, 475)
-local DEFAULT_SIZE_MOBILE  = UDim2.fromOffset(500, 275)
+local DEFAULT_SIZE_MOBILE  = UDim2.fromOffset(360, 280)
 local MIN_SIZE             = Vector2.new(300, 200)
-local MIN_SIZE_MOBILE      = Vector2.new(240, 260)
-local VIEWPORT_BREAKPOINT  = Vector2.new(1024, 768)   -- Rayfield's exact threshold
-local VIEWPORT_EDGE_MARGIN = 4                        -- small breathing room; Rayfield uses ~0
-local SIDEBAR_W_EXPANDED  = 136        -- trimmed from 148
+local MIN_SIZE_MOBILE      = Vector2.new(240, 200)
+local VIEWPORT_BREAKPOINT  = Vector2.new(1024, 768)
+local VIEWPORT_EDGE_MARGIN = 4
+local SIDEBAR_W_EXPANDED  = 136
 local SIDEBAR_W_COLLAPSED = 40
 local SIDEBAR_HEADER_H    = 44
 local SIDEBAR_GAP         = 4
 local TAB_ITEM_H          = 24
-local TAB_SPACING         = 5          -- gap between tab rows / groups
+local TAB_SPACING         = 5
 
 -- Group geometry
 local GROUP_HEADER_H      = 20
@@ -59,34 +74,45 @@ export type WindowConfig = {
 	Size: UDim2?,
 	Position: UDim2?,
 	MinSize: Vector2?,
-	AutoScale: boolean?, -- default true — clamp window to viewport, smaller default on mobile
+	AutoScale: boolean?,
+	PillPosition: PillPosition?,
 }
 
--- ── platform detection (Rayfield-style) ──────────────────────────────────────
+-- ── platform detection ───────────────────────────────────────────────────────
 
--- Rayfield's only detection: viewport-pixel-based.  If BOTH axes are below 1024×768,
--- treat as mobile.  This is what useMobileSizing in Rayfield source.lua does.
 local function detectMobile(viewport: Vector2): boolean
+	if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
+		return true
+	end
 	return viewport.X < VIEWPORT_BREAKPOINT.X and viewport.Y < VIEWPORT_BREAKPOINT.Y
 end
 
--- ── viewport helpers ──────────────────────────────────────────────────────────
+-- ── viewport helpers (cached for hot-path performance) ──────────────────────
 
--- Bounds where the window can live.  We use Camera.ViewportSize (the actual render area)
--- because our ScreenGui has IgnoreGuiInset = true, so 0,0 maps to the visual top-left.
+local _cachedVp: Vector2? = nil
 local function viewportSize(): Vector2
+	if _cachedVp then return _cachedVp end
 	local cam = workspace.CurrentCamera
 	if cam then
 		local vs = cam.ViewportSize
-		if vs.X > 0 and vs.Y > 0 then return vs end
+		if vs.X > 0 and vs.Y > 0 then
+			_cachedVp = vs
+			return vs
+		end
 	end
 	return Vector2.new(1024, 768)
 end
 
+do
+	local cam = workspace.CurrentCamera
+	if cam then
+		cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+			_cachedVp = cam.ViewportSize
+		end)
+	end
+end
+
 local function safeInsets(): Vector2
-	-- GuiInset = Roblox topbar (mobile status bar + back button).  Even with
-	-- IgnoreGuiInset=true on the parent ScreenGui, we still want to keep the window
-	-- BELOW the Roblox topbar so it doesn't visually clash with it.
 	local ok, inset = pcall(function() return GuiService:GetGuiInset() end)
 	if not ok then return Vector2.zero end
 	return Vector2.new(inset.X, inset.Y)
@@ -94,42 +120,32 @@ end
 
 -- ── clamp helpers — Obsidian-style snap + hard bounds ────────────────────────
 
--- Clamp a window size (UDim2 in Offset form) so it always fits inside the viewport.
 local function clampSizeToViewport(size: UDim2, minSize: Vector2): UDim2
 	if size.X.Scale ~= 0 or size.Y.Scale ~= 0 then return size end
 	local vp   = viewportSize()
 	local ins  = safeInsets()
-	-- Allow the window to fill the viewport horizontally, but reserve the top inset
-	-- vertically so the title bar never slides under the Roblox topbar.
-	local maxW = math.max(minSize.X, vp.X)
-	local maxH = math.max(minSize.Y, vp.Y - ins.Y)
-	if maxW < minSize.X then maxW = minSize.X end
-	if maxH < minSize.Y then maxH = minSize.Y end
+	local maxW = math.max(minSize.X, vp.X - VIEWPORT_EDGE_MARGIN * 2)
+	local maxH = math.max(minSize.Y, vp.Y - ins.Y - VIEWPORT_EDGE_MARGIN * 2)
 	local w = math.clamp(size.X.Offset, minSize.X, maxW)
 	local h = math.clamp(size.Y.Offset, minSize.Y, maxH)
 	return UDim2.fromOffset(w, h)
 end
 
--- Clamp a window position (AnchorPoint 0,0 — pos.Offset IS the screen-space top-left).
--- Top bound = ins.Y so the title bar stays below the Roblox topbar.
--- Left/right/bottom = exactly the edge (no margin).
-local function clampPositionToViewport(pos: UDim2, size: UDim2): UDim2
+local function clampPositionToViewport(pos: UDim2, size: UDim2, leftSidebarOffset: number?): UDim2
 	local vp  = viewportSize()
 	local ins = safeInsets()
 	local w   = size.X.Offset
 	local h   = size.Y.Offset
 
-	-- Resolve to absolute screen coordinates (handles both Scale-based and Offset input).
 	local inX = pos.X.Scale * vp.X + pos.X.Offset
 	local inY = pos.Y.Scale * vp.Y + pos.Y.Offset
 
-	-- Bounds: top-left at (0, ins.Y), bottom-right at (vp.X, vp.Y)
-	local minX = 0
-	local maxX = math.max(0, vp.X - w)
-	local minY = ins.Y
-	local maxY = math.max(ins.Y, vp.Y - h)
+	local sidebarReserve = leftSidebarOffset or 0
+	local minX = sidebarReserve + VIEWPORT_EDGE_MARGIN
+	local maxX = math.max(minX, vp.X - w - VIEWPORT_EDGE_MARGIN)
+	local minY = ins.Y + VIEWPORT_EDGE_MARGIN
+	local maxY = math.max(minY, vp.Y - h - VIEWPORT_EDGE_MARGIN)
 
-	-- Degenerate viewport — skip clamp.
 	if minX > maxX or minY > maxY then return pos end
 
 	local x = math.clamp(inX, minX, maxX)
@@ -353,6 +369,7 @@ local function setupDrag(maid: any, titleBar: Frame, root: Frame, autoScale: boo
 	local dragging  = false
 	local dragStart = Vector3.zero
 	local startPos  = UDim2.fromOffset(0, 0)
+	local lastX, lastY = 0, 0
 
 	maid:GiveTask(titleBar.InputBegan:Connect(function(input: InputObject)
 		if input.UserInputType ~= Enum.UserInputType.MouseButton1
@@ -372,21 +389,29 @@ local function setupDrag(maid: any, titleBar: Frame, root: Frame, autoScale: boo
 		dragging  = true
 		dragStart = input.Position
 		startPos  = root.Position
+		local vp = viewportSize()
+		lastX = startPos.X.Scale * vp.X + startPos.X.Offset
+		lastY = startPos.Y.Scale * vp.Y + startPos.Y.Offset
 	end))
 
+	-- Use UserInputService during active drag so fast movement never drops tracking
 	maid:GiveTask(UserInputService.InputChanged:Connect(function(input: InputObject)
 		if not dragging then return end
 		if input.UserInputType ~= Enum.UserInputType.MouseMovement
 			and input.UserInputType ~= Enum.UserInputType.Touch then return end
 
 		local delta = input.Position - dragStart
-		-- Match Obsidian/Starlight pattern: preserve Scale, add delta to Offset only.
 		local nextPos = UDim2.new(
 			startPos.X.Scale, startPos.X.Offset + delta.X,
 			startPos.Y.Scale, startPos.Y.Offset + delta.Y
 		)
 		if autoScale then
-			root.Position = clampPositionToViewport(nextPos, root.Size)
+			local clamped = clampPositionToViewport(nextPos, root.Size)
+			local cx = clamped.X.Offset
+			local cy = clamped.Y.Offset
+			if math.abs(cx - lastX) < 0.5 and math.abs(cy - lastY) < 0.5 then return end
+			lastX, lastY = cx, cy
+			root.Position = clamped
 		else
 			root.Position = nextPos
 		end
@@ -404,6 +429,10 @@ local function setupResize(maid: any, handle: Frame, root: Frame, minSize: Vecto
 	local resizing    = false
 	local resizeStart = Vector3.zero
 	local startSize   = UDim2.fromOffset(0, 0)
+	-- Cached bounds for the active resize gesture (computed once on InputBegan, not
+	-- per frame).  Saves 2 property reads + 2 math ops per frame on mobile.
+	local maxW, maxH = math.huge, math.huge
+	local lastW, lastH = 0, 0
 
 	maid:GiveTask(handle.InputBegan:Connect(function(input: InputObject)
 		if input.UserInputType ~= Enum.UserInputType.MouseButton1
@@ -411,28 +440,36 @@ local function setupResize(maid: any, handle: Frame, root: Frame, minSize: Vecto
 		resizing    = true
 		resizeStart = input.Position
 		startSize   = root.Size
+		-- Cache bounds for the whole gesture so the per-frame loop is just delta math.
+		if autoScale then
+			local vp   = viewportSize()
+			local ins  = safeInsets()
+			maxW = math.max(minSize.X, vp.X)
+			maxH = math.max(minSize.Y, vp.Y - ins.Y)
+		else
+			maxW, maxH = math.huge, math.huge
+		end
+		lastW = startSize.X.Offset
+		lastH = startSize.Y.Offset
 	end))
 
-	maid:GiveTask(UserInputService.InputChanged:Connect(function(input: InputObject)
+	-- Listen on the HANDLE only, not the global UserInputService, so a sibling
+	-- ScrollingFrame's InputChanged is never hijacked while a resize is in progress.
+	maid:GiveTask(handle.InputChanged:Connect(function(input: InputObject)
 		if not resizing then return end
 		if input.UserInputType ~= Enum.UserInputType.MouseMovement
 			and input.UserInputType ~= Enum.UserInputType.Touch then return end
 
 		local delta = input.Position - resizeStart
-		local vp    = if autoScale then viewportSize() else Vector2.new(math.huge, math.huge)
-		local ins   = if autoScale then safeInsets()        else Vector2.zero
-		local maxW  = if autoScale
-			then math.max(minSize.X, vp.X - ins.X - VIEWPORT_EDGE_MARGIN * 2)
-			else  math.huge
-		local maxH  = if autoScale
-			then math.max(minSize.Y, vp.Y - ins.Y - VIEWPORT_EDGE_MARGIN * 2)
-			else  math.huge
 		local newW  = math.clamp(startSize.X.Offset + delta.X, minSize.X, maxW)
 		local newH  = math.clamp(startSize.Y.Offset + delta.Y, minSize.Y, maxH)
+		-- Skip writes that don't actually move the pixel grid — saves layout passes.
+		if math.abs(newW - lastW) < 0.5 and math.abs(newH - lastH) < 0.5 then return end
+		lastW, lastH = newW, newH
 		root.Size   = UDim2.new(startSize.X.Scale, newW, startSize.Y.Scale, newH)
 	end))
 
-	maid:GiveTask(UserInputService.InputEnded:Connect(function(input: InputObject)
+	maid:GiveTask(handle.InputEnded:Connect(function(input: InputObject)
 		if input.UserInputType == Enum.UserInputType.MouseButton1
 			or input.UserInputType == Enum.UserInputType.Touch then
 			resizing = false
@@ -552,6 +589,7 @@ function Window.new(title: string, options: WindowConfig?)
 	self._layoutOrder = 0
 
 	-- pill / hide-restore state
+	self._pillPosition  = (cfg.PillPosition or "Top") :: PillPosition
 	self._hidden        = false
 	self._hideAnimating = false
 	self._savedPosition = nil :: UDim2?
@@ -560,6 +598,10 @@ function Window.new(title: string, options: WindowConfig?)
 	self._pillTitle     = nil :: any
 	self._pillSub       = nil :: any
 	self._pillInteract  = nil :: any
+	self._pillBgStroke  = nil :: any
+
+	-- Search system (Command Palette)
+	self._search        = Search.new(self, gui, canvas, self._maid)
 
 	local minSize = resolvedMin
 
@@ -587,7 +629,7 @@ function Window.new(title: string, options: WindowConfig?)
 			collapseBtn_w
 		)
 		self._maid:GiveTask((searchBtn_w :: TextButton).MouseButton1Click:Connect(function()
-			Notification.notify({ Title = "Search", Message = "Coming soon.", Type = "info", Duration = 3 })
+			self._search:Toggle()
 		end))
 		self._maid:GiveTask((settingsBtn_w :: TextButton).MouseButton1Click:Connect(function()
 			Notification.notify({ Title = "Settings", Message = "Coming soon.", Type = "info", Duration = 3 })
@@ -598,6 +640,11 @@ function Window.new(title: string, options: WindowConfig?)
 		self._maid:GiveTask(collapseBtn_w.MouseButton1Click:Connect(function()
 			self:ToggleHide()
 		end))
+
+		Tooltip.bind(searchBtn_w :: TextButton, "Search (Ctrl+F)", { ParentGui = gui })
+		Tooltip.bind(settingsBtn_w :: TextButton, "Settings", { ParentGui = gui })
+		Tooltip.bind(minusBtn_w, "Minimize", { ParentGui = gui })
+		Tooltip.bind(collapseBtn_w, "Hide / Pill", { ParentGui = gui })
 	end
 
 	-- Frame-zero guard: Visible=false means Roblox never renders the uninitialised
@@ -611,6 +658,11 @@ function Window.new(title: string, options: WindowConfig?)
 		canvas.GroupTransparency = 1
 		TweenService:Create(canvas, TWEEN_OPEN, { GroupTransparency = 0 }):Play()
 		TweenService:Create(stroke, TWEEN_OPEN, { Transparency = 0 }):Play()
+		task.delay(0.12, function()
+			if not self._hidden and not self._collapsed then
+				self:_revealTabList()
+			end
+		end)
 	end)
 
 	self:_buildPillFace()
@@ -621,16 +673,19 @@ function Window.new(title: string, options: WindowConfig?)
 		local function refit()
 			if self._closing then return end
 			if self._hidden or self._collapsed then return end
-			local clamped = clampSizeToViewport(self._root.Size, self._minSize)
-			if clamped ~= self._root.Size then
-				self._root.Size = clamped
-				self._expandedSize = clamped
+			local cs = clampSizeToViewport(self._root.Size, self._minSize)
+			if cs ~= self._root.Size then
+				self._root.Size = cs
+				self._expandedSize = cs
 			end
-			local pos = clampPositionToViewport(self._root.Position, self._root.Size)
-			if pos ~= self._root.Position then
-				self._root.Position = pos
+			local cp = clampPositionToViewport(self._root.Position, self._root.Size)
+			if cp ~= self._root.Position then
+				self._root.Position = cp
 			end
 		end
+		-- Re-fit only when the ViewportSize actually changes (orientation flip, screen
+		-- resize, etc).  The cache invalidator at module load already updates
+		-- _cachedVp, so we just need to also refit ourselves here.
 		local cam = workspace.CurrentCamera
 		if cam then
 			self._maid:GiveTask(cam:GetPropertyChangedSignal("ViewportSize"):Connect(refit))
@@ -647,7 +702,7 @@ function Window:_nextOrder(): number
 	return self._layoutOrder
 end
 
-function Window:_addToContent(comp: any, config: any?): any
+function Window:_addToContent(comp: any, config: any?, typeName: string?): any
 	local desc = config and (config.description or config.Description)
 
 	if typeof(desc) == "string" and #desc > 0 then
@@ -706,20 +761,35 @@ function Window:_addToContent(comp: any, config: any?): any
 		comp:GetFrame().Parent = self._content
 	end
 
+	if self._search and config and comp.GetFrame then
+		local label = config.Label or config.Title or config.Text or config.Name or ""
+		if typeof(label) == "string" and #label > 0 then
+			self._search:Register({
+				Label     = label,
+				TabName   = "Main",
+				TabIdx    = 1,
+				GroupName = nil,
+				TypeName  = typeName or "Control",
+				Comp      = comp,
+				Frame     = comp:GetFrame(),
+			})
+		end
+	end
+
 	self._maid:GiveTask(comp)
 	return comp
 end
 
-function Window:AddButton(config: { Label: string, Variant: number?, Enabled: boolean?, description: string? })
+function Window:AddButton(config: { Label: string, Variant: number?, Enabled: boolean?, description: string?, Tooltip: string? })
 	local c = config :: any
 	c.LayoutOrder = self:_nextOrder()
-	return self:_addToContent(Components.Button.new(c), c)
+	return self:_addToContent(Components.Button.new(c), c, "Button")
 end
 
-function Window:AddToggle(config: { Label: string, Default: boolean?, Enabled: boolean?, description: string? })
+function Window:AddToggle(config: { Label: string, Default: boolean?, Enabled: boolean?, description: string?, Tooltip: string? })
 	local c = config :: any
 	c.LayoutOrder = self:_nextOrder()
-	return self:_addToContent(Components.Toggle.new(c), c)
+	return self:_addToContent(Components.Toggle.new(c), c, "Toggle")
 end
 
 function Window:AddLabel(text: string, color: Color3?)
@@ -728,7 +798,7 @@ function Window:AddLabel(text: string, color: Color3?)
 		Color       = color,
 		LayoutOrder = self:_nextOrder(),
 	})
-	return self:_addToContent(lbl, nil)
+	return self:_addToContent(lbl, nil, "Label")
 end
 
 function Window:AddDescription(config: { Title: string?, Description: string })
@@ -745,34 +815,34 @@ function Window:AddDivider(text: string?)
 		Text        = text,
 		LayoutOrder = self:_nextOrder(),
 	})
-	return self:_addToContent(div, nil)
+	return self:_addToContent(div, nil, "Divider")
 end
 
 function Window:AddSlider(config: {
 	Label: string, Min: number?, Max: number?, Default: number?,
-	Step: number?, Enabled: boolean?, description: string?,
+	Step: number?, Enabled: boolean?, description: string?, Tooltip: string?,
 })
 	local c = config :: any
 	c.LayoutOrder = self:_nextOrder()
-	return self:_addToContent(Components.Slider.new(c), c)
+	return self:_addToContent(Components.Slider.new(c), c, "Slider")
 end
 
 function Window:AddTextbox(config: {
 	Label: string?, Placeholder: string?, Default: string?, MaxLength: number?,
-	ClearOnFocus: boolean?, Enabled: boolean?, description: string?,
+	ClearOnFocus: boolean?, Enabled: boolean?, description: string?, Tooltip: string?,
 })
 	local c = config :: any
 	c.LayoutOrder = self:_nextOrder()
-	return self:_addToContent(Components.Textbox.new(c), c)
+	return self:_addToContent(Components.Textbox.new(c), c, "Textbox")
 end
 
 function Window:AddKeybind(config: {
 	Label: string, Default: Enum.KeyCode?, Blacklist: { any }?,
-	Enabled: boolean?, description: string?,
+	Enabled: boolean?, description: string?, Tooltip: string?,
 })
 	local c = config :: any
 	c.LayoutOrder = self:_nextOrder()
-	return self:_addToContent(Components.Keybind.new(c), c)
+	return self:_addToContent(Components.Keybind.new(c), c, "Keybind")
 end
 
 -- ── Tab system ────────────────────────────────────────────────────────────────
@@ -1079,7 +1149,17 @@ function Window:_activateTab(idx: number)
 
 	self._activeTabIdx = idx
 	local tab = tabs[idx]
+
+	-- Pre-hide all cards before the pane becomes visible → clean cascade
+	if not self._hidden and not self._hideAnimating then
+		self:_preHidePane(tab.pane)
+	end
 	tab.pane.Visible = true
+
+	-- Cascade the newly visible page top-to-bottom
+	if not self._hidden and not self._hideAnimating then
+		self:_revealPane(tab.pane)
+	end
 
 	-- Auto-expand group if this tab lives inside a collapsed group
 	if tab.group and not tab.group._expanded then
@@ -1327,7 +1407,7 @@ function Window:AddTab(name: string, icon: string?): any
 	}
 	table.insert(tabs, tabInfo)
 
-	local tabObj = Tab.new(pane, self._gui, self._maid, self._canvas)
+	local tabObj = Tab.new(pane, self._gui, self._maid, self._canvas, self, name, tabIdx)
 
 	if tabIdx == 1 then self:_activateTab(1) end
 
@@ -1625,7 +1705,7 @@ function Window:_addTabToGroup(gEntry: any, name: string, icon: string?): any
 		end
 	end))
 
-	return Tab.new(pane, self._gui, self._maid, self._canvas)
+	return Tab.new(pane, self._gui, self._maid, self._canvas, self, name, tabIdx)
 end
 
 -- ── AddDropdown ───────────────────────────────────────────────────────────────
@@ -1638,10 +1718,30 @@ function Window:AddDropdown(config: {
 	Placeholder: string?,
 	Enabled:     boolean?,
 	description: string?,
+	Tooltip:     string?,
 })
 	local c = config :: any
 	c.LayoutOrder   = self:_nextOrder()
-	return self:_addToContent(Components.Dropdown.new(c), c)
+	return self:_addToContent(Components.Dropdown.new(c), c, "Dropdown")
+end
+
+-- ── AddColorPicker ────────────────────────────────────────────────────────────
+
+function Window:AddColorPicker(config: {
+	Label:       string,
+	Default:     Color3?,
+	ShowAlpha:   boolean?,
+	Flag:        string?,
+	Risky:       boolean?,
+	Enabled:     boolean?,
+	description: string?,
+	Tooltip:     string?,
+})
+	local c = table.clone(config) :: any
+	c.OverlayParent = self._gui
+	c.Canvas        = self._canvas
+	c.LayoutOrder   = self:_nextOrder()
+	return self:_addToContent(Components.ColorPicker.new(c), c, "ColorPicker")
 end
 
 -- ── Collapse / expand ────────────────────────────────────────────────────────
@@ -1658,32 +1758,50 @@ function Window:_toggleCollapse()
 		if minusBtn then minusBtn.Text = "—" end
 		if self._handle then self._handle.Visible = true end
 
-		-- Grow the frame back first
+		local targetW = if self._sidebarExpanded then SIDEBAR_W_EXPANDED else SIDEBAR_W_COLLAPSED
+
+		-- Grow the frame back smoothly
 		TweenService:Create(self._root, TWEEN_EXPAND, {
 			Size = self._expandedSize,
 		}):Play()
 
-		-- Once the frame is large enough, reveal content and sidebar
-		task.delay(0.15, function()
-			if self._content  then self._content.Visible  = true end
-			if self._tabHost  then self._tabHost.Visible  = true end
-			if self._sidebar  then
-				TweenService:Create(self._sidebar,
-				TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
-				{ GroupTransparency = 0 }
-				):Play()
-				local sidebarStroke = self._sidebar:FindFirstChildOfClass("UIStroke")
-				if sidebarStroke then
-					TweenService:Create(sidebarStroke,
-						TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
-						{ Transparency = 0 }
-					):Play()
-				end
-				if self._tabList then self._tabList.Visible = true end
-			end
-		end)
+		if self._content then self._content.Visible = true end
+		if self._tabHost then self._tabHost.Visible = true end
+		if self._sep     then self._sep.Visible     = true end
 
-		task.delay(0.55, function()
+		if self._sidebar then
+			self._sidebar.Visible           = true
+			self._sidebar.Position          = UDim2.new(0, 0, 0, 0)
+			self._sidebar.Size              = UDim2.new(0, targetW, 0, Theme.TitleBarHeight)
+			self._sidebar.GroupTransparency = 1
+			local ss = self._sidebar:FindFirstChildOfClass("UIStroke")
+			if ss then ss.Transparency = 1 end
+
+			self:_preHideTabList()
+
+			TweenService:Create(self._sidebar,
+				TweenInfo.new(0.48, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
+				{
+					Position          = UDim2.new(0, -(targetW + SIDEBAR_GAP), 0, 0),
+					Size              = UDim2.new(0, targetW, 1, 0),
+					GroupTransparency = 0,
+				}
+			):Play()
+			if ss then
+				TweenService:Create(ss,
+					TweenInfo.new(0.38, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+					{ Transparency = 0 }
+				):Play()
+			end
+
+			task.delay(0.12, function()
+				if not self._collapsed and not self._hidden then
+					self:_revealTabList()
+				end
+			end)
+		end
+
+		task.delay(0.52, function()
 			self._collapseAnimating = false
 		end)
 	else
@@ -1696,23 +1814,34 @@ function Window:_toggleCollapse()
 		if minusBtn then minusBtn.Text = "▲" end
 		if self._handle then self._handle.Visible = false end
 
-		-- Hide content and sidebar immediately so nothing squashes
-		-- under the shrinking frame — same pattern as Rayfield's ToggleMinimise
+		-- Hide canvas content so nothing squashes under shrinking frame
 		if self._content then self._content.Visible = false end
 		if self._tabHost then self._tabHost.Visible = false end
+		if self._sep     then self._sep.Visible     = false end
+
+		-- Sidebar folds and tucks into the window titlebar
 		if self._sidebar then
-			if self._tabList then self._tabList.Visible = false end
-			TweenService:Create(self._sidebar,
-			TweenInfo.new(0.18, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
-			{ GroupTransparency = 1 }
-			):Play()
-			local sidebarStroke = self._sidebar:FindFirstChildOfClass("UIStroke")
-			if sidebarStroke then
-				TweenService:Create(sidebarStroke,
-					TweenInfo.new(0.18, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+			local targetW = if self._sidebarExpanded then SIDEBAR_W_EXPANDED else SIDEBAR_W_COLLAPSED
+			local ss = self._sidebar:FindFirstChildOfClass("UIStroke")
+			if ss then
+				TweenService:Create(ss,
+					TweenInfo.new(0.30, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
 					{ Transparency = 1 }
 				):Play()
 			end
+			TweenService:Create(self._sidebar,
+				TweenInfo.new(0.42, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut),
+				{
+					Position          = UDim2.new(0, 0, 0, 0),
+					Size              = UDim2.new(0, targetW, 0, Theme.TitleBarHeight),
+					GroupTransparency = 1,
+				}
+			):Play()
+			task.delay(0.44, function()
+				if self._collapsed and self._sidebar then
+					self._sidebar.Visible = false
+				end
+			end)
 		end
 
 		-- Shrink the window to titlebar height
@@ -1723,7 +1852,7 @@ function Window:_toggleCollapse()
 			),
 		}):Play()
 
-		task.delay(0.50, function()
+		task.delay(0.48, function()
 			self._collapseAnimating = false
 		end)
 	end
@@ -1739,6 +1868,7 @@ function Window:_buildPillFace()
 	pillBg.Size                  = UDim2.fromScale(1, 1)
 	pillBg.BackgroundColor3      = Color3.fromHex("#1e1e1e")
 	pillBg.BorderSizePixel       = 0
+	pillBg.BackgroundTransparency = 1
 	pillBg.Visible               = false
 	pillBg.ZIndex                = 8
 	local pillBgGrad             = Instance.new("UIGradient")
@@ -1751,13 +1881,14 @@ function Window:_buildPillFace()
 	local pillBgStroke           = Instance.new("UIStroke")
 	pillBgStroke.Color           = Theme.Colors.Border
 	pillBgStroke.Thickness       = 1
-	pillBgStroke.Transparency    = 0.35
+	pillBgStroke.Transparency    = 1
 	pillBgStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	pillBgStroke.Parent          = pillBg
 	pillBg.Parent                = self._canvas
 	self._pillBg                 = pillBg
+	self._pillBgStroke           = pillBgStroke
 
-	-- dot: kept as a zero-size stub so Hide/Show refs remain valid
+	-- dot: kept as a zero-size stub so refs remain valid
 	local dot                  = Instance.new("Frame")
 	dot.Name                   = "PillDot"
 	dot.AnchorPoint            = Vector2.new(0.5, 0.5)
@@ -1770,16 +1901,16 @@ function Window:_buildPillFace()
 	applyCorner(dot, 4)
 	dot.Parent = self._canvas
 
-	-- title: current game name, centered
+	-- title: window title, centered
 	local pillTitle                  = Instance.new("TextLabel")
 	pillTitle.Name                   = "PillTitle"
 	pillTitle.AnchorPoint            = Vector2.new(0.5, 0.5)
-	pillTitle.Position               = UDim2.new(0.5, 0, 0.5, -8)
-	pillTitle.Size                   = UDim2.new(1, -24, 0, 16)
+	pillTitle.Position               = UDim2.new(0.5, 0, 0.5, -6)
+	pillTitle.Size                   = UDim2.new(1, -16, 0, 14)
 	pillTitle.BackgroundTransparency = 1
 	pillTitle.Font                   = Theme.Font.Title
-	pillTitle.Text                   = self.Title  -- show window title, not game name
-	pillTitle.TextSize               = 12
+	pillTitle.Text                   = self.Title
+	pillTitle.TextSize               = 11
 	pillTitle.TextColor3             = Theme.Colors.TextPrimary
 	pillTitle.TextXAlignment         = Enum.TextXAlignment.Center
 	pillTitle.TextTruncate           = Enum.TextTruncate.AtEnd
@@ -1791,12 +1922,12 @@ function Window:_buildPillFace()
 	local pillSub                    = Instance.new("TextLabel")
 	pillSub.Name                     = "PillSubtitle"
 	pillSub.AnchorPoint              = Vector2.new(0.5, 0.5)
-	pillSub.Position                 = UDim2.new(0.5, 0, 0.5, 8)
-	pillSub.Size                     = UDim2.new(1, -24, 0, 11)
+	pillSub.Position                 = UDim2.new(0.5, 0, 0.5, 7)
+	pillSub.Size                     = UDim2.new(1, -16, 0, 11)
 	pillSub.BackgroundTransparency   = 1
 	pillSub.Font                     = Theme.Font.Body
-	pillSub.Text                     = "tap to show"
-	pillSub.TextSize                 = 10
+	pillSub.Text                     = "tap to open"
+	pillSub.TextSize                 = 9
 	pillSub.TextColor3               = Theme.Colors.TextSecondary
 	pillSub.TextXAlignment           = Enum.TextXAlignment.Center
 	pillSub.TextTruncate             = Enum.TextTruncate.AtEnd
@@ -1827,6 +1958,17 @@ end
 
 -- ── Hide / Show / ToggleHide ──────────────────────────────────────────────────
 
+function Window:SetPillPosition(position: PillPosition)
+	self._pillPosition = position
+	if self._hidden then
+		local pillSize, pillPos = getPillGeometry(self._pillPosition)
+		TweenService:Create(self._root, TWEEN_PILL_MORPH, {
+			Size     = pillSize,
+			Position = pillPos,
+		}):Play()
+	end
+end
+
 function Window:Hide()
 	if self._closing or self._hideAnimating or self._hidden then return end
 	self._hideAnimating = true
@@ -1847,34 +1989,43 @@ function Window:Hide()
 	if self._content  then self._content.Visible  = false end
 	if self._tabHost  then self._tabHost.Visible  = false end
 	if self._handle   then self._handle.Visible   = false end
-	if self._tabList  then self._tabList.Visible  = false end
 
-	-- Sidebar: fold behind canvas — position accelerates in (Quint.In = "sucked in" feel),
-	-- transparency fades fast and independently
+	-- Sidebar: smoothly slides in toward the window and folds/tucks inside as it dissolves
 	if self._sidebar then
-		TweenService:Create(self._sidebar,
-			TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.In),
-			{ Position = UDim2.new(0, 0, 0, 0) }
-		):Play()
-		TweenService:Create(self._sidebar,
-			TweenInfo.new(0.16, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
-			{ GroupTransparency = 1 }
-		):Play()
+		local targetW = if self._sidebarExpanded then SIDEBAR_W_EXPANDED else SIDEBAR_W_COLLAPSED
 		local ss = self._sidebar:FindFirstChildOfClass("UIStroke")
 		if ss then
 			TweenService:Create(ss,
-				TweenInfo.new(0.16, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+				TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
 				{ Transparency = 1 }
 			):Play()
 		end
-		task.delay(0.24, function()
-			if not self._hidden then return end
-			self._sidebar.Visible = false
+		TweenService:Create(self._sidebar,
+			TweenInfo.new(0.40, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut),
+			{
+				Position          = UDim2.new(0, 0, 0, 0),
+				Size              = UDim2.new(0, targetW, 0, 36),
+				GroupTransparency = 1,
+			}
+		):Play()
+		task.delay(0.42, function()
+			if self._hidden and self._sidebar then
+				self._sidebar.Visible = false
+			end
 		end)
 	end
 
-	-- Pill background: show immediately so the gradient is visible during morph
-	if self._pillBg then self._pillBg.Visible = true end
+	-- Pill background & canvas color: smooth cross-fade transition into the dark pill gradient
+	if self._pillBg then
+		self._pillBg.Visible = true
+		self._pillBg.BackgroundTransparency = 1
+		TweenService:Create(self._pillBg, TWEEN_PILL_MORPH, { BackgroundTransparency = 0 }):Play()
+	end
+	if self._pillBgStroke then
+		self._pillBgStroke.Transparency = 1
+		TweenService:Create(self._pillBgStroke, TWEEN_PILL_MORPH, { Transparency = 0.35 }):Play()
+	end
+	TweenService:Create(self._canvas, TWEEN_PILL_MORPH, { BackgroundColor3 = Color3.fromHex("#1e1e1e") }):Play()
 
 	-- Stroke fades out quickly
 	TweenService:Create(self._stroke,
@@ -1883,15 +2034,16 @@ function Window:Hide()
 	):Play()
 
 	-- Morph root → pill (canvas fills root via fromScale, clips naturally)
+	local pillSize, pillPos = getPillGeometry(self._pillPosition)
 	TweenService:Create(self._root, TWEEN_PILL_MORPH, {
-		Size     = PILL_SIZE,
-		Position = PILL_POS,
+		Size     = pillSize,
+		Position = pillPos,
 	}):Play()
 
 	-- Corner → fully rounded (pill shape)
 	local corner = self._canvas:FindFirstChildOfClass("UICorner")
 	if corner then
-		TweenService:Create(corner, TWEEN_PILL_MORPH, { CornerRadius = UDim.new(1, 0) }):Play()
+		TweenService:Create(corner, TWEEN_PILL_MORPH, { CornerRadius = UDim.new(0, 18) }):Play()
 	end
 
 	-- When morph is nearly done: fade pill face in
@@ -1916,6 +2068,300 @@ function Window:Hide()
 	end)
 end
 
+-- ── Page content reveal — staggered top-to-bottom cascade ────────────────────
+--
+-- Two-phase: _preHidePane snaps all cards to invisible before the pane becomes
+-- Visible, then _revealPane stagger-tweens them in top-to-bottom. This prevents
+-- the "all appear at once" flash that happens when content turns Visible while
+-- cards are still at their constructed BackgroundTransparency = 0.
+--
+-- Stagger only applies to on-screen elements (visible in the scroll viewport).
+-- Off-screen elements are snapped in instantly — same behaviour as Rayfield.
+
+local REVEAL_CARD    = TweenInfo.new(0.28, Enum.EasingStyle.Quint,       Enum.EasingDirection.Out)
+local REVEAL_STROKE  = TweenInfo.new(0.22, Enum.EasingStyle.Quint,       Enum.EasingDirection.Out)
+local REVEAL_SHADOW  = TweenInfo.new(0.32, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
+local REVEAL_STAGGER = 0.038  -- seconds between each on-screen item
+
+type RevealItem = {
+	Type: string,
+	Object: GuiObject,
+}
+
+-- Extract child components inside a GroupboxFrame (Buttons, Toggles, Sliders, Dropdowns, etc.).
+-- Excludes styling/layout objects and GroupboxTitle, and sorts them by LayoutOrder.
+local function getGroupboxComponents(box: Frame): { GuiObject }
+	local comps: { GuiObject } = {}
+	for _, child in box:GetChildren() do
+		if not child:IsA("GuiObject") then continue end
+		if child.Name == "GroupboxTitle" then continue end
+		if child:IsA("UIListLayout") or child:IsA("UIPadding") then continue end
+		table.insert(comps, child)
+	end
+	table.sort(comps, function(a, b)
+		return a.LayoutOrder < b.LayoutOrder
+	end)
+	return comps
+end
+
+-- Collect items to reveal from a pane in top-to-bottom visual order.
+-- For Groupboxes, the container shell (border + title) reveals first, followed by each
+-- child component individually. For two-column rows, shells are staggered left-to-right,
+-- then components cascade in row-by-row left-to-right so both columns animate fluidly.
+local function collectRevealItems(pane: ScrollingFrame): { RevealItem }
+	local topLevel: { GuiObject } = {}
+
+	for _, child in pane:GetChildren() do
+		if not child:IsA("GuiObject") then continue end
+		if child:IsA("UIListLayout") or child:IsA("UIPadding") then continue end
+		table.insert(topLevel, child)
+	end
+
+	table.sort(topLevel, function(a, b)
+		return a.LayoutOrder < b.LayoutOrder
+	end)
+
+	local items: { RevealItem } = {}
+
+	for _, child in topLevel do
+		if child.Name == "GroupboxRow" then
+			local boxes: { Frame } = {}
+			for _, sub in child:GetChildren() do
+				if sub:IsA("Frame") then
+					table.insert(boxes, sub)
+				end
+			end
+			table.sort(boxes, function(a, b)
+				local aX = a.Position.X.Scale * 1000 + a.Position.X.Offset
+				local bX = b.Position.X.Scale * 1000 + b.Position.X.Offset
+				return aX < bX
+			end)
+
+			for _, b in boxes do
+				table.insert(items, { Type = "GroupboxShell", Object = b })
+			end
+
+			local allBoxComps: { { GuiObject } } = {}
+			local maxCount = 0
+			for _, b in boxes do
+				local comps = getGroupboxComponents(b)
+				table.insert(allBoxComps, comps)
+				if #comps > maxCount then
+					maxCount = #comps
+				end
+			end
+
+			for i = 1, maxCount do
+				for _, comps in allBoxComps do
+					if comps[i] then
+						table.insert(items, { Type = "Element", Object = comps[i] })
+					end
+				end
+			end
+		elseif child.Name == "GroupboxFrame" then
+			table.insert(items, { Type = "GroupboxShell", Object = child })
+			for _, comp in getGroupboxComponents(child :: Frame) do
+				table.insert(items, { Type = "Element", Object = comp })
+			end
+		else
+			table.insert(items, { Type = "Element", Object = child })
+		end
+	end
+
+	return items
+end
+
+-- Pre-hide a GuiObject and all its descendants (text, images, strokes, backgrounds, shadows).
+-- Remembers resting transparencies via attributes so reveal can restore them accurately.
+local function preHideElement(root: GuiObject)
+	local function hideObj(obj: Instance)
+		if obj:IsA("TextLabel") or obj:IsA("TextBox") or obj:IsA("TextButton") then
+			if obj:GetAttribute("RestTextT") == nil then
+				obj:SetAttribute("RestTextT", (obj :: any).TextTransparency)
+			end
+			(obj :: any).TextTransparency = 1
+		end
+
+		if obj:IsA("ImageLabel") or obj:IsA("ImageButton") then
+			if obj:GetAttribute("RestImgT") == nil then
+				obj:SetAttribute("RestImgT", (obj :: any).ImageTransparency)
+			end
+			(obj :: any).ImageTransparency = 1
+		end
+
+		if obj:IsA("UIStroke") then
+			if obj:GetAttribute("RestStrokeT") == nil then
+				obj:SetAttribute("RestStrokeT", obj.Transparency)
+			end
+			obj.Transparency = 1
+		end
+
+		if obj:IsA("Frame") or obj:IsA("ScrollingFrame") then
+			if obj.BackgroundTransparency < 1 then
+				if obj:GetAttribute("RestBgT") == nil then
+					obj:SetAttribute("RestBgT", obj.BackgroundTransparency)
+				end
+				obj.BackgroundTransparency = 1
+			end
+		end
+	end
+
+	hideObj(root)
+	for _, desc in root:GetDescendants() do
+		hideObj(desc)
+	end
+end
+
+-- Restore resting transparencies for a single instance.
+local function restoreObj(obj: Instance)
+	local restTextT = obj:GetAttribute("RestTextT")
+	if restTextT ~= nil and (obj:IsA("TextLabel") or obj:IsA("TextBox") or obj:IsA("TextButton")) then
+		TweenService:Create(obj, REVEAL_CARD, { TextTransparency = restTextT }):Play()
+	end
+
+	local restImgT = obj:GetAttribute("RestImgT")
+	if restImgT ~= nil and (obj:IsA("ImageLabel") or obj:IsA("ImageButton")) then
+		TweenService:Create(obj, REVEAL_CARD, { ImageTransparency = restImgT }):Play()
+	end
+
+	local restStrokeT = obj:GetAttribute("RestStrokeT")
+	if restStrokeT ~= nil and obj:IsA("UIStroke") then
+		TweenService:Create(obj, REVEAL_STROKE, { Transparency = restStrokeT }):Play()
+	end
+
+	local restBgT = obj:GetAttribute("RestBgT")
+	if restBgT ~= nil and (obj:IsA("Frame") or obj:IsA("ScrollingFrame")) then
+		local tInfo = if obj.Name == "Shadow" then REVEAL_SHADOW else REVEAL_CARD
+		TweenService:Create(obj, tInfo, { BackgroundTransparency = restBgT }):Play()
+	end
+end
+
+-- Tween a GuiObject and all its descendants back to resting transparencies.
+local function revealElement(root: GuiObject)
+	restoreObj(root)
+	for _, desc in root:GetDescendants() do
+		restoreObj(desc)
+	end
+end
+
+-- Tween only the Groupbox frame background, border stroke, and title label.
+-- Leaves inner components hidden so they can cascade in individually.
+local function revealGroupboxShell(box: Frame)
+	restoreObj(box)
+	local stroke = box:FindFirstChildOfClass("UIStroke")
+	if stroke then
+		restoreObj(stroke)
+	end
+	local title = box:FindFirstChild("GroupboxTitle")
+	if title then
+		restoreObj(title)
+	end
+end
+
+-- Pre-hide all layout elements in a pane synchronously. Call before Visible = true.
+function Window:_preHidePane(pane: ScrollingFrame)
+	if not pane then return end
+	for _, child in pane:GetChildren() do
+		if child:IsA("GuiObject") and not child:IsA("UIListLayout") and not child:IsA("UIPadding") then
+			preHideElement(child)
+		end
+	end
+end
+
+-- Stagger-reveal all layout elements in a pane top-to-bottom. Call after Visible = true.
+function Window:_revealPane(pane: ScrollingFrame)
+	if not pane then return end
+	local items = collectRevealItems(pane)
+
+	-- Viewport bounds for on-screen check (read after pane is visible)
+	local viewTop    = pane.AbsolutePosition.Y
+	local viewBottom = viewTop + pane.AbsoluteWindowSize.Y
+
+	task.spawn(function()
+		for _, item in items do
+			local elem = item.Object
+			local top      = elem.AbsolutePosition.Y
+			local bottom   = top + elem.AbsoluteSize.Y
+			local onScreen = bottom > viewTop and top < viewBottom
+
+			if item.Type == "GroupboxShell" then
+				revealGroupboxShell(elem :: Frame)
+			else
+				revealElement(elem)
+			end
+
+			if onScreen then
+				task.wait(REVEAL_STAGGER)
+			end
+		end
+	end)
+end
+
+-- ── Tab list reveal — staggered top-to-bottom cascade ────────────────────────
+local TWEEN_TAB_REVEAL = TweenInfo.new(0.26, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+local TAB_REVEAL_STAGGER = 0.035
+
+function Window:_preHideTabList()
+	if not self._tabs then return end
+	for _, t in ipairs(self._tabs) do
+		local btn = t.btn
+		if btn then
+			btn.BackgroundTransparency = 1
+			local stroke = btn:FindFirstChildOfClass("UIStroke")
+			if stroke then stroke.Transparency = 1 end
+			local lbl = btn:FindFirstChild("TabLabel")
+			if lbl then lbl.TextTransparency = 1 end
+			local icon = btn:FindFirstChild("TabIcon", true)
+			if icon then icon.ImageTransparency = 1 end
+			local ind = btn:FindFirstChild("Indicator")
+			if ind then ind.BackgroundTransparency = 1 end
+		end
+	end
+	if self._groups then
+		for _, g in ipairs(self._groups) do
+			if g.entry and g.entry.header then
+				g.entry.header.BackgroundTransparency = 1
+				local lbl = g.entry.header:FindFirstChild("GroupLabel")
+				if lbl then lbl.TextTransparency = 1 end
+			end
+		end
+	end
+end
+
+function Window:_revealTabList()
+	if not self._tabs or #self._tabs == 0 then return end
+	local tabs = self._tabs
+
+	task.spawn(function()
+		for idx, t in ipairs(tabs) do
+			local btn = t.btn
+			if btn then
+				local isActive = self._activeTabIdx == idx
+				TweenService:Create(btn, TWEEN_TAB_REVEAL, { BackgroundTransparency = 0 }):Play()
+				local stroke = btn:FindFirstChildOfClass("UIStroke")
+				if stroke then
+					TweenService:Create(stroke, TWEEN_TAB_REVEAL, {
+						Transparency = if isActive then 0.3 else 0.45,
+					}):Play()
+				end
+				local lbl = btn:FindFirstChild("TabLabel")
+				if lbl then
+					TweenService:Create(lbl, TWEEN_TAB_REVEAL, { TextTransparency = 0 }):Play()
+				end
+				local icon = btn:FindFirstChild("TabIcon", true)
+				if icon then
+					TweenService:Create(icon, TWEEN_TAB_REVEAL, { ImageTransparency = 0 }):Play()
+				end
+				local ind = btn:FindFirstChild("Indicator")
+				if ind and isActive and self._sidebarExpanded then
+					TweenService:Create(ind, TWEEN_TAB_REVEAL, { BackgroundTransparency = 0 }):Play()
+				end
+			end
+			task.wait(TAB_REVEAL_STAGGER)
+		end
+	end)
+end
+
 function Window:Show()
 	if self._closing or self._hideAnimating or not self._hidden then return end
 	self._hideAnimating = true
@@ -1932,8 +2378,6 @@ function Window:Show()
 	TweenService:Create(self._pillSub,   fadeInfo, { TextTransparency       = 1 }):Play()
 
 	-- Morph root → window
-	-- Re-clamp saved size + position to the current viewport in case the device
-	-- changed orientation / window resized while we were hidden.
 	if self._autoScale then
 		self._expandedSize = clampSizeToViewport(self._expandedSize, self._minSize)
 	end
@@ -1946,29 +2390,52 @@ function Window:Show()
 		Position = target,
 	}):Play()
 
-	-- Sidebar: spring out concurrent with root expand — Back easing gives overshoot,
-	-- transparency fades on a separate Quint curve so it doesn't over-dip
+	-- Pill background & canvas color: smooth cross-fade transition back to window open color
+	if self._pillBg then
+		self._pillBg.Visible = true
+		self._pillBg.BackgroundTransparency = 0
+		TweenService:Create(self._pillBg, TWEEN_PILL_REVEAL, { BackgroundTransparency = 1 }):Play()
+	end
+	if self._pillBgStroke then
+		self._pillBgStroke.Transparency = 0.35
+		TweenService:Create(self._pillBgStroke, TWEEN_PILL_REVEAL, { Transparency = 1 }):Play()
+	end
+	TweenService:Create(self._canvas, TWEEN_PILL_REVEAL, { BackgroundColor3 = Theme.Colors.Surface }):Play()
+
+	-- Sidebar: smoothly unfolds and slides out from the expanding root
 	if self._sidebar then
 		local targetW = if self._sidebarExpanded then SIDEBAR_W_EXPANDED else SIDEBAR_W_COLLAPSED
 		self._sidebar.Position          = UDim2.new(0, 0, 0, 0)
+		self._sidebar.Size              = UDim2.new(0, targetW, 0, 36)
 		self._sidebar.GroupTransparency = 1
 		self._sidebar.Visible           = true
-		if self._tabList then self._tabList.Visible = true end
-		TweenService:Create(self._sidebar,
-			TweenInfo.new(0.52, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-			{ Position = UDim2.new(0, -(targetW + SIDEBAR_GAP), 0, 0) }
-		):Play()
-		TweenService:Create(self._sidebar,
-			TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
-			{ GroupTransparency = 0 }
-		):Play()
 		local ss = self._sidebar:FindFirstChildOfClass("UIStroke")
+		if ss then ss.Transparency = 1 end
+
+		-- Pre-hide tabs so they don't pop in before cascading
+		self:_preHideTabList()
+
+		TweenService:Create(self._sidebar,
+			TweenInfo.new(0.50, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
+			{
+				Position          = UDim2.new(0, -(targetW + SIDEBAR_GAP), 0, 0),
+				Size              = UDim2.new(0, targetW, 1, 0),
+				GroupTransparency = 0,
+			}
+		):Play()
 		if ss then
 			TweenService:Create(ss,
 				TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
 				{ Transparency = 0 }
 			):Play()
 		end
+
+		-- Stagger-reveal tabs top-to-bottom as sidebar unfolds
+		task.delay(0.12, function()
+			if not self._hidden then
+				self:_revealTabList()
+			end
+		end)
 	end
 
 	-- Corner → window roundness
@@ -1979,26 +2446,45 @@ function Window:Show()
 		}):Play()
 	end
 
-	-- Halfway through morph: reveal chrome
-	-- Canvas stays at GT=0 (fully opaque) throughout — the old GT=0.97 snap
-	-- was bleeding the game background through for one frame, causing a white flash.
-	-- At t=0.22, Exponential.Out has already covered ~95% of the expand distance,
-	-- so chrome snapping visible here looks invisible in practice.
-	task.delay(0.22, function()
+	-- Halfway through morph: reveal chrome then cascade page content
+	task.delay(0.20, function()
 		if self._hidden then return end
-		-- pill bg goes away once the window chrome is revealed
-		if self._pillBg then self._pillBg.Visible = false end
 		if self._titleBar then self._titleBar.Visible = true end
-		if self._sep      then self._sep.Visible      = not self._collapsed end
-		if self._content  then self._content.Visible  = not self._collapsed end
-		if self._tabHost  then self._tabHost.Visible  = not self._collapsed end
-		if self._handle   then self._handle.Visible   = not self._collapsed end
-		if self._tabList  then self._tabList.Visible  = true end
 		TweenService:Create(self._stroke, chromeFade, { Transparency = 0 }):Play()
+
+		-- Determine which pane to reveal
+		local pane: ScrollingFrame? = nil
+		local tabs = self._tabs
+		if tabs then
+			local idx = self._activeTabIdx
+			if idx and idx > 0 and tabs[idx] then
+				pane = tabs[idx].pane
+			end
+		else
+			pane = self._content :: any
+		end
+
+		-- Pre-hide all cards while pane is still invisible, then show + cascade
+		if pane then
+			self:_preHidePane(pane)
+		end
+
+		if self._sep     then self._sep.Visible     = not self._collapsed end
+		if self._content then self._content.Visible = not self._collapsed end
+		if self._tabHost then self._tabHost.Visible = not self._collapsed end
+		if self._handle  then self._handle.Visible  = not self._collapsed end
+
+		-- Stagger reveal starts immediately — cards are already invisible
+		if pane and not self._collapsed then
+			self:_revealPane(pane)
+		end
 	end)
 
-	task.delay(0.58, function()
+	task.delay(0.52, function()
 		self._hideAnimating = false
+		if not self._hidden and self._pillBg then
+			self._pillBg.Visible = false
+		end
 	end)
 end
 

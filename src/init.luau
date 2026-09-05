@@ -6,12 +6,18 @@ local SaveManager  = require(script.Core.SaveManager)
 local Notification = require(script.Core.Notification)
 local Popup        = require(script.Core.Popup)
 
+local Tooltip      = require(script.Utils.Tooltip)
+
 -- ── Public types ──────────────────────────────────────────────────────────────
 
+export type PillPosition = "Top" | "Bottom" | "Left" | "Right"
+
 export type WindowConfig = {
-	Size:     UDim2?,
-	Position: UDim2?,
-	MinSize:  Vector2?,
+	Size:         UDim2?,
+	Position:     UDim2?,
+	MinSize:      Vector2?,
+	AutoScale:    boolean?,
+	PillPosition: PillPosition?,
 }
 
 export type NotifyConfig = Notification.NotifyConfig
@@ -26,6 +32,7 @@ Delirium.__index = Delirium
 Delirium.Theme       = Theme
 Delirium.Components  = Core.Components
 Delirium.SaveManager = SaveManager
+Delirium.Tooltip     = Tooltip
 Delirium.Flags       = SaveManager.Flags   -- live read-only flag table
 Delirium.Version     = "0.0.1"
 

@@ -7,6 +7,7 @@ local Maid        = require(script.Parent.Parent.Utils.Maid)
 local Signal      = require(script.Parent.Parent.Utils.Signal)
 local Theme       = require(script.Parent.Parent.Theme)
 local SaveManager = require(script.Parent.Parent.Core.SaveManager)
+local Tooltip     = require(script.Parent.Parent.Utils.Tooltip)
 
 -- Press / release feedback (unchanged — these are interaction, not state-change)
 local TWEEN_PRESS   = TweenInfo.new(0.20, Enum.EasingStyle.Quint,       Enum.EasingDirection.Out)
@@ -27,9 +28,9 @@ local SHADOW_HOVER = { BackgroundTransparency = 0.65, Position = UDim2.new(0.5, 
 local SHADOW_PRESS = { BackgroundTransparency = 0.92, Position = UDim2.new(0.5, 0, 0.5, 1) }
 
 -- Track / thumb geometry
-local TRACK_W      = 44
+local TRACK_W      = 46
 local TRACK_H      = 22
-local THUMB_W      = 18
+local THUMB_W      = 20
 local THUMB_H      = 16
 local THUMB_SQUISH = 6    -- how much the thumb widens mid-slide
 local THUMB_PAD    = 3
@@ -44,6 +45,7 @@ export type ToggleConfig = {
 	Enabled: boolean?,
 	LayoutOrder: number?,
 	Flag: string?,
+	Tooltip: string?,
 	-- When true, label renders in Theme.Colors.Error (visual-only danger signal).
 	-- Does not affect toggle behaviour, value, or save logic.
 	Risky: boolean?,
@@ -56,21 +58,24 @@ type ToggleImpl = {
 	SetEnabled: (self: ToggleImpl, enabled: boolean) -> (),
 	GetFrame:   (self: ToggleImpl) -> Frame,
 	Destroy:    (self: ToggleImpl) -> (),
-	_maid:    any,
-	_frame:   Frame,
-	_inner:   Frame,
-	_content: Frame,
-	_label:   TextLabel,
-	_icon:    ImageLabel?,
-	_track:   Frame,
-	_thumb:   Frame,
-	_stroke:  UIStroke,
-	_scale:   UIScale,
-	_flash:   Frame,
-	_shadow:  Frame,
-	_enabled: boolean,
-	_value:   boolean,
-	_risky:   boolean,
+	_maid:        any,
+	_frame:       Frame,
+	_inner:       Frame,
+	_content:     Frame,
+	_label:       TextLabel,
+	_icon:        ImageLabel?,
+	_track:       Frame,
+	_trackStroke: UIStroke,
+	_thumb:       Frame,
+	_thumbStroke: UIStroke,
+	_stroke:      UIStroke,
+	_scale:       UIScale,
+	_flash:       Frame,
+	_shadow:      Frame,
+	_enabled:     boolean,
+	_value:       boolean,
+	_risky:       boolean,
+	_morphToken:  number?,
 }
 
 local Toggle = {} :: { __index: any }
@@ -167,12 +172,12 @@ function Toggle.new(config: ToggleConfig): ToggleImpl
 	flash.Parent                 = inner
 	self._flash                  = flash
 
-	-- Track
+	-- ── Track ─────────────────────────────────────────────────────────────────
 	local track              = Instance.new("Frame")
 	track.Name               = "Track"
 	track.Size               = UDim2.fromOffset(TRACK_W, TRACK_H)
 	track.Position           = UDim2.new(1, -TRACK_W, 0.5, -(TRACK_H / 2))
-	track.BackgroundColor3   = if self._value then Theme.Colors.Accent else Theme.Colors.Border
+	track.BackgroundColor3   = if self._value then Theme.Colors.Accent else Color3.fromHex("#1a1a1a")
 	track.BorderSizePixel    = 0
 	track.ZIndex             = 4
 	track.Parent             = inner
@@ -181,7 +186,15 @@ function Toggle.new(config: ToggleConfig): ToggleImpl
 	trackCorner.Parent       = track
 	self._track              = track
 
-	-- Thumb
+	local trackStroke           = Instance.new("UIStroke")
+	trackStroke.Color           = if self._value then Theme.Colors.BorderAccent else Theme.Colors.Border
+	trackStroke.Thickness       = 1
+	trackStroke.Transparency    = if self._value then 0.1 else 0.4
+	trackStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	trackStroke.Parent          = track
+	self._trackStroke           = trackStroke
+
+	-- ── Thumb (Floating Frosted Capsule) ──────────────────────────────────────
 	local thumb              = Instance.new("Frame")
 	thumb.Name               = "Thumb"
 	thumb.Size               = UDim2.fromOffset(THUMB_W, THUMB_H)
@@ -198,6 +211,24 @@ function Toggle.new(config: ToggleConfig): ToggleImpl
 	thumbCorner.Parent       = thumb
 	self._thumb              = thumb
 
+	local thumbGrad    = Instance.new("UIGradient")
+	thumbGrad.Color    = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromHex("#ffffff")),
+		ColorSequenceKeypoint.new(1, Color3.fromHex("#e2e4e8")),
+	})
+	thumbGrad.Rotation = 90
+	thumbGrad.Parent   = thumb
+
+	local thumbStroke           = Instance.new("UIStroke")
+	thumbStroke.Color           = Color3.fromRGB(255, 255, 255)
+	thumbStroke.Thickness       = 1
+	thumbStroke.Transparency    = 0.45
+	thumbStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	thumbStroke.Parent          = thumb
+	self._thumbStroke           = thumbStroke
+
+
+
 	-- Hit target
 	local btn                  = Instance.new("TextButton")
 	btn.Name                   = "Hit"
@@ -205,7 +236,7 @@ function Toggle.new(config: ToggleConfig): ToggleImpl
 	btn.BackgroundTransparency = 1
 	btn.Text                   = ""
 	btn.AutoButtonColor        = false
-	btn.ZIndex                 = 6
+	btn.ZIndex                 = 7
 	btn.Parent                 = inner
 
 	-- ── Content (icon + label) ────────────────────────────────────────────────
@@ -338,7 +369,8 @@ function Toggle.new(config: ToggleConfig): ToggleImpl
 	end))
 
 	self._maid:GiveTask(UserInputService.InputEnded:Connect(function(input: InputObject)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch then
 			releasePress()
 		end
 	end))
@@ -363,6 +395,10 @@ function Toggle.new(config: ToggleConfig): ToggleImpl
 		end))
 	end
 
+	if config.Tooltip and #config.Tooltip > 0 then
+		self._maid:GiveTask(Tooltip.bind(inner, config.Tooltip))
+	end
+
 	return self
 end
 
@@ -374,10 +410,16 @@ function Toggle:SetValue(value: boolean)
 	self._morphToken = (self._morphToken or 0) + 1
 	local currentToken = self._morphToken
 
-	-- Track color glides smoothly
+	-- Track color & border stroke glide smoothly
 	TweenService:Create(self._track, TWEEN_TRACK, {
-		BackgroundColor3 = if value then Theme.Colors.Accent else Theme.Colors.Border,
+		BackgroundColor3 = if value then Theme.Colors.Accent else Color3.fromHex("#1a1a1a"),
 	}):Play()
+
+	TweenService:Create(self._trackStroke, TWEEN_TRACK, {
+		Color        = if value then Theme.Colors.BorderAccent else Theme.Colors.Border,
+		Transparency = if value then 0.1 else 0.4,
+	}):Play()
+
 
 	-- Thumb slides with exponential decel (iOS-like)
 	TweenService:Create(self._thumb, TWEEN_SLIDE, {

@@ -28,6 +28,9 @@ export type TabImpl = {
 	_content:     ScrollingFrame,
 	_gui:         ScreenGui,
 	_canvas:      Frame?,
+	_win:         any?,
+	_tabName:     string?,
+	_tabIdx:      number?,
 	_layoutOrder: number,
 }
 
@@ -37,20 +40,23 @@ local Tab = {} :: { __index: any }
 Tab.__index = Tab
 
 --[[
-	Tab.new(pane, gui, windowMaid)
+	Tab.new(pane, gui, windowMaid, canvas, window, tabName, tabIdx)
 
 	pane        — the ScrollingFrame this tab owns
 	gui         — the ScreenGui root (forwarded to Dropdown as OverlayParent)
 	windowMaid  — the parent window's maid; owns this tab's maid so
 	              destroying the window cascades cleanup into all tabs
 ]]
-function Tab.new(pane: ScrollingFrame, gui: ScreenGui, windowMaid: any, canvas: Frame?): TabImpl
-	local self        = setmetatable({}, Tab) :: TabImpl
+function Tab.new(pane: ScrollingFrame, gui: ScreenGui, windowMaid: any, canvas: Frame?, window: any?, tabName: string?, tabIdx: number?): TabImpl
+	local self        = setmetatable({}, Tab) :: any
 	self._maid        = Maid.new()
 	windowMaid:GiveTask(self._maid)  -- cascade: window destroy → tab destroy
 	self._content     = pane
 	self._gui         = gui
 	self._canvas      = canvas
+	self._win         = window
+	self._tabName     = tabName or "Main"
+	self._tabIdx      = tabIdx or 1
 	self._layoutOrder = 0
 	return self
 end
@@ -67,7 +73,7 @@ end
 	Supports the optional `description` key for inline sub-labels.
 	Dropdown list overflows; ClipsDescendants = false on wrapper lets it.
 ]]
-function Tab:_addToContent(comp: any, config: any?): any
+function Tab:_addToContent(comp: any, config: any?, typeName: string?): any
 	local desc = config and (config.description or config.Description)
 
 	if typeof(desc) == "string" and #desc > 0 then
@@ -106,7 +112,7 @@ function Tab:_addToContent(comp: any, config: any?): any
 		descLabel.TextColor3             = Theme.Colors.TextSecondary
 		descLabel.TextXAlignment         = Enum.TextXAlignment.Left
 		descLabel.TextWrapped            = true
-		descLabel.RichText               = true
+		descLabel.RichText                = true
 		descLabel.Parent                 = wrapper
 
 		local descPad        = Instance.new("UIPadding")
@@ -126,6 +132,21 @@ function Tab:_addToContent(comp: any, config: any?): any
 		comp:GetFrame().Parent = self._content
 	end
 
+	if self._win and self._win._search and config and comp.GetFrame then
+		local label = config.Label or config.Title or config.Text or config.Name or ""
+		if typeof(label) == "string" and #label > 0 then
+			self._win._search:Register({
+				Label     = label,
+				TabName   = self._tabName or "Main",
+				TabIdx    = self._tabIdx or 1,
+				GroupName = nil,
+				TypeName  = typeName or "Control",
+				Comp      = comp,
+				Frame     = comp:GetFrame(),
+			})
+		end
+	end
+
 	self._maid:GiveTask(comp)
 	return comp
 end
@@ -133,19 +154,19 @@ end
 -- ── Public Add* API ────────────────────────────────────────────────────────
 
 function Tab:AddButton(config: {
-	Label: string, Variant: number?, Enabled: boolean?, description: string?,
+	Label: string, Variant: number?, Enabled: boolean?, description: string?, Tooltip: string?,
 })
 	local c = config :: any
 	c.LayoutOrder = self:_nextOrder()
-	return self:_addToContent(Components.Button.new(c), c)
+	return self:_addToContent(Components.Button.new(c), c, "Button")
 end
 
 function Tab:AddToggle(config: {
-	Label: string, Icon: string?, Default: boolean?, Enabled: boolean?, description: string?,
+	Label: string, Icon: string?, Default: boolean?, Enabled: boolean?, description: string?, Tooltip: string?,
 })
 	local c = config :: any
 	c.LayoutOrder = self:_nextOrder()
-	return self:_addToContent(Components.Toggle.new(c), c)
+	return self:_addToContent(Components.Toggle.new(c), c, "Toggle")
 end
 
 function Tab:AddLabel(text: string, color: Color3?)
@@ -154,7 +175,7 @@ function Tab:AddLabel(text: string, color: Color3?)
 		Color       = color,
 		LayoutOrder = self:_nextOrder(),
 	})
-	return self:_addToContent(lbl, nil)
+	return self:_addToContent(lbl, nil, "Label")
 end
 
 function Tab:AddDescription(config: { Title: string?, Description: string })
@@ -171,54 +192,54 @@ function Tab:AddDivider(text: string?)
 		Text        = text,
 		LayoutOrder = self:_nextOrder(),
 	})
-	return self:_addToContent(div, nil)
+	return self:_addToContent(div, nil, "Divider")
 end
 
 function Tab:AddSlider(config: {
 	Label: string, Min: number?, Max: number?,
-	Default: number?, Step: number?, Enabled: boolean?, description: string?,
+	Default: number?, Step: number?, Enabled: boolean?, description: string?, Tooltip: string?,
 })
 	local c = config :: any
 	c.LayoutOrder = self:_nextOrder()
-	return self:_addToContent(Components.Slider.new(c), c)
+	return self:_addToContent(Components.Slider.new(c), c, "Slider")
 end
 
 function Tab:AddTextbox(config: {
 	Label: string?, Placeholder: string?, Default: string?,
-	MaxLength: number?, ClearOnFocus: boolean?, Enabled: boolean?, description: string?,
+	MaxLength: number?, ClearOnFocus: boolean?, Enabled: boolean?, description: string?, Tooltip: string?,
 })
 	local c = config :: any
 	c.LayoutOrder = self:_nextOrder()
-	return self:_addToContent(Components.Textbox.new(c), c)
+	return self:_addToContent(Components.Textbox.new(c), c, "Textbox")
 end
 
 function Tab:AddKeybind(config: {
 	Label: string, Default: Enum.KeyCode?,
-	Blacklist: { any }?, Enabled: boolean?, description: string?,
+	Blacklist: { any }?, Enabled: boolean?, description: string?, Tooltip: string?,
 })
 	local c = config :: any
 	c.LayoutOrder = self:_nextOrder()
-	return self:_addToContent(Components.Keybind.new(c), c)
+	return self:_addToContent(Components.Keybind.new(c), c, "Keybind")
 end
 
 function Tab:AddDropdown(config: {
 	Label: string?, Options: { any }, MultiSelect: boolean?,
-	Default: any?, Placeholder: string?, Enabled: boolean?, description: string?,
+	Default: any?, Placeholder: string?, Enabled: boolean?, description: string?, Tooltip: string?,
 })
 	local c = config :: any
 	c.LayoutOrder   = self:_nextOrder()
-	return self:_addToContent(Components.Dropdown.new(c), c)
+	return self:_addToContent(Components.Dropdown.new(c), c, "Dropdown")
 end
 
 function Tab:AddColorPicker(config: {
 	Label: string, Default: Color3?, ShowAlpha: boolean?,
-	Flag: string?, Risky: boolean?, Enabled: boolean?, description: string?,
+	Flag: string?, Risky: boolean?, Enabled: boolean?, description: string?, Tooltip: string?,
 })
 	local c = config :: any
 	c.LayoutOrder   = self:_nextOrder()
 	c.OverlayParent = self._gui
 	c.Canvas        = self._canvas
-	return self:_addToContent(Components.ColorPicker.new(c), c)
+	return self:_addToContent(Components.ColorPicker.new(c), c, "ColorPicker")
 end
 
 -- ── Groupbox factory ─────────────────────────────────────────────────────────
@@ -249,8 +270,8 @@ function Tab:AddGroupbox(titleA: string, titleB: string?)
 		wrapper.Parent                 = self._content
 		self._maid:GiveTask(wrapper)
 
-		local leftBox  = Groupbox.new(titleA, self._gui, self._maid, self._canvas)
-		local rightBox = Groupbox.new(titleB, self._gui, self._maid, self._canvas)
+		local leftBox  = Groupbox.new(titleA, self._gui, self._maid, self._canvas, self._win, self._tabName, self._tabIdx)
+		local rightBox = Groupbox.new(titleB, self._gui, self._maid, self._canvas, self._win, self._tabName, self._tabIdx)
 
 		local lf          = leftBox:GetFrame()
 		lf.AnchorPoint    = Vector2.new(0, 0)
@@ -267,7 +288,7 @@ function Tab:AddGroupbox(titleA: string, titleB: string?)
 		return leftBox, rightBox
 	else
 		-- ── Single column ───────────────────────────────────────────────────
-		local box = Groupbox.new(titleA, self._gui, self._maid, self._canvas)
+		local box = Groupbox.new(titleA, self._gui, self._maid, self._canvas, self._win, self._tabName, self._tabIdx)
 		local f   = box:GetFrame()
 		f.LayoutOrder = self:_nextOrder()
 		f.Parent      = self._content

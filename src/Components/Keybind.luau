@@ -8,6 +8,7 @@ local Maid        = require(script.Parent.Parent.Utils.Maid)
 local Signal      = require(script.Parent.Parent.Utils.Signal)
 local Theme       = require(script.Parent.Parent.Theme)
 local SaveManager = require(script.Parent.Parent.Core.SaveManager)
+local Tooltip     = require(script.Parent.Parent.Utils.Tooltip)
 
 local TWEEN_HOVER  = TweenInfo.new(0.38, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
 local TWEEN_STROKE = TweenInfo.new(0.38, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
@@ -75,6 +76,7 @@ export type KeybindConfig = {
 	Enabled:     boolean?,
 	LayoutOrder: number?,
 	Flag:        string?,
+	Tooltip:     string?,
 	-- Execution mode.
 	-- "Press"  (default) — fires Pressed once per keydown, respects Enabled.
 	-- "Toggle"           — alternates boolean state, fires Toggled, respects Enabled.
@@ -92,6 +94,7 @@ type KeybindImpl = {
 	Toggled:      any,
 	HoldStart:    any,
 	HoldEnd:      any,
+	SyncTo:       (self: KeybindImpl, toggleObj: any) -> (),
 	SetKey:       (self: KeybindImpl, key: Enum.KeyCode?) -> (),
 	SetEnabled:   (self: KeybindImpl, enabled: boolean) -> (),
 	GetFrame:     (self: KeybindImpl) -> Frame,
@@ -444,9 +447,23 @@ function Keybind.new(config: KeybindConfig): KeybindImpl
 		}):Play()
 	end))
 
-	-- Pill click — enter / exit binding mode
+	-- Pill click — enter / exit binding mode (or trigger action on mobile touch)
 	self._maid:GiveTask(pillHit.MouseButton1Click:Connect(function()
 		if not self._enabled then return end
+		if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
+			if self._mode == "Toggle" then
+				self._toggleState = not self._toggleState
+				toggled:Fire(self._toggleState)
+			else
+				pressed:Fire()
+			end
+			TweenService:Create(self._flash, TWEEN_HOVER, { BackgroundTransparency = 0.85 }):Play()
+			task.delay(0.15, function()
+				TweenService:Create(self._flash, TWEEN_HOVER, { BackgroundTransparency = 1 }):Play()
+			end)
+			return
+		end
+
 		self._binding = not self._binding
 
 		if self._binding then
@@ -537,6 +554,10 @@ function Keybind.new(config: KeybindConfig): KeybindImpl
 		end
 	end
 
+	if config.Tooltip and #config.Tooltip > 0 then
+		self._maid:GiveTask(Tooltip.bind(inner, config.Tooltip))
+	end
+
 	return self
 end
 
@@ -583,6 +604,23 @@ function Keybind:SetEnabled(enabled: boolean)
 		self._icon.ImageColor3 = color
 	end
 	self._stroke.Transparency = if enabled then 0 else 0.5
+end
+
+function Keybind:SyncTo(toggleObj: any)
+	if not toggleObj then return end
+	if self._mode == "Toggle" then
+		self._maid:GiveTask(self.Toggled:Connect(function(state: boolean)
+			if toggleObj.SetValue then
+				toggleObj:SetValue(state)
+			end
+		end))
+	else
+		self._maid:GiveTask(self.Pressed:Connect(function()
+			if toggleObj.SetValue and toggleObj.Value ~= nil then
+				toggleObj:SetValue(not toggleObj.Value)
+			end
+		end))
+	end
 end
 
 function Keybind:GetFrame(): Frame

@@ -8,21 +8,26 @@ local Signal       = require(script.Parent.Parent.Utils.Signal)
 local Theme        = require(script.Parent.Parent.Theme)
 local SmoothScroll = require(script.Parent.Parent.Utils.SmoothScroll)
 local SaveManager  = require(script.Parent.Parent.Core.SaveManager)
+local Tooltip      = require(script.Parent.Parent.Utils.Tooltip)
 
-local TWEEN_STROKE   = TweenInfo.new(0.25, Enum.EasingStyle.Quint,       Enum.EasingDirection.Out)
-local TWEEN_HOVER    = TweenInfo.new(0.2,  Enum.EasingStyle.Quint,       Enum.EasingDirection.Out)
-local TWEEN_EXPAND   = TweenInfo.new(0.5,  Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
-local TWEEN_COLLAPSE = TweenInfo.new(0.45, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
-local TWEEN_ARROW    = TweenInfo.new(0.65, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
-local TWEEN_FADE     = TweenInfo.new(0.35, Enum.EasingStyle.Quint,       Enum.EasingDirection.Out)
+local TWEEN_PRESS    = TweenInfo.new(0.18, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+local TWEEN_RELEASE  = TweenInfo.new(0.30, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+local TWEEN_STROKE   = TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+local TWEEN_HOVER    = TweenInfo.new(0.20, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+local TWEEN_EXPAND   = TweenInfo.new(0.40, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+local TWEEN_COLLAPSE = TweenInfo.new(0.32, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+local TWEEN_ARROW    = TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+local TWEEN_FADE     = TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+local TWEEN_SHADOW   = TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
 
 local SD_REST  = { BackgroundTransparency = 0.75, Position = UDim2.new(0.5, 0, 0, 3) }
 local SD_HOVER = { BackgroundTransparency = 0.65, Position = UDim2.new(0.5, 0, 0, 5) }
+local SD_PRESS = { BackgroundTransparency = 0.90, Position = UDim2.new(0.5, 0, 0, 1) }
 
 local HEADER_H = 36
 local LIST_GAP = 4
-local OPTION_H = 32
-local MAX_H    = 160
+local OPTION_H = 34
+local MAX_H    = 170
 local CHECK_W  = 20  -- width reserved for checkmark column in multiSelect
 
 -- ── Option normalisation ──────────────────────────────────────────────────────
@@ -56,13 +61,16 @@ export type DropdownConfig = {
 	Placeholder: string?,
 	Enabled:     boolean?,
 	LayoutOrder: number?,
+	Tooltip:     string?,
 	-- options: plain string array OR {Label,Value} table array
-	Options:     { any },
+	Options:     { any }?,
 	-- multi-select
 	MultiSelect: boolean?,
 	-- initial selection: single value OR array of values
 	Default:     any?,
-	Flag: string?,
+	Flag:        string?,
+	-- Auto-populating options: "Player" | "Team"
+	SpecialType: string?,
 }
 
 type DropdownImpl = {
@@ -89,6 +97,7 @@ type DropdownImpl = {
 	_stroke:        UIStroke,
 	_flash:         Frame,
 	_shadow:        Frame,
+	_listShadow:    Frame?,
 	_enabled:       boolean,
 	_open:          boolean,
 	_multiSelect:   boolean,
@@ -135,7 +144,43 @@ function Dropdown.new(config: DropdownConfig): DropdownImpl
 	self._enabled        = if config.Enabled ~= nil then config.Enabled else true
 	self._open           = false
 	self._multiSelect    = if config.MultiSelect ~= nil then config.MultiSelect else false
-	self._options        = normalizeOptions(config.Options or {})
+
+	local initialOptions = config.Options or {}
+	if config.SpecialType == "Player" then
+		local Players = game:GetService("Players")
+		local function getPlayerList(): { string }
+			local list = {}
+			for _, p in ipairs(Players:GetPlayers()) do
+				table.insert(list, p.Name)
+			end
+			return list
+		end
+		initialOptions = getPlayerList()
+		self._maid:GiveTask(Players.PlayerAdded:Connect(function()
+			self:SetOptions(getPlayerList())
+		end))
+		self._maid:GiveTask(Players.PlayerRemoving:Connect(function()
+			self:SetOptions(getPlayerList())
+		end))
+	elseif config.SpecialType == "Team" then
+		local Teams = game:GetService("Teams")
+		local function getTeamList(): { string }
+			local list = {}
+			for _, t in ipairs(Teams:GetTeams()) do
+				table.insert(list, t.Name)
+			end
+			return list
+		end
+		initialOptions = getTeamList()
+		self._maid:GiveTask(Teams.ChildAdded:Connect(function()
+			self:SetOptions(getTeamList())
+		end))
+		self._maid:GiveTask(Teams.ChildRemoved:Connect(function()
+			self:SetOptions(getTeamList())
+		end))
+	end
+
+	self._options        = normalizeOptions(initialOptions)
 	self._placeholder    = config.Placeholder or (if self._multiSelect then "None selected" else "Select...")
 
 	-- Initialise selection state
@@ -236,15 +281,16 @@ function Dropdown.new(config: DropdownConfig): DropdownImpl
 	local ARROW_W = 16
 	local arrow                  = Instance.new("TextLabel")
 	arrow.Name                   = "Arrow"
-	arrow.AnchorPoint            = Vector2.new(1, 0.5)
-	arrow.Position               = UDim2.new(1, 0, 0.5, 0)
-	arrow.Size                   = UDim2.fromOffset(ARROW_W, HEADER_H)
+	arrow.AnchorPoint            = Vector2.new(0.5, 0.5)
+	arrow.Position               = UDim2.new(1, -(ARROW_W / 2 + 6), 0.5, 0)
+	arrow.Size                   = UDim2.fromOffset(ARROW_W, ARROW_W)
 	arrow.BackgroundTransparency = 1
-	arrow.Font                   = Enum.Font.GothamBold
-	arrow.Text                   = "^"
-	arrow.TextSize               = 12
+	arrow.Font                   = Theme.Font.Body
+	arrow.Text                   = "▾"
+	arrow.TextSize               = 14
 	arrow.TextColor3             = Theme.Colors.TextSecondary
 	arrow.TextXAlignment         = Enum.TextXAlignment.Center
+	arrow.TextYAlignment         = Enum.TextYAlignment.Center
 	arrow.Rotation               = 0
 	arrow.ZIndex                 = 4
 	arrow.Parent                 = inner
@@ -254,7 +300,7 @@ function Dropdown.new(config: DropdownConfig): DropdownImpl
 	local initText, initHas    = headerText(self)
 	local valueLabel                  = Instance.new("TextLabel")
 	valueLabel.Name                   = "ValueLabel"
-	valueLabel.Size                   = UDim2.new(1, -(ARROW_W + 4), 1, 0)
+	valueLabel.Size                   = UDim2.new(1, -(ARROW_W + 16), 1, 0)
 	valueLabel.BackgroundTransparency = 1
 	valueLabel.Font                   = Theme.Font.Body
 	valueLabel.Text                   = initText
@@ -297,7 +343,22 @@ function Dropdown.new(config: DropdownConfig): DropdownImpl
 	hit.ZIndex                 = 5
 	hit.Parent                 = inner
 
-	-- ── list container ────────────────────────────────────────────────────────
+	-- ── list container & shadow ───────────────────────────────────────────────
+	local listShadow                  = Instance.new("Frame")
+	listShadow.Name                   = "ListShadow"
+	listShadow.AnchorPoint            = Vector2.new(0.5, 0)
+	listShadow.Position               = UDim2.new(0.5, 0, 0, HEADER_H + LIST_GAP + 2)
+	listShadow.Size                   = UDim2.new(1, 0, 0, 0)
+	listShadow.BackgroundColor3       = Color3.fromRGB(0, 0, 0)
+	listShadow.BackgroundTransparency = 1
+	listShadow.BorderSizePixel        = 0
+	listShadow.ZIndex                 = 1
+	local listShadowCorner            = Instance.new("UICorner")
+	listShadowCorner.CornerRadius     = UDim.new(0, Theme.Radius.Small + 1)
+	listShadowCorner.Parent           = listShadow
+	listShadow.Parent                 = frame
+	self._listShadow                  = listShadow
+
 	local listWrap                  = Instance.new("Frame")
 	listWrap.Name                   = "ListWrap"
 	listWrap.Position               = UDim2.new(0, 0, 0, HEADER_H + LIST_GAP)
@@ -355,16 +416,18 @@ function Dropdown.new(config: DropdownConfig): DropdownImpl
 		TweenService:Create(stroke,     TWEEN_STROKE,   { Color = Theme.Colors.Border }):Play()
 		TweenService:Create(listWrap,   TWEEN_COLLAPSE, { Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1 }):Play()
 		TweenService:Create(listStroke, TWEEN_FADE,     { Transparency = 1 }):Play()
+		TweenService:Create(listShadow, TWEEN_COLLAPSE, { Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1 }):Play()
 		TweenService:Create(frame,      TWEEN_COLLAPSE, { Size = UDim2.new(1, 0, 0, HEADER_H) }):Play()
 	end
 
 	local function openDropdown()
 		if self._open or not self._enabled then return end
 		self._open = true
-		TweenService:Create(arrow,      TWEEN_ARROW,  { Rotation = -180 }):Play()
+		TweenService:Create(arrow,      TWEEN_ARROW,  { Rotation = 180 }):Play()
 		TweenService:Create(stroke,     TWEEN_STROKE, { Color = Theme.Colors.Accent }):Play()
 		TweenService:Create(listWrap,   TWEEN_EXPAND, { Size = UDim2.new(1, 0, 0, self._targetH), BackgroundTransparency = 0 }):Play()
 		TweenService:Create(listStroke, TWEEN_FADE,   { Transparency = 0 }):Play()
+		TweenService:Create(listShadow, TWEEN_EXPAND, { Size = UDim2.new(1, 0, 0, self._targetH + 4), BackgroundTransparency = 0.75 }):Play()
 		TweenService:Create(frame,      TWEEN_EXPAND, { Size = UDim2.new(1, 0, 0, HEADER_H + LIST_GAP + self._targetH) }):Play()
 	end
 
@@ -429,7 +492,7 @@ function Dropdown.new(config: DropdownConfig): DropdownImpl
 			optLabel.TextSize               = Theme.TextSize.Body
 			optLabel.TextColor3             = if isSelected
 				then Theme.Colors.Accent
-				else Theme.Colors.TextPrimary
+				else Theme.Colors.TextSecondary
 			optLabel.TextXAlignment         = if self._multiSelect
 				then Enum.TextXAlignment.Left
 				else Enum.TextXAlignment.Center
@@ -459,15 +522,27 @@ function Dropdown.new(config: DropdownConfig): DropdownImpl
 
 			self._optionMaid:GiveTask(optHit.MouseEnter:Connect(function()
 				TweenService:Create(optFrame, TWEEN_HOVER, {
-					BackgroundTransparency = 0.82,
+					BackgroundTransparency = 0.85,
 					BackgroundColor3       = Theme.Colors.SurfaceHover,
 				}):Play()
+				local isSel = if self._multiSelect
+					then self._selectedSet[opt.Value] == true
+					else self._selectedValue == opt.Value
+				if not isSel then
+					TweenService:Create(optLabel, TWEEN_HOVER, { TextColor3 = Theme.Colors.TextPrimary }):Play()
+				end
 			end))
 			self._optionMaid:GiveTask(optHit.MouseLeave:Connect(function()
 				TweenService:Create(optFrame, TWEEN_HOVER, {
 					BackgroundTransparency = 1,
 					BackgroundColor3       = Color3.fromHex("#1a1a1a"),
 				}):Play()
+				local isSel = if self._multiSelect
+					then self._selectedSet[opt.Value] == true
+					else self._selectedValue == opt.Value
+				if not isSel then
+					TweenService:Create(optLabel, TWEEN_HOVER, { TextColor3 = Theme.Colors.TextSecondary }):Play()
+				end
 			end))
 
 			self._optionMaid:GiveTask(optHit.MouseButton1Click:Connect(function()
@@ -477,7 +552,7 @@ function Dropdown.new(config: DropdownConfig): DropdownImpl
 					-- toggle selection
 					if self._selectedSet[opt.Value] then
 						self._selectedSet[opt.Value] = nil
-						optLabel.TextColor3 = Theme.Colors.TextPrimary
+						optLabel.TextColor3 = Theme.Colors.TextSecondary
 						if checkLabel then checkLabel.Text = "" end
 					else
 						self._selectedSet[opt.Value] = true
@@ -507,7 +582,7 @@ function Dropdown.new(config: DropdownConfig): DropdownImpl
 						if child:IsA("Frame") then
 							local lbl = child:FindFirstChildWhichIsA("TextLabel")
 							if lbl and lbl.Name == "OptionLabel" then
-								lbl.TextColor3 = Theme.Colors.TextPrimary
+								lbl.TextColor3 = Theme.Colors.TextSecondary
 							end
 						end
 					end
@@ -517,7 +592,9 @@ function Dropdown.new(config: DropdownConfig): DropdownImpl
 					valueLabel.Text       = opt.Label
 					valueLabel.TextColor3 = Theme.Colors.TextPrimary
 					changed:Fire(opt.Value, opt.Label)
-					closeDropdown()
+					task.delay(0.10, function()
+						closeDropdown()
+					end)
 				end
 			end))
 
@@ -530,22 +607,71 @@ function Dropdown.new(config: DropdownConfig): DropdownImpl
 
 	-- ── hover / click on header ───────────────────────────────────────────────
 	local hovering = false
+	local pressing = false
+
+	local function releasePress()
+		if not pressing then return end
+		pressing = false
+		local shadowTarget = if hovering then SD_HOVER else SD_REST
+		local flashTarget  = if hovering then 0.92 else 1
+		TweenService:Create(inner,  TWEEN_RELEASE, { Size = UDim2.new(1, 0, 0, HEADER_H), Position = UDim2.new(0.5, 0, 0, 0) }):Play()
+		TweenService:Create(flash,  TWEEN_RELEASE, { BackgroundTransparency = flashTarget }):Play()
+		TweenService:Create(shadow, TWEEN_SHADOW,  {
+			BackgroundTransparency = shadowTarget.BackgroundTransparency,
+			Position               = shadowTarget.Position,
+			Size                   = UDim2.new(1, 0, 0, HEADER_H + 4),
+		}):Play()
+		TweenService:Create(stroke, TWEEN_STROKE, {
+			Color = if (hovering or self._open) then Theme.Colors.Accent else Theme.Colors.Border,
+		}):Play()
+	end
 
 	self._maid:GiveTask(hit.MouseEnter:Connect(function()
 		if not self._enabled then return end
 		hovering = true
-		TweenService:Create(stroke, TWEEN_STROKE, { Color = Theme.Colors.Accent }):Play()
-		TweenService:Create(flash,  TWEEN_HOVER,  { BackgroundTransparency = 0.92 }):Play()
-		TweenService:Create(shadow, TWEEN_HOVER,  SD_HOVER):Play()
+		if not pressing then
+			TweenService:Create(stroke, TWEEN_STROKE, { Color = Theme.Colors.Accent }):Play()
+			TweenService:Create(flash,  TWEEN_HOVER,  { BackgroundTransparency = 0.92 }):Play()
+			TweenService:Create(shadow, TWEEN_SHADOW, SD_HOVER):Play()
+		end
 	end))
 
 	self._maid:GiveTask(hit.MouseLeave:Connect(function()
 		if not self._enabled then return end
 		hovering = false
-		if not self._open then
-			TweenService:Create(stroke, TWEEN_STROKE, { Color = Theme.Colors.Border }):Play()
+		if pressing then
+			releasePress()
+		else
+			if not self._open then
+				TweenService:Create(stroke, TWEEN_STROKE, { Color = Theme.Colors.Border }):Play()
+			end
 			TweenService:Create(flash,  TWEEN_HOVER,  { BackgroundTransparency = 1 }):Play()
-			TweenService:Create(shadow, TWEEN_HOVER,  SD_REST):Play()
+			TweenService:Create(shadow, TWEEN_SHADOW, SD_REST):Play()
+		end
+	end))
+
+	self._maid:GiveTask(hit.MouseButton1Down:Connect(function()
+		if not self._enabled then return end
+		pressing = true
+		TweenService:Create(inner,  TWEEN_PRESS, { Size = UDim2.new(1, -6, 0, HEADER_H - 2), Position = UDim2.new(0.5, 0, 0, 1) }):Play()
+		TweenService:Create(flash,  TWEEN_PRESS, { BackgroundTransparency = 0.84 }):Play()
+		TweenService:Create(shadow, TWEEN_PRESS, {
+			BackgroundTransparency = SD_PRESS.BackgroundTransparency,
+			Position               = SD_PRESS.Position,
+			Size                   = UDim2.new(1, -6, 0, HEADER_H + 2),
+		}):Play()
+		TweenService:Create(stroke, TWEEN_PRESS, { Color = Theme.Colors.AccentHover }):Play()
+	end))
+
+	self._maid:GiveTask(hit.MouseButton1Up:Connect(function()
+		if not self._enabled then return end
+		releasePress()
+	end))
+
+	self._maid:GiveTask(UserInputService.InputEnded:Connect(function(input: InputObject)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch then
+			releasePress()
 		end
 	end))
 
@@ -553,10 +679,6 @@ function Dropdown.new(config: DropdownConfig): DropdownImpl
 		if not self._enabled then return end
 		if self._open then
 			closeDropdown()
-			if not hovering then
-				TweenService:Create(flash,  TWEEN_HOVER, { BackgroundTransparency = 1 }):Play()
-				TweenService:Create(shadow, TWEEN_HOVER, SD_REST):Play()
-			end
 		else
 			openDropdown()
 		end
@@ -591,6 +713,10 @@ function Dropdown.new(config: DropdownConfig): DropdownImpl
 		end
 	end
 
+	if config.Tooltip and #config.Tooltip > 0 then
+		self._maid:GiveTask(Tooltip.bind(inner, config.Tooltip))
+	end
+
 	return self
 end
 
@@ -603,6 +729,10 @@ function Dropdown:SetOptions(options: { any })
 		self._listWrap.Size                   = UDim2.new(1, 0, 0, 0)
 		self._listWrap.BackgroundTransparency = 1
 		self._listStroke.Transparency         = 1
+		if self._listShadow then
+			self._listShadow.Size                   = UDim2.new(1, 0, 0, 0)
+			self._listShadow.BackgroundTransparency = 1
+		end
 		self._frame.Size                      = UDim2.new(1, 0, 0, HEADER_H)
 		TweenService:Create(self._stroke, TWEEN_STROKE, { Color = Theme.Colors.Border }):Play()
 	end
@@ -685,6 +815,10 @@ function Dropdown:SetEnabled(enabled: boolean)
 		self._listWrap.Size                   = UDim2.new(1, 0, 0, 0)
 		self._listWrap.BackgroundTransparency = 1
 		self._listStroke.Transparency         = 1
+		if self._listShadow then
+			self._listShadow.Size                   = UDim2.new(1, 0, 0, 0)
+			self._listShadow.BackgroundTransparency = 1
+		end
 		self._frame.Size                      = UDim2.new(1, 0, 0, HEADER_H)
 	end
 end
