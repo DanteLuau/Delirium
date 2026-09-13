@@ -1,0 +1,35 @@
+{
+  "name": "Delirium",
+  "tree": {
+    "$className": "DataModel",
+
+    "ReplicatedStorage": {
+      "Delirium": {
+        "$path": "src"
+      }
+    },
+
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "DeliriumExample": {
+          "$path": "example.client.luau"
+        }
+      }
+    },
+
+    "Workspace": {
+      "$properties": {
+        "FilteringEnabled": true
+      },
+      "Baseplate": {
+        "$className": "Part",
+        "$properties": {
+          "Anchored": true,
+          "Locked": true,
+          "Position": [0, -10, 0],
+          "Size": [512, 20, 512]
+        }
+      }
+    }
+  }
+}
