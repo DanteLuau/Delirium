@@ -4,6 +4,7 @@
 -- label.luau — Static informational text element.
 -- Renders a read-only text block inside a tab. Supports rich text.
 
+local constants = require(script.Parent.Parent.utility.constants)
 local themeUtil = require(script.Parent.Parent.utility.theme)
 
 export type LabelProps = {
@@ -62,7 +63,7 @@ function Label.new(props: LabelProps, theme: { [string]: any }, parent: Instance
 	;(self :: any)._label = label
 	;(self :: any)._themeUnsub = themeUtil.subscribe(function(t)
 		label.TextColor3 = props.textColor or t.ContentColor or Color3.fromRGB(220, 215, 240)
-		label.FontFace = t.Font or Font.new("rbxasset://fonts/families/GothamSSm.json")
+		label.FontFace = t.Font or constants.DEFAULT_FONT
 	end)
 	return self
 end

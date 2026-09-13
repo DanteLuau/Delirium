@@ -276,14 +276,14 @@ function Input.new(props: InputProps, theme: { [string]: any }, parent: Instance
 		self._theme = t
 		theme = t
 		titleLabel.TextColor3 = t.ContentColor or Color3.fromHex("#ffffff")
-		titleLabel.FontFace   = t.Font or Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium)
+		titleLabel.FontFace   = t.Font or constants.DEFAULT_FONT_MEDIUM
 		pill.BackgroundColor3       = t.FieldBackground or Color3.fromRGB(255, 255, 255)
 		pill.BackgroundTransparency = t.FieldTransparency or 0.90
 		pillStroke.Color            = t.ElementStroke or Color3.fromHex("#2b2b2b")
 		stroke.Color                = t.ElementStroke or Color3.fromHex("#2b2b2b")
 		textBox.PlaceholderColor3   = t.PlaceholderColor or Color3.fromHex("#9d9d9d")
 		textBox.TextColor3          = t.ContentColor or Color3.fromHex("#ffffff")
-		textBox.FontFace            = t.Font or Font.new("rbxasset://fonts/families/GothamSSm.json")
+		textBox.FontFace            = t.Font or constants.DEFAULT_FONT
 	end)
 
 	return self

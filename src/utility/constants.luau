@@ -52,6 +52,14 @@ constants.elementPadding   = 6     -- Gap between stacked elements
 constants.sectionPadding   = 14    -- Gap before/after section dividers
 constants.contentPadding   = 10    -- Left/right inset inside the content pane
 
+-- ── Default fonts ────────────────────────────────────────────────────────────
+-- Allocated once here so theme subscribers never call Font.new() on every broadcast.
+-- Components reference constants.DEFAULT_FONT / constants.DEFAULT_FONT_MEDIUM instead
+-- of constructing a new Font object inside every themeUtil.subscribe callback.
+
+constants.DEFAULT_FONT        = Font.new("rbxasset://fonts/families/GothamSSm.json")
+constants.DEFAULT_FONT_MEDIUM = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium)
+
 -- ── Misc ─────────────────────────────────────────────────────────────────────
 
 -- Notification auto-dismiss default duration (seconds)

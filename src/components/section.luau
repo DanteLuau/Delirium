@@ -93,7 +93,7 @@ function Section.new(props: SectionProps, theme: { [string]: any }, parent: Inst
 		lineRight.BackgroundColor3 = t.ElementStroke or Color3.fromRGB(50, 42, 80)
 		if label then
 			label.TextColor3 = t.ContentColor or Color3.fromRGB(220, 215, 240)
-			label.FontFace = t.Font or Font.new("rbxasset://fonts/families/GothamSSm.json")
+			label.FontFace = t.Font or constants.DEFAULT_FONT
 		end
 	end)
 	return self

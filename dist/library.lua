@@ -1,21 +1,20 @@
--- ++++++++ WAX BUNDLED DATA BELOW ++++++++ --
 
--- Will be used later for getting flattened globals
+
+
 local ImportGlobals
 
--- Holds direct closure data (defining this before the DOM tree for line debugging etc)
-local ClosureBindings = {
-    function()local wax,script,require=ImportGlobals(1)local ImportGlobals return (function(...)--!strict
 
--- Delirium UI Library
--- init.luau — Public entry point.
--- Require this module to get the Delirium API surface.
---
--- Basic usage:
---   local Delirium = require(game.ReplicatedStorage.Delirium)
---   local win = Delirium:CreateWindow({ name = "My Script" })
---   local tab = win:CreateTab({ name = "Main" })
---   tab:CreateToggle({ name = "God Mode", flag = "GodMode", callback = function(v) ... end })
+local ClosureBindings = {function()local wax,script,require=ImportGlobals(1)local ImportGlobals return (function(...)
+
+
+
+
+
+
+
+
+
+
 
 local types    = require(script.types)
 local flags    = require(script.utility.flags)
@@ -27,7 +26,7 @@ local imageCache    = require(script.utility.imageCache)
 local imageUtil     = require(script.utility.image)
 local saveManager   = require(script.utility.saveManager)
 
--- Re-export public types so consumers can annotate against Delirium.Window etc
+
 export type Theme         = types.Theme
 export type WindowProps   = types.WindowProps
 export type TabProps      = types.TabProps
@@ -55,29 +54,29 @@ export type Keybind     = types.Keybind
 export type ColorPicker = types.ColorPicker
 export type Delirium    = types.Delirium
 
--- Window module constructor type (untyped internally)
+
 type WindowModule = { new: (types.WindowProps) -> types.Window }
 
 local delirium = {} :: Delirium
 
--- Flags registry — accessible as Delirium.Flags["MyFlag"]
+
 delirium.Flags = flags :: any
 
--- Nebula Icon Library interface — accessible as Delirium.Icons or Delirium.NebulaIcons
+
 delirium.Icons = icons :: any
 delirium.NebulaIcons = icons :: any
 
--- MediaService — image preloading, avatar headshots, external fonts
--- Accessible as Delirium.MediaService so executor bundles don't need a second require.
+
+
 delirium.MediaService = mediaService :: any
 
--- SaveManager — flag persistence (Save/Load/List/Delete + Register for UI sync)
--- Accessible as Delirium.SaveManager
+
+
 delirium.SaveManager = saveManager :: any
 
--- Internal debug accessors — exposed so executor scripts can inspect internal
--- state without requiring via game.ReplicatedStorage (which doesn't exist on executor).
--- These are the same singleton instances used by the library internally.
+
+
+
 delirium._imageCache = imageCache :: any
 delirium._image      = imageUtil  :: any
 
@@ -92,8 +91,8 @@ function delirium:CreateWindow(props: types.WindowProps): types.Window
 
 	local window = result :: types.Window
 
-	-- Show the window after a brief settle delay
-	-- (gives the executor environment time to finish rendering initial frames)
+	
+	
 	task.delay(0.4, function()
 		if not window.unloaded then
 			window:Show()
@@ -105,11 +104,10 @@ end
 
 return delirium
 
-end)() end,
-    [3] = function()local wax,script,require=ImportGlobals(3)local ImportGlobals return (function(...)--!strict
+end)() end,[3]=function()local wax,script,require=ImportGlobals(3)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- button.luau — Clickable action element with hover animation.
+
+
 
 local constants = require(script.Parent.Parent.utility.constants)
 local tween     = require(script.Parent.Parent.utility.tween)
@@ -138,7 +136,7 @@ function Button.new(props: ButtonProps, theme: { [string]: any }, parent: Instan
 
 	local frame, stroke = element.makeFrame("Button_" .. name, theme, parent)
 
-	-- Inner layout
+	
 	local inner = Instance.new("Frame")
 	inner.Name                   = "Inner"
 	inner.Size                   = UDim2.new(1, 0, 1, 0)
@@ -183,7 +181,7 @@ function Button.new(props: ButtonProps, theme: { [string]: any }, parent: Instan
 		descLabel.Parent                 = inner
 	end
 
-	-- Interaction button overlay
+	
 	local btn = Instance.new("TextButton")
 	btn.Name                   = "Interact"
 	btn.Size                   = UDim2.fromScale(1, 1)
@@ -192,7 +190,7 @@ function Button.new(props: ButtonProps, theme: { [string]: any }, parent: Instan
 	btn.AutoButtonColor        = false
 	btn.Parent                 = frame
 
-	-- Hover effect
+	
 	btn.MouseEnter:Connect(function()
 		if variables.settingsOpen then return end
 		tween.fire(frame, constants.tweenFast, {
@@ -213,7 +211,7 @@ function Button.new(props: ButtonProps, theme: { [string]: any }, parent: Instan
 		})
 	end)
 	btn.MouseButton1Click:Connect(function()
-		-- Brief press feedback: flash stroke accent
+		
 		tween.fire(stroke, constants.tweenFast, {
 			Color = theme.AccentColor or Color3.fromHex("#4cc2ff"),
 		})
@@ -234,10 +232,10 @@ function Button.new(props: ButtonProps, theme: { [string]: any }, parent: Instan
 		stroke.Color = t.ElementStroke or Color3.fromHex("#2b2b2b")
 		stroke.Transparency = t.ElementStrokeTransparency or 0
 		titleLabel.TextColor3 = t.ContentColor or Color3.fromHex("#ffffff")
-		titleLabel.FontFace = t.Font or Font.new("rbxasset://fonts/families/GothamSSm.json")
+		titleLabel.FontFace = t.Font or constants.DEFAULT_FONT
 		if descLabel then
 			descLabel.TextColor3 = t.PlaceholderColor or Color3.fromHex("#9d9d9d")
-			descLabel.FontFace = t.Font or Font.new("rbxasset://fonts/families/GothamSSm.json")
+			descLabel.FontFace = t.Font or constants.DEFAULT_FONT
 		end
 		theme = t
 	end)
@@ -252,27 +250,26 @@ end
 
 return Button
 
-end)() end,
-    [4] = function()local wax,script,require=ImportGlobals(4)local ImportGlobals return (function(...)--!strict
+end)() end,[4]=function()local wax,script,require=ImportGlobals(4)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- colorpicker.luau — HSV+alpha color picker. SV canvas, hue strip, optional alpha strip.
---
--- Popup layout:
---   [ SV canvas ] | [ hue ] | [ alpha? ] | [ swatch ]
---                                           [ hex  | alpha% ]
---
--- Two display modes:
---   ScreenGui mode  (overlayParent = nil):
---       Popup lives in its own ScreenGui. Backdrop = transparent full-screen TextButton.
---
---   Window mode     (overlayParent = Frame):
---       Popup + dim overlay are parented directly to overlayParent (the windowFrame).
---       Dim overlay covers the body below the title bar (pass overlayYOffset = TITLEBAR_H+1).
---       ZIndex values are all offset by constants.zIndex.popup so they sit above window chrome.
---       Clicking the dim overlay closes the picker (same as clicking outside in ScreenGui mode).
---
--- No animations. All state changes are instant property assignments.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 local constants = require(script.Parent.Parent.utility.constants)
 local flags     = require(script.Parent.Parent.utility.flags)
@@ -280,7 +277,7 @@ local runtime   = require(script.Parent.Parent.utility.runtime)
 local element   = require(script.Parent.Parent.utility.element)
 local themeUtil = require(script.Parent.Parent.utility.theme)
 
--- ── Popup geometry ────────────────────────────────────────────────────────────
+
 
 local PAD       = 12
 local MAP_W     = 175
@@ -298,8 +295,8 @@ local ABOX_W    = 53
 local ABOX_GAP  = 5
 
 local POPUP_W   = 360
-local CONTENT_Y = TITLE_H + PAD         -- 44
-local POPUP_H   = CONTENT_Y + MAP_H + PAD -- 204
+local CONTENT_Y = TITLE_H + PAD         
+local POPUP_H   = CONTENT_Y + MAP_H + PAD 
 
 local PILL_W    = 32
 local PILL_H    = 18
@@ -317,7 +314,7 @@ local HUE_CS = ColorSequence.new({
 	ColorSequenceKeypoint.new(1.000, Color3.fromRGB(255, 0,   0)),
 })
 
--- ── Types ─────────────────────────────────────────────────────────────────────
+
 
 export type ColorPickerProps = {
 	name:          string?,
@@ -325,8 +322,8 @@ export type ColorPickerProps = {
 	color:         Color3?,
 	alpha:         number?,
 	showAlpha:     boolean?,
-	overlayParent: Frame?,   -- pass windowFrame to enable window-mode
-	overlayYOffset: number?, -- Y px to skip (e.g. TITLEBAR_H + 1). default 0
+	overlayParent: Frame?,   
+	overlayYOffset: number?, 
 	callback:      ((value: Color3, alpha: number) -> ())?,
 }
 
@@ -338,7 +335,7 @@ export type ColorPicker = {
 	Destroy: (self: ColorPicker) -> (),
 }
 
--- ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 local function clamp01(n: number): number
 	return math.clamp(n, 0, 1)
@@ -386,7 +383,7 @@ local function mkStroke(inst: Instance, col: Color3, thick: number): UIStroke
 	return sk
 end
 
--- ── Module ────────────────────────────────────────────────────────────────────
+
 
 local ColorPicker = {} :: { __index: any }
 ColorPicker.__index = ColorPicker
@@ -401,16 +398,16 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 	local overlayYOffset = (props :: any).overlayYOffset :: number? or 0
 	local windowMode     = overlayParent ~= nil
 
-	-- In ScreenGui mode the popup sits in its own isolated ScreenGui, so low ZIndex values
-	-- are fine. In window mode the popup lives inside windowFrame alongside window chrome,
-	-- so every ZIndex must be above constants.zIndex.popup.
-	--
-	-- POP_Z = the ZIndex of the popup frame itself.
-	-- All children of popup are already visually above popup, but in ZIndexBehavior.Sibling
-	-- the ZIndex is global to the ScreenGui, so children need explicit higher values too.
+	
+	
+	
+	
+	
+	
+	
 	local POP_Z: number = if windowMode then constants.zIndex.popup else 2
 
-	-- ── Initial color ──────────────────────────────────────────────────────
+	
 	local initColor: Color3
 	local a: number = clamp01(props.alpha or 1)
 
@@ -423,7 +420,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 
 	local h, s, v = Color3.toHSV(initColor)
 
-	-- ── Popup horizontal layout ────────────────────────────────────────────
+	
 	local hueX:   number = PAD + MAP_W + GAP_CH
 	local alphaX: number = hueX + HUE_W + GAP_HA
 	local rightX: number = if showAlpha then (alphaX + ALPHA_W + GAP_AR) else (hueX + HUE_W + GAP_AR)
@@ -434,14 +431,14 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 	local aboxX: number     = rightX + hexW + ABOX_GAP
 	local hexY:  number     = CONTENT_Y + PREVIEW_H + GAP_PH
 
-	-- ── Connections & cleanup ──────────────────────────────────────────────
+	
 	local conns: { RBXScriptConnection } = {}
 	local function addConn(c: RBXScriptConnection)
 		table.insert(conns, c)
 	end
 	local themeUnsub: (() -> ())? = nil
 
-	-- ── Header frame (standard element row) ───────────────────────────────
+	
 	local frame, stroke = element.makeFrame("ColorPicker_" .. name, theme, parent)
 
 	local titleLabel = Instance.new("TextLabel")
@@ -474,7 +471,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 	headerBtn.AutoButtonColor        = false
 	headerBtn.Parent                 = frame
 
-	-- ── ScreenGui (ScreenGui mode only) ───────────────────────────────────
+	
 	local gui: ScreenGui? = nil
 	local backdrop: TextButton? = nil
 
@@ -498,9 +495,9 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 		backdrop = bd
 	end
 
-	-- ── Dim overlay (window mode only) ────────────────────────────────────
-	-- Covers the body area below the title bar. Active = true consumes mouse events.
-	-- Acts as the click-outside target (MouseButton1Click → closePopup).
+	
+	
+	
 	local dimOverlay: TextButton? = nil
 
 	if windowMode then
@@ -520,9 +517,9 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 		dimOverlay = ov
 	end
 
-	-- ── Popup frame ───────────────────────────────────────────────────────
-	-- ScreenGui mode: parented to gui, ZIndex = POP_Z (2).
-	-- Window mode:    parented to overlayParent (windowFrame), ZIndex = POP_Z (popup layer).
+	
+	
+	
 	local popupParent: Instance = if windowMode then (overlayParent :: Instance) else (gui :: ScreenGui)
 
 	local popup = Instance.new("Frame")
@@ -533,7 +530,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 	popup.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
 	popup.BorderSizePixel  = 0
 	popup.ZIndex           = POP_Z
-	popup.Visible          = windowMode   -- window mode: hidden by default but already parented
+	popup.Visible          = windowMode   
 	popup.Parent           = popupParent
 	mkCorner(popup, 8)
 	mkStroke(popup, Color3.fromRGB(48, 48, 56), 1)
@@ -561,12 +558,12 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 
 		local targetScale: number
 		if isTouchDevice or isSmallScreen then
-			-- On mobile or small screen: scale down so it occupies ~55% of the window
+			
 			local fitW = (winW * 0.56) / POPUP_W
 			local fitH = (winH * 0.60) / POPUP_H
 			targetScale = math.clamp(math.min(fitW, fitH, 0.75), 0.48, 0.75)
 		else
-			-- On desktop: fit if window is tight, otherwise standard 1.0
+			
 			local fitW = (winW - 32) / POPUP_W
 			local fitH = (winH - 32) / POPUP_H
 			targetScale = math.clamp(math.min(fitW, fitH, 1.0), 0.60, 1.0)
@@ -575,14 +572,14 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 		popScale.Scale = targetScale
 	end
 
-	-- ScreenGui mode: hide popup until opened (gui.Enabled handles it, but also set Visible)
+	
 	if not windowMode then
-		popup.Visible = true   -- visibility managed via gui.Enabled
+		popup.Visible = true   
 	else
-		popup.Visible = false  -- managed directly
+		popup.Visible = false  
 	end
 
-	-- Click absorber inside popup: stops dimOverlay/backdrop from firing for intra-popup clicks
+	
 	local popHit = Instance.new("TextButton")
 	popHit.Size                   = UDim2.fromScale(1, 1)
 	popHit.BackgroundTransparency = 1
@@ -591,7 +588,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 	popHit.ZIndex                 = POP_Z
 	popHit.Parent                 = popup
 
-	-- ── Popup title & Close button ────────────────────────────────────────
+	
 	local popTitle = Instance.new("TextLabel")
 	popTitle.Position               = UDim2.fromOffset(PAD, 0)
 	popTitle.Size                   = UDim2.new(1, -(PAD * 2 + 28), 0, TITLE_H)
@@ -620,7 +617,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 	popClose.Parent                 = popup
 	mkCorner(popClose, 4)
 
-	-- ── SV canvas ─────────────────────────────────────────────────────────
+	
 	local canvas = Instance.new("Frame")
 	canvas.Name             = "Canvas"
 	canvas.Position         = UDim2.fromOffset(PAD, CONTENT_Y)
@@ -632,7 +629,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 	mkCorner(canvas, 4)
 	mkStroke(canvas, Color3.fromRGB(48, 48, 56), 1)
 
-	-- Saturation overlay
+	
 	local satOvl = Instance.new("Frame")
 	satOvl.Size                = UDim2.fromScale(1, 1)
 	satOvl.BackgroundColor3    = Color3.new(1, 1, 1)
@@ -649,7 +646,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 		g.Parent = satOvl
 	end
 
-	-- Value overlay
+	
 	local valOvl = Instance.new("Frame")
 	valOvl.Size                = UDim2.fromScale(1, 1)
 	valOvl.BackgroundColor3    = Color3.new(0, 0, 0)
@@ -667,7 +664,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 		g.Parent = valOvl
 	end
 
-	-- SV cursor
+	
 	local cursor = Instance.new("Frame")
 	cursor.Name             = "SVCursor"
 	cursor.AnchorPoint      = Vector2.new(0.5, 0.5)
@@ -686,7 +683,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 		cs.Parent          = cursor
 	end
 
-	-- Canvas hit button (above overlays, below cursor)
+	
 	local canvasBtn = Instance.new("TextButton")
 	canvasBtn.BackgroundTransparency = 1
 	canvasBtn.Size                   = UDim2.fromScale(1, 1)
@@ -695,7 +692,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 	canvasBtn.ZIndex                 = POP_Z + 5
 	canvasBtn.Parent                 = canvas
 
-	-- ── Hue strip ─────────────────────────────────────────────────────────
+	
 	local hueBar = Instance.new("Frame")
 	hueBar.Name             = "HueBar"
 	hueBar.Position         = UDim2.fromOffset(hueX, CONTENT_Y)
@@ -739,7 +736,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 	hueBtn.ZIndex                 = POP_Z + 4
 	hueBtn.Parent                 = hueBar
 
-	-- ── Alpha strip (optional) ────────────────────────────────────────────
+	
 	local alphaBar:    Frame?      = nil
 	local alphaHandle: Frame?      = nil
 	local alphaBtn:    TextButton? = nil
@@ -796,7 +793,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 		alphaBtn    = abtn
 	end
 
-	-- ── Preview swatch ────────────────────────────────────────────────────
+	
 	local swatch = Instance.new("Frame")
 	swatch.Name             = "Swatch"
 	swatch.Position         = UDim2.fromOffset(rightX, CONTENT_Y)
@@ -808,7 +805,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 	mkCorner(swatch, 4)
 	mkStroke(swatch, Color3.fromRGB(48, 48, 56), 1)
 
-	-- ── Hex input ─────────────────────────────────────────────────────────
+	
 	local hexFrame = Instance.new("Frame")
 	hexFrame.Position         = UDim2.fromOffset(rightX, hexY)
 	hexFrame.Size             = UDim2.fromOffset(hexW, HEX_H)
@@ -835,7 +832,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 	hexInput.ZIndex                 = POP_Z + 2
 	hexInput.Parent                 = hexFrame
 
-	-- ── Alpha% input (optional) ───────────────────────────────────────────
+	
 	local alphaInput: TextBox? = nil
 
 	if showAlpha then
@@ -868,11 +865,11 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 		alphaInput = ai
 	end
 
-	-- ── Drag state ────────────────────────────────────────────────────────
+	
 	type DragTarget = "canvas" | "hue" | "alpha"
 	local dragging: DragTarget? = nil
 
-	-- ── Refresh — instant, no tweens ──────────────────────────────────────
+	
 	local function refresh()
 		local color = Color3.fromHSV(h, s, v)
 		local pure  = Color3.fromHSV(h, 1, 1)
@@ -905,7 +902,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 		if callback then task.spawn(callback, color, a) end
 	end
 
-	-- ── Drag pump ──────────────────────────────────────────────────────────
+	
 	local function pump(mousePos: Vector2)
 		if dragging == "canvas" then
 			local p = relPos(canvas, mousePos)
@@ -920,7 +917,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 		fireChanged()
 	end
 
-	-- ── Open / close ──────────────────────────────────────────────────────
+	
 	local isOpen = false
 
 	local function openPopup()
@@ -963,12 +960,12 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 		end
 	end
 
-	-- Header toggle
+	
 	addConn(headerBtn.MouseButton1Click:Connect(function()
 		if isOpen then closePopup() else openPopup() end
 	end))
 
-	-- Backdrop / dim click → close
+	
 	if not windowMode and backdrop then
 		addConn((backdrop :: TextButton).MouseButton1Click:Connect(closePopup))
 	end
@@ -977,7 +974,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 	end
 	addConn(popClose.MouseButton1Click:Connect(closePopup))
 
-	-- Header hover (stroke color hint only)
+	
 	addConn(headerBtn.MouseEnter:Connect(function()
 		if not isOpen then
 			stroke.Color = theme.ElementStrokeHover or theme.AccentColor or Color3.fromHex("#4cc2ff")
@@ -989,7 +986,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 		end
 	end))
 
-	-- ── Drag input bindings ───────────────────────────────────────────────
+	
 	addConn(canvasBtn.InputBegan:Connect(function(input: InputObject)
 		if input.UserInputType == Enum.UserInputType.MouseButton1
 			or input.UserInputType == Enum.UserInputType.Touch then
@@ -1032,7 +1029,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 		end
 	end))
 
-	-- ── Hex / Alpha% text inputs ──────────────────────────────────────────
+	
 	addConn(hexInput.FocusLost:Connect(function()
 		local color = hexToColor(hexInput.Text)
 		if not color then
@@ -1058,7 +1055,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 		end))
 	end
 
-	-- ── Theme subscription ────────────────────────────────────────────────
+	
 	themeUnsub = themeUtil.subscribe(function(t)
 		theme = t
 		frame.BackgroundTransparency = t.ElementTransparency or 0
@@ -1072,9 +1069,9 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 			else (t.ElementStroke or Color3.fromHex("#2b2b2b"))
 
 		titleLabel.TextColor3      = t.ContentColor or Color3.fromHex("#ffffff")
-		titleLabel.FontFace        = t.Font or Font.new("rbxasset://fonts/families/GothamSSm.json")
+		titleLabel.FontFace        = t.Font or constants.DEFAULT_FONT
 		popTitle.TextColor3        = t.PlaceholderColor or Color3.fromHex("#9d9d9d")
-		popTitle.FontFace          = t.Font or Font.new("rbxasset://fonts/families/GothamSSm.json")
+		popTitle.FontFace          = t.Font or constants.DEFAULT_FONT
 		hexInput.TextColor3        = t.ContentColor or Color3.fromHex("#ffffff")
 		hexInput.PlaceholderColor3 = t.PlaceholderColor or Color3.fromHex("#9d9d9d")
 		if alphaInput then
@@ -1083,7 +1080,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 		end
 	end)
 
-	-- ── Public API ────────────────────────────────────────────────────────
+	
 	local self = setmetatable({}, ColorPicker) :: ColorPicker
 	self.value  = initColor
 	self.alpha  = a
@@ -1102,8 +1099,8 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 		if themeUnsub then themeUnsub() end
 		for _, c in conns do c:Disconnect() end
 		table.clear(conns)
-		-- In window mode the popup + dim are parented to windowFrame, destroy them individually.
-		-- In ScreenGui mode the whole gui is destroyed, which takes popup with it.
+		
+		
 		if windowMode then
 			popup:Destroy()
 			if dimOverlay then dimOverlay:Destroy() end
@@ -1119,14 +1116,14 @@ end
 
 return ColorPicker
 
-end)() end,
-    [5] = function()local wax,script,require=ImportGlobals(5)local ImportGlobals return (function(...)--!strict
+end)() end,[5]=function()local wax,script,require=ImportGlobals(5)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- descriptor.luau — Rayfield Gen2 style description sub-element.
--- Placed directly below the parent element in the scrolling column with
--- soft muted text, word wrapping, and bottom spacing.
 
+
+
+
+
+local constants = require(script.Parent.Parent.utility.constants)
 local themeUtil = require(script.Parent.Parent.utility.theme)
 
 export type Descriptor = {
@@ -1183,7 +1180,7 @@ function Descriptor.new(parent: Instance, text: string, theme: { [string]: any }
 
 	self._themeUnsub = themeUtil.subscribe(function(t)
 		label.TextColor3 = t.PlaceholderColor or Color3.fromHex("#8a8a92")
-		label.FontFace   = t.Font or Font.new("rbxasset://fonts/families/GothamSSm.json")
+		label.FontFace   = t.Font or constants.DEFAULT_FONT
 	end)
 
 	return self
@@ -1197,23 +1194,24 @@ end
 
 return Descriptor
 
-end)() end,
-    [6] = function()local wax,script,require=ImportGlobals(6)local ImportGlobals return (function(...)--!strict
+end)() end,[6]=function()local wax,script,require=ImportGlobals(6)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- dropdown.luau — Oldsrc dropdown layout & behavior ported to src, with zero animations.
--- Supports single/multi-select, searchable lists, special types (Player/Team), per-item disable, and flag persistence.
 
-local UserInputService = game:GetService("UserInputService")
-local Players          = game:GetService("Players")
-local Teams            = game:GetService("Teams")
+
+
+
 
 local constants = require(script.Parent.Parent.utility.constants)
 local flags     = require(script.Parent.Parent.utility.flags)
 local runtime   = require(script.Parent.Parent.utility.runtime)
+local services  = require(script.Parent.Parent.utility.services)
 local signal    = require(script.Parent.Parent.utility.signal)
 local themeUtil = require(script.Parent.Parent.utility.theme)
 local icons     = require(script.Parent.Parent.utility.icons)
+
+local UserInputService = runtime.userInputService
+local Players          = services.getService("Players") :: Players
+local Teams            = services.getService("Teams") :: Teams
 
 local HEADER_H        = 36
 local LIST_GAP        = 4
@@ -1221,6 +1219,11 @@ local OPTION_H        = 34
 local CHECK_W         = 20
 local SEARCH_H        = 32
 local MAX_H_DEFAULT   = 170
+
+
+
+local DEFAULT_FONT       = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium)
+local DEFAULT_FONT_SEMI  = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.SemiBold)
 
 export type DropdownOption = { Label: string, Value: any }
 
@@ -1275,7 +1278,7 @@ export type Dropdown = {
 local Dropdown = {}
 Dropdown.__index = Dropdown
 
--- ── Option Normalization ──────────────────────────────────────────────────────
+
 
 local function normalizeOptions(raw: { any }?): { DropdownOption }
 	local out: { DropdownOption } = {}
@@ -1298,7 +1301,7 @@ local function normalizeDefault(raw: any): { any }
 	return { raw }
 end
 
--- ── Header Text Builder ───────────────────────────────────────────────────────
+
 
 local function getHeaderText(s: any): (string, boolean)
 	if s._multiSelect then
@@ -1327,7 +1330,7 @@ local function getHeaderText(s: any): (string, boolean)
 	end
 end
 
--- ── Constructor ───────────────────────────────────────────────────────────────
+
 
 function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: Instance): Dropdown
 	local name = props.name or props.Label or props.Text
@@ -1344,14 +1347,14 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 	local maxH = if maxVisible and maxVisible > 0 then (maxVisible * OPTION_H) else MAX_H_DEFAULT
 	local special = props.specialType or props.SpecialType
 
-	-- Disabled values set
+	
 	local rawDisabled = props.disabledValues or props.DisabledValues or {}
 	local disabledSet: { [any]: boolean } = {}
 	for _, v in ipairs(rawDisabled) do
 		disabledSet[v] = true
 	end
 
-	-- Options resolution
+	
 	local initialOptions = props.options or props.Options or {}
 	local specialConns: { RBXScriptConnection } = {}
 
@@ -1377,7 +1380,7 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 
 	local normOpts = normalizeOptions(initialOptions)
 
-	-- Initial selection resolution
+	
 	local defaults = normalizeDefault(props.value or props.default or props.Default)
 	if flagKey and flags:Get(flagKey) ~= nil then
 		local stored = flags:Get(flagKey)
@@ -1398,7 +1401,7 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 	local LABEL_W = 90
 	local leftPad = if hasLabel then (LABEL_W + 12) else 12
 
-	-- ── Outer Container Frame ─────────────────────────────────────────────────
+	
 	local frame = Instance.new("Frame")
 	frame.Name = "Dropdown_" .. (name or "Element")
 	frame.Size = UDim2.new(1, 0, 0, HEADER_H)
@@ -1410,7 +1413,7 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 
 
 
-	-- ── Inner Shell ───────────────────────────────────────────────────────────
+	
 	local inner = Instance.new("Frame")
 	inner.Name = "Inner"
 	inner.AnchorPoint = Vector2.new(0.5, 0)
@@ -1511,7 +1514,7 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 	hit.ZIndex = 5
 	hit.Parent = inner
 
-	-- ── List Container ─────────────────────────────────────────────────────────
+	
 	local listWrap = Instance.new("Frame")
 	listWrap.Name = "ListWrap"
 	listWrap.Position = UDim2.new(0, 0, 0, HEADER_H + LIST_GAP)
@@ -1535,7 +1538,7 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 	listStroke.Parent = listWrap
 	listWrap.Parent = frame
 
-	-- ── Search Bar (Optional) ─────────────────────────────────────────────────
+	
 	local searchBox: TextBox? = nil
 	if isSearchable then
 		local searchBar = Instance.new("Frame")
@@ -1615,7 +1618,7 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 		sep.Parent = listWrap
 	end
 
-	-- ── Scrolling Options Area ────────────────────────────────────────────────
+	
 	local scrollTopOffset = if isSearchable then SEARCH_H else 0
 
 	local scroll = Instance.new("ScrollingFrame")
@@ -1655,7 +1658,7 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 	self.value = initVal
 	self.Value = initVal
 
-	-- ── Private Storage ───────────────────────────────────────────────────────
+	
 	local s = self :: any
 	s._enabled = isEnabled
 	s._open = false
@@ -1689,7 +1692,7 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 	s._optConns = {} :: { RBXScriptConnection }
 	s._specialConns = specialConns
 
-	-- ── Open / Close (Instant — Zero Animations) ──────────────────────────────
+	
 	local function getListH(): number
 		return s._targetH + (if s._searchEnabled then SEARCH_H else 0)
 	end
@@ -1697,19 +1700,24 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 	local function closeDropdown()
 		if not s._open then return end
 		s._open = false
+		s._flipUp = false
 		if s._searchEnabled and s._searchBox then
 			s._searchBox.Text = ""
 			s._searchQuery = ""
 		end
 
-		-- Instant close: zero animations
+		
 		arrow.Rotation = 0
 		stroke.Color = s._theme.ElementStroke or Color3.fromHex("#2b2b2b")
 		listWrap.Visible = false
 		listWrap.Size = UDim2.new(1, 0, 0, 0)
+		listWrap.Position = UDim2.new(0, 0, 0, HEADER_H + LIST_GAP)
 		listWrap.BackgroundTransparency = 1
 		listStroke.Transparency = 1
 		frame.Size = UDim2.new(1, 0, 0, HEADER_H)
+		
+		frame.ZIndex = s._originalZIndex or 1
+		s._originalZIndex = nil
 	end
 
 	local function openDropdown()
@@ -1717,14 +1725,78 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 		s._open = true
 		local fullH = getListH()
 
-		-- Instant open: zero animations
+		
+		
+		
+		
+		local flipUp = false
+		do
+			local clipAncestor: GuiObject? = nil
+			do
+				local p: Instance? = frame.Parent
+				while p ~= nil and not p:IsA("ScreenGui") do
+					if p:IsA("GuiObject") and (p :: GuiObject).ClipsDescendants then
+						clipAncestor = p :: GuiObject
+						break
+					end
+					p = p.Parent
+				end
+			end
+
+			local boundaryTop: number
+			local boundaryBottom: number
+			if clipAncestor then
+				boundaryTop    = clipAncestor.AbsolutePosition.Y
+				boundaryBottom = clipAncestor.AbsolutePosition.Y + clipAncestor.AbsoluteSize.Y
+			else
+				
+				local pf = frame.Parent
+				if pf and pf:IsA("GuiObject") then
+					local g = pf :: GuiObject
+					boundaryTop    = g.AbsolutePosition.Y
+					boundaryBottom = g.AbsolutePosition.Y + g.AbsoluteSize.Y
+				else
+					boundaryTop    = 0
+					boundaryBottom = math.huge
+				end
+			end
+
+			local frameBottom = frame.AbsolutePosition.Y + HEADER_H + LIST_GAP + fullH
+			local spaceAbove  = frame.AbsolutePosition.Y - boundaryTop
+			if frameBottom > boundaryBottom and spaceAbove >= fullH + LIST_GAP then
+				flipUp = true
+			end
+		end
+
+		
+		
+		if not s._originalZIndex then
+			s._originalZIndex = frame.ZIndex
+		end
+		frame.ZIndex = 32766
+
+		s._flipUp = flipUp
+		if flipUp then
+			
+			listWrap.Position = UDim2.new(0, 0, 0, -(fullH + LIST_GAP))
+		else
+			listWrap.Position = UDim2.new(0, 0, 0, HEADER_H + LIST_GAP)
+		end
+
+		
 		arrow.Rotation = 180
 		stroke.Color = s._theme.AccentColor or Color3.fromHex("#4cc2ff")
 		listWrap.Visible = true
 		listWrap.Size = UDim2.new(1, 0, 0, fullH)
 		listWrap.BackgroundTransparency = 0
 		listStroke.Transparency = 0
-		frame.Size = UDim2.new(1, 0, 0, HEADER_H + LIST_GAP + fullH)
+		
+		
+		if flipUp then
+			frame.Size = UDim2.new(1, 0, 0, HEADER_H)
+		else
+			frame.Size = UDim2.new(1, 0, 0, HEADER_H + LIST_GAP + fullH)
+		end
 
 		if s._searchEnabled and s._searchBox then
 			task.defer(function()
@@ -1741,7 +1813,7 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 	s._openDropdown = openDropdown
 	s._closeDropdown = closeDropdown
 
-	-- ── Build Option Rows ─────────────────────────────────────────────────────
+	
 	local function buildOptions()
 		for _, c in ipairs(s._optConns) do c:Disconnect() end
 		table.clear(s._optConns)
@@ -1981,7 +2053,7 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 		end)
 	end
 
-	-- ── Interactivity (Instant — Zero Animations) ─────────────────────────────
+	
 	local hovering = false
 
 	s._conns.hitEnter = hit.MouseEnter:Connect(function()
@@ -2009,7 +2081,7 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 		end
 	end)
 
-	-- Close when clicking outside dropdown
+	
 	s._conns.outsideClick = UserInputService.InputBegan:Connect(function(input: InputObject)
 		if not s._open then return end
 		if input.UserInputType == Enum.UserInputType.MouseButton1
@@ -2025,7 +2097,7 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 		end
 	end)
 
-	-- Special types wiring
+	
 	if special == "Player" then
 		table.insert(specialConns, Players.PlayerAdded:Connect(function()
 			local pList = {}
@@ -2059,12 +2131,20 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 			outerLabel.TextColor3 = if s._enabled
 				then (t.ContentColor or Color3.fromHex("#ffffff"))
 				else Color3.fromHex("#555555")
-			outerLabel.FontFace = t.Font or Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium)
+			
+			outerLabel.FontFace = t.Font or DEFAULT_FONT
 		end
-		valueLabel.FontFace = t.Font or Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium)
+		
+		valueLabel.FontFace = t.Font or DEFAULT_FONT
 		arrow.ImageColor3 = t.PlaceholderColor or Color3.fromHex("#9d9d9d")
 		listStroke.Color = t.ElementStroke or Color3.fromHex("#2b2b2b")
-		buildOptions()
+		
+		
+		
+		
+		if s._open then
+			buildOptions()
+		end
 	end)
 
 	if flagKey then
@@ -2074,7 +2154,7 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 	return self
 end
 
--- ── Methods ───────────────────────────────────────────────────────────────────
+
 
 function Dropdown:SetOptions(options: { any })
 	local s = self :: any
@@ -2121,6 +2201,17 @@ end
 
 function Dropdown:Set(value: any, skipCallback: boolean?)
 	local s = self :: any
+	
+	
+	
+	if not s._multiSelect and value == s._selectedValue then
+		if s._flag then flags:Set(s._flag, value) end
+		self.Changed:Fire(self.value)
+		if not skipCallback and s._callback then
+			task.spawn(s._callback, self.value)
+		end
+		return
+	end
 	if s._multiSelect then
 		local arr: { any } = if typeof(value) == "table" then value else { value }
 		s._selectedSet = {}
@@ -2199,14 +2290,13 @@ end
 
 return Dropdown
 
-end)() end,
-    [7] = function()local wax,script,require=ImportGlobals(7)local ImportGlobals return (function(...)--!strict
+end)() end,[7]=function()local wax,script,require=ImportGlobals(7)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- input.luau — Rayfield Gen2 style text input element.
--- Standard row height, left-aligned title (+ optional description),
--- right-aligned pill container with animated dynamic width hugging (constants.pillResizeInfo),
--- focus animations, optional numeric mode with expression parsing, and flag persistence.
+
+
+
+
+
 
 local constants = require(script.Parent.Parent.utility.constants)
 local tween     = require(script.Parent.Parent.utility.tween)
@@ -2237,7 +2327,7 @@ export type Input = {
 local Input = {}
 Input.__index = Input
 
--- Parse simple math expressions like "5^3" -> 125, falls back to tonumber
+
 local function parseExp(text: string): number?
 	local a, b = text:match("^([%d%.%-]+)%^([%d%.%-]+)$")
 	if a and b then
@@ -2268,7 +2358,7 @@ function Input.new(props: InputProps, theme: { [string]: any }, parent: Instance
 
 	local frame, stroke = element.makeFrame("Input_" .. name, theme, parent, constants.elementHeight)
 
-	-- ── Left Side: Title ──────────────────────────────────────────────────
+	
 	local textContainer = Instance.new("Frame")
 	textContainer.Name                   = "TextContainer"
 	textContainer.Position               = UDim2.new(0, 12, 0.5, 0)
@@ -2291,7 +2381,7 @@ function Input.new(props: InputProps, theme: { [string]: any }, parent: Instance
 	titleLabel.TextTruncate           = Enum.TextTruncate.AtEnd
 	titleLabel.Parent                 = textContainer
 
-	-- ── Right Side: Rayfield-style hugging Pill ───────────────────────────
+	
 	local pill = Instance.new("Frame")
 	pill.Name                   = "FieldPill"
 	pill.AnchorPoint            = Vector2.new(1, 0.5)
@@ -2304,7 +2394,7 @@ function Input.new(props: InputProps, theme: { [string]: any }, parent: Instance
 	pill.Parent                 = frame
 
 	local pillCorner = Instance.new("UICorner")
-	pillCorner.CornerRadius = UDim.new(1, 0) -- Full pill curve
+	pillCorner.CornerRadius = UDim.new(1, 0) 
 	pillCorner.Parent       = pill
 
 	local pillStroke = Instance.new("UIStroke")
@@ -2329,12 +2419,12 @@ function Input.new(props: InputProps, theme: { [string]: any }, parent: Instance
 	textBox.TextXAlignment         = Enum.TextXAlignment.Center
 	textBox.TextTruncate           = Enum.TextTruncate.AtEnd
 	textBox.ClearTextOnFocus       = clearOnFocus
-	textBox.TextTransparency       = 0.4 -- Muted when not typing (Rayfield feel)
+	textBox.TextTransparency       = 0.4 
 	textBox.BorderSizePixel        = 0
 	textBox.ZIndex                 = 3
 	textBox.Parent                 = pill
 
-	-- ── Self Instance ─────────────────────────────────────────────────────
+	
 	local self = setmetatable({}, Input) :: Input
 	self.value  = initValue
 	self._frame = frame
@@ -2348,7 +2438,7 @@ function Input.new(props: InputProps, theme: { [string]: any }, parent: Instance
 	;(self :: any)._numeric     = isNumeric
 	;(self :: any)._placeholder = placeholder
 
-	-- ── Dynamic Pill Width Hugging (Utility Animation) ────────────────────
+	
 	local function sizePill(animate: boolean)
 		local shown = if textBox.Text ~= "" then textBox.Text else placeholder
 		local txtWidth = runtime.textService:GetTextSize(
@@ -2360,7 +2450,7 @@ function Input.new(props: InputProps, theme: { [string]: any }, parent: Instance
 
 		local frameW = frame.AbsoluteSize.X
 		local isNarrow = frameW > 0 and frameW < 380
-		-- In split view / narrow column, adjust max size so it doesn't crowd out the title
+		
 		local maxW = if isNarrow then math.clamp(math.floor(frameW * 0.44), 65, 120) else 220
 		local minW = if isNarrow then 52 else 70
 		local targetWidth = math.clamp(math.floor(txtWidth + 24), minW, maxW)
@@ -2375,10 +2465,10 @@ function Input.new(props: InputProps, theme: { [string]: any }, parent: Instance
 		sizePill(false)
 	end)
 
-	-- ── Interactivity & Focus Animations ──────────────────────────────────
+	
 	local hovering = false
 
-	-- Hover listener
+	
 	local hitBtn = Instance.new("TextButton")
 	hitBtn.Name                   = "Interact"
 	hitBtn.Size                   = UDim2.fromScale(1, 1)
@@ -2414,12 +2504,12 @@ function Input.new(props: InputProps, theme: { [string]: any }, parent: Instance
 		end
 	end)
 
-	-- Click on frame to focus box
+	
 	hitBtn.MouseButton1Click:Connect(function()
 		textBox:CaptureFocus()
 	end)
 
-	-- Text changed listener (animates pill width as text changes)
+	
 	textBox:GetPropertyChangedSignal("Text"):Connect(function()
 		if isNumeric then
 			local cleaned = textBox.Text:gsub("[^%d%.%-eE%^]", "")
@@ -2431,7 +2521,7 @@ function Input.new(props: InputProps, theme: { [string]: any }, parent: Instance
 		sizePill(true)
 	end)
 
-	-- Focus In: opaque text, accent strokes
+	
 	textBox.Focused:Connect(function()
 		tween.fire(textBox, constants.tweenFocus, { TextTransparency = 0 })
 		tween.fire(pillStroke, constants.tweenFocus, {
@@ -2443,7 +2533,7 @@ function Input.new(props: InputProps, theme: { [string]: any }, parent: Instance
 		})
 	end)
 
-	-- Focus Out: commit, persist, animate back
+	
 	textBox.FocusLost:Connect(function(enterPressed)
 		tween.fire(textBox, constants.tweenFocus, { TextTransparency = 0.4 })
 
@@ -2473,19 +2563,19 @@ function Input.new(props: InputProps, theme: { [string]: any }, parent: Instance
 		})
 	end)
 
-	-- ── Theme Subscription ────────────────────────────────────────────────
+	
 	;(self :: any)._themeUnsub = themeUtil.subscribe(function(t)
 		self._theme = t
 		theme = t
 		titleLabel.TextColor3 = t.ContentColor or Color3.fromHex("#ffffff")
-		titleLabel.FontFace   = t.Font or Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium)
+		titleLabel.FontFace   = t.Font or constants.DEFAULT_FONT_MEDIUM
 		pill.BackgroundColor3       = t.FieldBackground or Color3.fromRGB(255, 255, 255)
 		pill.BackgroundTransparency = t.FieldTransparency or 0.90
 		pillStroke.Color            = t.ElementStroke or Color3.fromHex("#2b2b2b")
 		stroke.Color                = t.ElementStroke or Color3.fromHex("#2b2b2b")
 		textBox.PlaceholderColor3   = t.PlaceholderColor or Color3.fromHex("#9d9d9d")
 		textBox.TextColor3          = t.ContentColor or Color3.fromHex("#ffffff")
-		textBox.FontFace            = t.Font or Font.new("rbxasset://fonts/families/GothamSSm.json")
+		textBox.FontFace            = t.Font or constants.DEFAULT_FONT
 	end)
 
 	return self
@@ -2523,15 +2613,14 @@ end
 
 return Input
 
-end)() end,
-    [8] = function()local wax,script,require=ImportGlobals(8)local ImportGlobals return (function(...)--!strict
+end)() end,[8]=function()local wax,script,require=ImportGlobals(8)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- keybind.luau — Rayfield Gen2 style Keybind element.
--- Standard row height, left-aligned title (+ optional description),
--- right-aligned pill button with animated dynamic width hugging (constants.pillResizeInfo),
--- recording mode with animated resize, keyboard + mouse button capture (MB1/MB2/MB3),
--- hold mode support, and flag persistence.
+
+
+
+
+
+
 
 local constants = require(script.Parent.Parent.utility.constants)
 local tween     = require(script.Parent.Parent.utility.tween)
@@ -2562,24 +2651,24 @@ export type Keybind = {
 local Keybind = {}
 Keybind.__index = Keybind
 
--- Track globally active recording keybind across the library
+
 local activeRecordingKeybind: any = nil
 
--- Helper to check whether a screen point is inside a GuiObject
+
 local function isInside(pos: Vector2, guiObj: GuiObject): boolean
 	local min = guiObj.AbsolutePosition
 	local max = min + guiObj.AbsoluteSize
 	return pos.X >= min.X and pos.X <= max.X and pos.Y >= min.Y and pos.Y <= max.Y
 end
 
--- Friendly mouse button mapping
+
 local mouseNames: { [EnumItem]: string } = {
 	[Enum.UserInputType.MouseButton1] = "MB1",
 	[Enum.UserInputType.MouseButton2] = "MB2",
 	[Enum.UserInputType.MouseButton3] = "MB3",
 }
 
--- Resolve any input (KeyCode, UserInputType, string) to an EnumItem
+
 local function coerceKey(v: any): EnumItem
 	if typeof(v) == "EnumItem" then
 		return v
@@ -2601,7 +2690,7 @@ local function coerceKey(v: any): EnumItem
 	return Enum.KeyCode.Unknown
 end
 
--- Friendly display name for common keys
+
 local keyOverrides: { [string]: string } = {
 	LeftControl  = "L-Ctrl",
 	RightControl = "R-Ctrl",
@@ -2640,7 +2729,7 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 	local frame, stroke = element.makeFrame("Keybind_" .. name, theme, parent, constants.elementHeight)
 	frame.Active = true
 
-	-- ── Left Side: Title ──────────────────────────────────────────────────
+	
 	local textContainer = Instance.new("Frame")
 	textContainer.Name                   = "TextContainer"
 	textContainer.Position               = UDim2.new(0, 12, 0.5, 0)
@@ -2663,7 +2752,7 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 	titleLabel.TextTruncate           = Enum.TextTruncate.AtEnd
 	titleLabel.Parent                 = textContainer
 
-	-- ── Right Side: Rayfield-style hugging Pill ───────────────────────────
+	
 	local pill = Instance.new("TextButton")
 	pill.Name                   = "Pill"
 	pill.AnchorPoint            = Vector2.new(1, 0.5)
@@ -2676,14 +2765,14 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 	pill.TextColor3             = theme.ContentColor or Color3.fromHex("#ffffff")
 	pill.TextSize               = 12
 	pill.FontFace               = theme.Font or Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium)
-	pill.TextTransparency       = 0.3 -- Muted at rest (Rayfield feel)
+	pill.TextTransparency       = 0.3 
 	pill.AutoButtonColor        = false
 	pill.Active                 = true
 	pill.ZIndex                 = 3
 	pill.Parent                 = frame
 
 	local pillCorner = Instance.new("UICorner")
-	pillCorner.CornerRadius = UDim.new(1, 0) -- Full pill curve
+	pillCorner.CornerRadius = UDim.new(1, 0) 
 	pillCorner.Parent       = pill
 
 	local pillStroke = Instance.new("UIStroke")
@@ -2693,7 +2782,7 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 	pillStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	pillStroke.Parent          = pill
 
-	-- ── Self Instance ─────────────────────────────────────────────────────
+	
 	local self = setmetatable({}, Keybind) :: Keybind
 	self.value = initKey
 	self._frame = frame
@@ -2708,7 +2797,7 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 	;(self :: any)._hold       = hold
 	;(self :: any)._threshold  = holdThreshold
 
-	-- ── Dynamic Pill Width Hugging (Utility Animation) ────────────────────
+	
 	local function sizePill(animate: boolean)
 		local label = pill.Text
 		local txtWidth = runtime.textService:GetTextSize(
@@ -2733,10 +2822,10 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 		sizePill(false)
 	end)
 
-	-- ── Interactivity & Recording Animations ──────────────────────────────
+	
 	local hovering = false
 
-	-- Hover listener
+	
 	local hitBtn = Instance.new("TextButton")
 	hitBtn.Name                   = "Interact"
 	hitBtn.Size                   = UDim2.fromScale(1, 1)
@@ -2852,9 +2941,9 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 	;(self :: any)._stopRecording = stopRecording
 	;(self :: any)._sinkAction    = sinkActionName
 
-	-- suppressNextClick: when InputBegan captures MB1, the paired MouseButton1Click
-	-- fires right after on release. Without this flag that click would call startRecording()
-	-- again, re-entering recording immediately after we just bound MB1.
+	
+	
+	
 	local suppressNextClick = false
 
 	pill.MouseButton1Click:Connect(function()
@@ -2881,7 +2970,7 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 		end
 	end)
 
-	-- ── Input Listening (Capture & Key Triggers) ──────────────────────────
+	
 	local isHolding = false
 	local holdStartTime = 0
 
@@ -2901,8 +2990,8 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 				self:Set(input.KeyCode)
 				return
 			elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
-				-- Capturable. Set suppressNextClick so the release-paired
-				-- MouseButton1Click doesn't re-enter startRecording().
+				
+				
 				suppressNextClick = true
 				stopRecording()
 				self:Set(input.UserInputType)
@@ -2912,13 +3001,23 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 				stopRecording()
 				self:Set(input.UserInputType)
 				return
+			elseif input.UserInputType == Enum.UserInputType.Touch then
+				
+				
+				
+				
+				
+				suppressNextClick = true
+				stopRecording()
+				self:Set(Enum.UserInputType.MouseButton1)
+				return
 			end
 			return
 		end
 
 		if gameProcessed then return end
 
-		-- Check if input matches bound key
+		
 		local matches = false
 		if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == self.value then
 			matches = true
@@ -2963,16 +3062,16 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 	;(self :: any)._inputConn      = inputConn
 	;(self :: any)._inputEndedConn = inputEndedConn
 
-	-- ── Theme Subscription ────────────────────────────────────────────────
+	
 	;(self :: any)._themeUnsub = themeUtil.subscribe(function(t)
 		self._theme = t
 		theme = t
 		titleLabel.TextColor3 = t.ContentColor or Color3.fromHex("#ffffff")
-		titleLabel.FontFace   = t.Font or Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium)
+		titleLabel.FontFace   = t.Font or constants.DEFAULT_FONT_MEDIUM
 		pill.BackgroundColor3       = t.FieldBackground or Color3.fromRGB(255, 255, 255)
 		pill.BackgroundTransparency = t.FieldTransparency or 0.90
 		pill.TextColor3             = t.ContentColor or Color3.fromHex("#ffffff")
-		pill.FontFace               = t.Font or Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium)
+		pill.FontFace               = t.Font or constants.DEFAULT_FONT_MEDIUM
 		pillStroke.Color            = t.ElementStroke or Color3.fromHex("#2b2b2b")
 		stroke.Color                = t.ElementStroke or Color3.fromHex("#2b2b2b")
 	end)
@@ -3022,13 +3121,13 @@ end
 
 return Keybind
 
-end)() end,
-    [9] = function()local wax,script,require=ImportGlobals(9)local ImportGlobals return (function(...)--!strict
+end)() end,[9]=function()local wax,script,require=ImportGlobals(9)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- label.luau — Static informational text element.
--- Renders a read-only text block inside a tab. Supports rich text.
 
+
+
+
+local constants = require(script.Parent.Parent.utility.constants)
 local themeUtil = require(script.Parent.Parent.utility.theme)
 
 export type LabelProps = {
@@ -3049,7 +3148,7 @@ Label.__index = Label
 
 function Label.new(props: LabelProps, theme: { [string]: any }, parent: Instance): Label
 	local text      = props.text or ""
-	local richText  = props.richText ~= false and true  -- default true
+	local richText  = props.richText ~= false and true  
 	local textSize  = props.textSize or 13
 	local textColor = props.textColor or theme.ContentColor or Color3.fromRGB(220, 215, 240)
 
@@ -3087,7 +3186,7 @@ function Label.new(props: LabelProps, theme: { [string]: any }, parent: Instance
 	;(self :: any)._label = label
 	;(self :: any)._themeUnsub = themeUtil.subscribe(function(t)
 		label.TextColor3 = props.textColor or t.ContentColor or Color3.fromRGB(220, 215, 240)
-		label.FontFace = t.Font or Font.new("rbxasset://fonts/families/GothamSSm.json")
+		label.FontFace = t.Font or constants.DEFAULT_FONT
 	end)
 	return self
 end
@@ -3105,19 +3204,18 @@ end
 
 return Label
 
-end)() end,
-    [10] = function()local wax,script,require=ImportGlobals(10)local ImportGlobals return (function(...)--!strict
+end)() end,[10]=function()local wax,script,require=ImportGlobals(10)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- notification.luau — oldsrc-parity redesign.
--- CanvasGroup cards, icon badge, bottom accent glow, stacking eviction (max 6),
--- live timestamp loop, close-btn hover, Cubic.Out slide animations.
+
+
+
+
 
 local constants = require(script.Parent.Parent.utility.constants)
 local variables = require(script.Parent.Parent.utility.variables)
 local tween     = require(script.Parent.Parent.utility.tween)
 
--- ── Constants ─────────────────────────────────────────────────────────────────
+
 
 local TOAST_W          = 276
 local MAX_VISIBLE      = 6
@@ -3140,13 +3238,13 @@ local DEFAULT_ICONS: { [string]: string } = {
 	error   = "rbxassetid://10747384394",
 }
 
--- ── Types ─────────────────────────────────────────────────────────────────────
+
 
 export type NotifyProps = {
 	title:    string?,
 	content:  string?,
 	duration: number?,
-	type:     string?,           -- "info" | "success" | "warning" | "error"
+	type:     string?,           
 	icon:     (string | number)?,
 }
 
@@ -3158,7 +3256,7 @@ type ActiveToast = {
 	cancelTimer: () -> (),
 }
 
--- ── Singleton State ───────────────────────────────────────────────────────────
+
 
 local _gui          : ScreenGui?      = nil
 local _container    : Frame?          = nil
@@ -3167,7 +3265,7 @@ local _active       : { ActiveToast } = {}
 local _orderCounter : number          = 0
 local _scale        : number          = 1
 
--- ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 local function typeColor(notifType: string?, theme: { [string]: any }): Color3
 	local t = string.lower(notifType or "info")
@@ -3203,7 +3301,7 @@ local function formatElapsed(elapsed: number): string
 	end
 end
 
--- ── GUI Bootstrap ─────────────────────────────────────────────────────────────
+
 
 local function ensureGui()
 	if _gui and _gui.Parent and _container and _container.Parent then return end
@@ -3262,7 +3360,7 @@ local function ensureGui()
 	_layout    = layout
 end
 
--- ── Dismiss ───────────────────────────────────────────────────────────────────
+
 
 local function dismissToast(toast: ActiveToast)
 	if toast.dismissed then return end
@@ -3288,11 +3386,14 @@ local function dismissToast(toast: ActiveToast)
 		Size = UDim2.new(1, 0, 0, 0),
 	})
 	sizeTween.Completed:Once(function()
+		
+		
+		sizeTween:Destroy()
 		if toast.wrapper.Parent then toast.wrapper:Destroy() end
 	end)
 end
 
--- ── Public API ────────────────────────────────────────────────────────────────
+
 
 local notification = {}
 
@@ -3301,7 +3402,7 @@ function notification.send(props: NotifyProps, theme: { [string]: any }?)
 
 	local resolvedTheme = theme or variables.activeTheme or {}
 
-	-- Evict oldest when full
+	
 	while #_active >= MAX_VISIBLE do
 		local oldest = _active[1]
 		if oldest then dismissToast(oldest) else break end
@@ -3327,12 +3428,12 @@ function notification.send(props: NotifyProps, theme: { [string]: any }?)
 	local s     = _scale
 
 	local function px(n: number): number return math.max(math.round(n * s), 1) end
-	local ts = math.max(math.round(s * 12), 8)   -- title size
-	local ms = math.max(math.round(s * 11), 8)   -- message size
-	local xs = math.max(math.round(s * 10), 7)   -- timestamp size
-	local cs = math.max(math.round(s * 13), 8)   -- close btn size
+	local ts = math.max(math.round(s * 12), 8)   
+	local ms = math.max(math.round(s * 11), 8)   
+	local xs = math.max(math.round(s * 10), 7)   
+	local cs = math.max(math.round(s * 13), 8)   
 
-	-- ── Target height ─────────────────────────────────────────────────────────
+	
 	local usableW    = math.round(TOAST_W * s) - px(59)
 	local textBounds = variables.textService:GetTextSize(
 		msgText, ms,
@@ -3345,7 +3446,7 @@ function notification.send(props: NotifyProps, theme: { [string]: any }?)
 	local contentH = math.max(bodyH, px(28))
 	local targetH  = px(20) + contentH
 
-	-- ── Slot wrapper (animates to 0 on dismiss for smooth stack reflow) ────────
+	
 	local wrapper = Instance.new("Frame")
 	wrapper.Name                   = "ToastSlot"
 	wrapper.Size                   = UDim2.new(1, 0, 0, 0)
@@ -3355,7 +3456,7 @@ function notification.send(props: NotifyProps, theme: { [string]: any }?)
 	wrapper.LayoutOrder            = order
 	wrapper.Parent                 = _container
 
-	-- ── Card (CanvasGroup = GroupTransparency tween, whole card fades as one) ──
+	
 	local card = Instance.new("CanvasGroup")
 	card.Name                  = "ToastCard"
 	card.Size                  = UDim2.new(1, 0, 0, targetH)
@@ -3377,7 +3478,7 @@ function notification.send(props: NotifyProps, theme: { [string]: any }?)
 	stroke.ApplyStrokeMode     = Enum.ApplyStrokeMode.Border
 	stroke.Parent              = card
 
-	-- ── Bottom accent glow bar ────────────────────────────────────────────────
+	
 	local bottomGlow = Instance.new("Frame")
 	bottomGlow.Name             = "BottomGlow"
 	bottomGlow.Position         = UDim2.new(0, 0, 1, -1)
@@ -3396,7 +3497,7 @@ function notification.send(props: NotifyProps, theme: { [string]: any }?)
 	})
 	glowGrad.Parent = bottomGlow
 
-	-- ── Two-column row ────────────────────────────────────────────────────────
+	
 	local row = Instance.new("Frame")
 	row.Name                   = "Row"
 	row.Position               = UDim2.fromOffset(px(11), px(10))
@@ -3413,7 +3514,7 @@ function notification.send(props: NotifyProps, theme: { [string]: any }?)
 	rLayout.Padding           = UDim.new(0, px(9))
 	rLayout.Parent            = row
 
-	-- ── Icon badge ────────────────────────────────────────────────────────────
+	
 	local iconBadge = Instance.new("Frame")
 	iconBadge.Name                   = "IconBadge"
 	iconBadge.LayoutOrder            = 1
@@ -3444,7 +3545,7 @@ function notification.send(props: NotifyProps, theme: { [string]: any }?)
 	iconImg.ImageColor3            = accent
 	iconImg.Parent                 = iconBadge
 
-	-- ── Text column ───────────────────────────────────────────────────────────
+	
 	local col = Instance.new("Frame")
 	col.Name                   = "Col"
 	col.LayoutOrder            = 2
@@ -3460,7 +3561,7 @@ function notification.send(props: NotifyProps, theme: { [string]: any }?)
 	colLayout.Padding           = UDim.new(0, px(3))
 	colLayout.Parent            = col
 
-	-- ── Header row (title | spacer | timestamp | close) ──────────────────────
+	
 	local header = Instance.new("Frame")
 	header.Name                   = "Header"
 	header.LayoutOrder            = 1
@@ -3491,7 +3592,7 @@ function notification.send(props: NotifyProps, theme: { [string]: any }?)
 	titleLbl.TextTruncate           = Enum.TextTruncate.AtEnd
 	titleLbl.Parent                 = header
 
-	-- Flex spacer between title and timestamp
+	
 	local spacer = Instance.new("Frame")
 	spacer.Name                   = "Spacer"
 	spacer.LayoutOrder            = 2
@@ -3518,10 +3619,14 @@ function notification.send(props: NotifyProps, theme: { [string]: any }?)
 	timeLbl.TextXAlignment         = Enum.TextXAlignment.Right
 	timeLbl.Parent                 = header
 
+	
+	
+	
+	local closeBtnPx = if _scale < 1 then math.max(px(14), 24) else px(14)
 	local closeBtn = Instance.new("TextButton")
 	closeBtn.Name                   = "CloseBtn"
 	closeBtn.LayoutOrder            = 4
-	closeBtn.Size                   = UDim2.fromOffset(px(14), px(14))
+	closeBtn.Size                   = UDim2.fromOffset(closeBtnPx, closeBtnPx)
 	closeBtn.BackgroundTransparency = 1
 	closeBtn.BorderSizePixel        = 0
 	closeBtn.Font                   = Enum.Font.GothamMedium
@@ -3535,7 +3640,7 @@ function notification.send(props: NotifyProps, theme: { [string]: any }?)
 	closeCrn.CornerRadius = UDim.new(0, px(3))
 	closeCrn.Parent = closeBtn
 
-	-- ── Message ───────────────────────────────────────────────────────────────
+	
 	if #msgText > 0 then
 		local msgLbl = Instance.new("TextLabel")
 		msgLbl.Name                   = "Message"
@@ -3555,7 +3660,7 @@ function notification.send(props: NotifyProps, theme: { [string]: any }?)
 		msgLbl.Parent                 = col
 	end
 
-	-- ── Toast state tracking ──────────────────────────────────────────────────
+	
 	local creationTime = tick()
 	local timerThread  : thread? = nil
 	local updateThread : thread? = nil
@@ -3577,18 +3682,18 @@ function notification.send(props: NotifyProps, theme: { [string]: any }?)
 
 	table.insert(_active, toast)
 
-	-- ── Enter animations ──────────────────────────────────────────────────────
+	
 	tween.fire(wrapper, TWEEN_IN_SIZE, { Size = UDim2.new(1, 0, 0, targetH) })
 	tween.fire(card,    TWEEN_IN_POS,  { Position = UDim2.fromOffset(0, 0)  })
 	tween.fire(card,    TWEEN_IN_FADE, { GroupTransparency = 0              })
 	tween.fire(stroke,  TWEEN_IN_FADE, { Transparency = 0                  })
 
-	-- ── Auto-dismiss ──────────────────────────────────────────────────────────
+	
 	if duration > 0 then
 		timerThread = task.delay(duration, function() dismissToast(toast) end)
 	end
 
-	-- ── Live timestamp loop ───────────────────────────────────────────────────
+	
 	updateThread = task.spawn(function()
 		while not toast.dismissed do
 			task.wait(1)
@@ -3597,7 +3702,7 @@ function notification.send(props: NotifyProps, theme: { [string]: any }?)
 		end
 	end)
 
-	-- ── Close button interactivity ────────────────────────────────────────────
+	
 	closeBtn.MouseButton1Click:Connect(function() dismissToast(toast) end)
 	closeBtn.MouseEnter:Connect(function()
 		tween.fire(closeBtn, TweenInfo.new(0.15), {
@@ -3614,7 +3719,7 @@ function notification.send(props: NotifyProps, theme: { [string]: any }?)
 	end)
 end
 
--- Dismiss all active notifications
+
 function notification.dismissAll()
 	for i = #_active, 1, -1 do
 		local t = _active[i]
@@ -3624,12 +3729,11 @@ end
 
 return notification
 
-end)() end,
-    [11] = function()local wax,script,require=ImportGlobals(11)local ImportGlobals return (function(...)--!strict
+end)() end,[11]=function()local wax,script,require=ImportGlobals(11)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- section.luau — Visual divider with optional label text.
--- Rendered as a horizontal line + label inside a tab's scroll frame.
+
+
+
 
 local constants = require(script.Parent.Parent.utility.constants)
 local variables = require(script.Parent.Parent.utility.variables)
@@ -3650,7 +3754,7 @@ Section.__index = Section
 function Section.new(props: SectionProps, theme: { [string]: any }, parent: Instance): Section
 	local name = props.name or ""
 
-	-- Container
+	
 	local container = Instance.new("Frame")
 	container.Name             = "Section_" .. name
 	container.Size             = UDim2.new(1, 0, 0, 28)
@@ -3658,7 +3762,7 @@ function Section.new(props: SectionProps, theme: { [string]: any }, parent: Inst
 	container.LayoutOrder      = 0
 	container.Parent           = parent
 
-	-- Left line
+	
 	local lineLeft = Instance.new("Frame")
 	lineLeft.Name                 = "LineLeft"
 	lineLeft.AnchorPoint          = Vector2.new(0, 0.5)
@@ -3668,7 +3772,7 @@ function Section.new(props: SectionProps, theme: { [string]: any }, parent: Inst
 	lineLeft.BorderSizePixel      = 0
 	lineLeft.Parent               = container
 
-	-- Right line
+	
 	local lineRight = Instance.new("Frame")
 	lineRight.Name             = "LineRight"
 	lineRight.AnchorPoint      = Vector2.new(1, 0.5)
@@ -3678,7 +3782,7 @@ function Section.new(props: SectionProps, theme: { [string]: any }, parent: Inst
 	lineRight.BorderSizePixel  = 0
 	lineRight.Parent           = container
 
-	-- Label
+	
 	local label: TextLabel? = nil
 	if name ~= "" then
 		label = Instance.new("TextLabel")
@@ -3695,8 +3799,8 @@ function Section.new(props: SectionProps, theme: { [string]: any }, parent: Inst
 		label.TextXAlignment        = Enum.TextXAlignment.Center
 		label.Parent                = container
 
-		-- Adjust line widths to leave room for the text label.
-		-- Measured synchronously so the sizes are correct on the first frame.
+		
+		
 		local textSize = variables.textService:GetTextSize(
 			name, 11, Enum.Font.Gotham, Vector2.new(math.huge, math.huge)
 		)
@@ -3704,7 +3808,7 @@ function Section.new(props: SectionProps, theme: { [string]: any }, parent: Inst
 		lineLeft.Size  = UDim2.new(0.5, -half, 0, 1)
 		lineRight.Size = UDim2.new(0.5, -half, 0, 1)
 	else
-		-- Full-width line when no name
+		
 		lineLeft.Size  = UDim2.new(1, 0, 0, 1)
 		lineRight.Size = UDim2.new(0, 0, 0, 0)
 		lineRight.Visible = false
@@ -3720,7 +3824,7 @@ function Section.new(props: SectionProps, theme: { [string]: any }, parent: Inst
 		lineRight.BackgroundColor3 = t.ElementStroke or Color3.fromRGB(50, 42, 80)
 		if label then
 			label.TextColor3 = t.ContentColor or Color3.fromRGB(220, 215, 240)
-			label.FontFace = t.Font or Font.new("rbxasset://fonts/families/GothamSSm.json")
+			label.FontFace = t.Font or constants.DEFAULT_FONT
 		end
 	end)
 	return self
@@ -3734,14 +3838,12 @@ end
 
 return Section
 
-end)() end,
-    [12] = function()local wax,script,require=ImportGlobals(12)local ImportGlobals return (function(...)--!strict
+end)() end,[12]=function()local wax,script,require=ImportGlobals(12)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- slider.luau — Oldsrc slider layout & behavior ported to src, with zero animations.
--- Supports normal (54px) and compact (36px) modes, full/hidden max formats, and flag persistence.
 
-local UserInputService = game:GetService("UserInputService")
+
+
+
 
 local constants = require(script.Parent.Parent.utility.constants)
 local flags     = require(script.Parent.Parent.utility.flags)
@@ -3755,6 +3857,9 @@ local KNOB_W  = 30
 local KNOB_H  = 18
 local VAL_W   = 54
 local GAP     = 8
+
+
+local DEFAULT_FONT = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium)
 
 export type SliderProps = {
 	name:               string?,
@@ -3806,7 +3911,7 @@ export type Slider = {
 local Slider = {}
 Slider.__index = Slider
 
--- ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 local function snap(value: number, step: number, min: number): number
 	if step <= 0 then return value end
@@ -3823,10 +3928,10 @@ local function fmt(value: number, step: number): string
 	end
 end
 
--- tFromMouseX: all args are in screen (viewport) pixels.
--- mouseX        = UserInputService:GetMouseLocation().X
--- track         = the Track Frame
--- knobW         = knob.AbsoluteSize.X (screen px, post-UIScale)
+
+
+
+
 local function tFromMouseX(track: Frame, mouseX: number, knobW: number): number
 	local kHalf  = knobW / 2
 	local usable = math.max(track.AbsoluteSize.X - knobW, 1)
@@ -3834,7 +3939,7 @@ local function tFromMouseX(track: Frame, mouseX: number, knobW: number): number
 	return math.clamp(relX / usable, 0, 1)
 end
 
--- ── Constructor ───────────────────────────────────────────────────────────────
+
 
 function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instance): Slider
 	local name = props.name or props.Label or props.Text or "Slider"
@@ -3854,7 +3959,7 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		else true
 	local cfgFormat = props.formatDisplayValue or props.FormatDisplayValue
 
-	-- Resolve initial value
+	
 	local initValue: number
 	if flagKey and flags:Get(flagKey) ~= nil then
 		initValue = flags:Get(flagKey) :: number
@@ -3873,7 +3978,7 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		HEADER_H = 20
 	end
 
-	-- ── Outer Frame ───────────────────────────────────────────────────────────
+	
 	local frame = Instance.new("Frame")
 	frame.Name = "Slider_" .. name
 	frame.Size = UDim2.new(1, 0, 0, FRAME_H)
@@ -3883,7 +3988,7 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 	frame.ClipsDescendants = false
 	frame.Parent = parent
 
-	-- ── Shadow ────────────────────────────────────────────────────────────────
+	
 	local shadow = Instance.new("Frame")
 	shadow.Name = "Shadow"
 	shadow.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -3899,7 +4004,7 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 	shadowCorner.Parent = shadow
 	shadow.Parent = frame
 
-	-- ── Inner Shell ───────────────────────────────────────────────────────────
+	
 	local inner = Instance.new("Frame")
 	inner.Name = "Inner"
 	inner.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -3948,7 +4053,7 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 	flashCorner.Parent = flash
 	flash.Parent = inner
 
-	-- ── Labels ────────────────────────────────────────────────────────────────
+	
 	local label = Instance.new("TextLabel")
 	label.Name = "Label"
 	label.Position = UDim2.fromOffset(0, 0)
@@ -3988,7 +4093,7 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		valLabel.Size = UDim2.fromOffset(VAL_W, HEADER_H)
 	end
 
-	-- ── Track ─────────────────────────────────────────────────────────────────
+	
 	local TRACK_Y: number
 	if isCompact then
 		TRACK_Y = math.floor((FRAME_H - TRACK_H) / 2)
@@ -4012,21 +4117,21 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 	trackCorner.Parent = track
 	track.Parent = inner
 
-	-- knobRef is set after the knob Instance is created below.
-	-- knobPosScale reads it at call-time so it always has the real AbsoluteSize.
+	
+	
 	local knobRef: Frame = nil :: any
 
-	-- Returns the knob-CENTER position as a [0..1] fraction of the Track's width.
-	-- Uses AbsoluteSize RATIOS — UIScale cancels out algebraically, so this is
-	-- immune to any DPI / UIScale value without needing to infer the scale.
-	--
-	--   kHalf_frac  = knob_screen_px / (2 * track_screen_px)
-	--              = (KNOB_W * scale) / (2 * tw_design * scale)   ← scale cancels
-	--              = KNOB_W / (2 * tw_design)
-	--
-	-- Use this value directly in UDim2.new(posScale, 0, ...) — Scale coords are
-	-- fractions of the PARENT's Size (design space), so UIScale is never applied
-	-- a second time.
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
 	local function knobPosScale(t: number): number
 		local tw = track.AbsoluteSize.X
 		local kw = if knobRef ~= nil and knobRef.AbsoluteSize.X > 0
@@ -4034,12 +4139,12 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 			else nil
 
 		if kw ~= nil and tw > 0 then
-			-- Post-layout: AbsoluteSize values are valid.
+			
 			local kHalf_frac = kw / (2 * tw)
 			return math.clamp(kHalf_frac + t * (1 - 2 * kHalf_frac), 0, 1)
 		else
-			-- Pre-layout fallback: assume design track ~200px wide, UIScale = 1.
-			-- The first trackSize signal will immediately correct this.
+			
+			
 			local kHalf_frac = KNOB_W / (2 * 200)
 			return math.clamp(kHalf_frac + t * (1 - 2 * kHalf_frac), 0, 1)
 		end
@@ -4125,7 +4230,7 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 	knobShadowCorner.Parent = knobShadow
 	knobShadow.Parent = knob
 	knob.Parent = track
-	knobRef = knob  -- now knobPosScale and tFromMouseX callers can read AbsoluteSize
+	knobRef = knob  
 
 	local hit = Instance.new("TextButton")
 	hit.Name = "Hit"
@@ -4138,7 +4243,7 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 
 	valLabel.Text = fmtDisplay(initValue)
 
-	-- ── Private Storage ───────────────────────────────────────────────────────
+	
 	local s = self :: any
 	s._min = rangeMin
 	s._max = rangeMax
@@ -4166,6 +4271,28 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 	local hovering = false
 	local pendingTouchStart: Vector2? = nil
 
+	
+	
+	
+	
+	local _pendingFireVal: number? = nil
+	local _firePending    = false
+
+	local function scheduleChanged(val: number)
+		_pendingFireVal = val
+		if _firePending then return end
+		_firePending = true
+		task.defer(function()
+			_firePending = false
+			local v = _pendingFireVal
+			_pendingFireVal = nil
+			if v ~= nil then
+				self.Changed:Fire(v)
+				if callback then callback(v) end
+			end
+		end)
+	end
+
 	local function applyT(t: number)
 		local raw = rangeMin + t * (rangeMax - rangeMin)
 		local val = math.clamp(snap(raw, stepVal, rangeMin), rangeMin, rangeMax)
@@ -4176,7 +4303,7 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		valLabel.Text = fmtDisplay(val)
 
 		local st = (val - rangeMin) / math.max(rangeMax - rangeMin, 1e-9)
-		-- Zero animations: instant property updates
+		
 		local posScale = knobPosScale(st)
 		clipFrame.Size = UDim2.new(posScale, 0, 1, 0)
 		knob.Position = UDim2.new(posScale, 0, 0.5, 0)
@@ -4184,13 +4311,11 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		if flagKey then
 			flags:Set(flagKey, val)
 		end
-		self.Changed:Fire(val)
-		if callback then
-			task.spawn(callback, val)
-		end
+		
+		scheduleChanged(val)
 	end
 
-	-- ── Interactivity (Instant — No Tweens) ───────────────────────────────────
+	
 	s._conns.hitEnter = hit.MouseEnter:Connect(function()
 		if not s._enabled then return end
 		if variables.settingsOpen then return end
@@ -4215,13 +4340,13 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 	s._conns.hitBegan = hit.InputBegan:Connect(function(input: InputObject)
 		if not s._enabled then return end
 
-		-- DPI fix: mouse position from GetMouseLocation() is always in GUI-space;
-		-- input.Position.X on PC can be raw screen pixels on high-DPI displays.
+		
+		
 		local touchX: number
 		if input.UserInputType == Enum.UserInputType.Touch then
 			touchX = input.Position.X
 		else
-			touchX = UserInputService:GetMouseLocation().X
+			touchX = variables.userInputService:GetMouseLocation().X
 		end
 
 		local trackLeft = track.AbsolutePosition.X
@@ -4239,7 +4364,7 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		applyT(tFromMouseX(track, touchX, kw))
 	end)
 
-	s._conns.inputChanged = UserInputService.InputChanged:Connect(function(input: InputObject)
+	s._conns.inputChanged = variables.userInputService.InputChanged:Connect(function(input: InputObject)
 		if pendingTouchStart and input.UserInputType == Enum.UserInputType.Touch then
 			local dx = math.abs(input.Position.X - pendingTouchStart.X)
 			local dy = math.abs(input.Position.Y - pendingTouchStart.Y)
@@ -4254,12 +4379,12 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		if not dragging then return end
 		if input.UserInputType ~= Enum.UserInputType.MouseMovement
 			and input.UserInputType ~= Enum.UserInputType.Touch then return end
-		-- DPI fix: use GUI-space coordinates for mouse; Touch is already viewport-scaled.
+		
 		local inputX: number
 		if input.UserInputType == Enum.UserInputType.Touch then
 			inputX = input.Position.X
 		else
-			inputX = UserInputService:GetMouseLocation().X
+			inputX = variables.userInputService:GetMouseLocation().X
 		end
 		local kw = knob.AbsoluteSize.X > 0 and knob.AbsoluteSize.X or KNOB_W
 		applyT(tFromMouseX(track, inputX, kw))
@@ -4276,7 +4401,7 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		end
 	end
 
-	s._conns.inputEnded = UserInputService.InputEnded:Connect(function(input: InputObject)
+	s._conns.inputEnded = variables.userInputService.InputEnded:Connect(function(input: InputObject)
 		if input.UserInputType ~= Enum.UserInputType.MouseButton1
 			and input.UserInputType ~= Enum.UserInputType.Touch then return end
 		pendingTouchStart = nil
@@ -4294,15 +4419,15 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		knob.Position = UDim2.new(posScale, 0, 0.5, 0)
 	end
 
-	-- Refresh on track resize (window resize, UIScale change, etc.)
-	-- task.defer: fires AFTER the full layout pass so both track AND knob AbsoluteSize
-	-- are settled before knobPosScale reads them. Without defer, trackSize fires first
-	-- while knob.AbsoluteSize is still the previous UIScale value, producing a wrong
-	-- kHalf_frac that causes knob undershoot at 80% DPI and overshoot at 125% DPI.
+	
+	
+	
+	
+	
 	s._conns.trackSize = track:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
 		task.defer(refreshKnobLayout)
 	end)
-	-- Refresh when knob AbsoluteSize updates (UIScale tween settling, first layout)
+	
 	s._conns.knobSize  = knob:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
 		task.defer(refreshKnobLayout)
 	end)
@@ -4311,9 +4436,10 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		s._theme = t
 		stroke.Color = if hovering then (t.AccentColor or Color3.fromHex("#4cc2ff")) else (t.ElementStroke or Color3.fromHex("#2b2b2b"))
 		label.TextColor3 = if s._enabled then (t.ContentColor or Color3.fromHex("#ffffff")) else Color3.fromHex("#555555")
-		label.FontFace = t.Font or Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium)
+		
+		label.FontFace = t.Font or DEFAULT_FONT
 		valLabel.TextColor3 = t.PlaceholderColor or Color3.fromHex("#9d9d9d")
-		valLabel.FontFace = t.Font or Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium)
+		valLabel.FontFace = t.Font or DEFAULT_FONT
 		track.BackgroundColor3 = t.SliderBackground or Color3.fromHex("#222222")
 		fill.BackgroundColor3 = t.AccentColor or Color3.fromHex("#4cc2ff")
 		fillGrad.Color = t.SliderProgress or ColorSequence.new(Color3.fromHex("#4cc2ff"), Color3.fromHex("#0093fb"))
@@ -4327,7 +4453,7 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 	return self
 end
 
--- ── Methods ───────────────────────────────────────────────────────────────────
+
 
 function Slider:Set(value: number, skipCallback: boolean?)
 	local s = self :: any
@@ -4338,7 +4464,7 @@ function Slider:Set(value: number, skipCallback: boolean?)
 	self.Value = clamped
 	s._valLabel.Text = s._fmtDisplay(clamped)
 
-	-- Zero animations: direct property assignment
+	
 	local posScale = s._knobPosScale(t)
 	s._clipFrame.Size = UDim2.new(posScale, 0, 1, 0)
 	s._knob.Position = UDim2.new(posScale, 0, 0.5, 0)
@@ -4384,14 +4510,13 @@ end
 
 return Slider
 
-end)() end,
-    [13] = function()local wax,script,require=ImportGlobals(13)local ImportGlobals return (function(...)--!strict
+end)() end,[13]=function()local wax,script,require=ImportGlobals(13)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- tab.luau — Tab panel that hosts all element types.
--- Each Tab owns a scroll frame. Elements are appended in order via Create* methods.
--- Modern floating capsule item with animated glowing indicator, icon/badge support,
--- and smooth state transitions.
+
+
+
+
+
 
 local constants    = require(script.Parent.Parent.utility.constants)
 local themeUtil    = require(script.Parent.Parent.utility.theme)
@@ -4477,8 +4602,8 @@ export type Tab = {
 local Tab = {}
 Tab.__index = Tab
 
--- Offset that skips the window title bar when positioning the color-picker dim overlay.
--- Matches TITLEBAR_H + 1 as defined in window.luau.
+
+
 local OVERLAY_Y_OFFSET = 45
 
 local function resolveIcon(icon: string?): string?
@@ -4494,7 +4619,7 @@ function Tab.new(props: TabProps, theme: { [string]: any }, contentParent: Frame
 	local hasIcon  = iconAsset ~= nil
 	local hasBadge = badgeText ~= nil and badgeText ~= ""
 
-	-- ── Design tokens (initial) ──────────────────────────────────────────────
+	
 	local function getTokens(t: { [string]: any })
 		return {
 			colorBorder       = t.SurfaceStroke     or Color3.fromHex("#2b2b2b"),
@@ -4508,11 +4633,11 @@ function Tab.new(props: TabProps, theme: { [string]: any }, contentParent: Frame
 
 	local tokens = getTokens(theme)
 
-	-- ── Content panel: Obsidian-style dual-column split view ─────────────
+	
 	local numColumns = props.columns or 2
 	local isDual = numColumns ~= 1
 
-	-- Root tab panel frame (holds both columns)
+	
 	local tabContainer = Instance.new("Frame")
 	tabContainer.Name                    = "Tab_" .. name
 	tabContainer.Size                    = UDim2.fromScale(1, 1)
@@ -4520,7 +4645,7 @@ function Tab.new(props: TabProps, theme: { [string]: any }, contentParent: Frame
 	tabContainer.Visible                 = false
 	tabContainer.Parent                  = contentParent
 
-	-- Left Column ScrollingFrame (independent scroll)
+	
 	local leftScroll = Instance.new("ScrollingFrame")
 	leftScroll.Name                    = "Column_Left"
 	leftScroll.Position                = UDim2.fromScale(0, 0)
@@ -4549,7 +4674,7 @@ function Tab.new(props: TabProps, theme: { [string]: any }, contentParent: Frame
 	leftPad.PaddingBottom = UDim.new(0, 8)
 	leftPad.Parent        = leftScroll
 
-	-- Right Column ScrollingFrame (independent scroll)
+	
 	local rightScroll: ScrollingFrame? = nil
 	local columnDivider: Frame? = nil
 
@@ -4585,7 +4710,7 @@ function Tab.new(props: TabProps, theme: { [string]: any }, contentParent: Frame
 
 		rightScroll = rs
 
-		-- Vertical divider between columns
+		
 		local div = Instance.new("Frame")
 		div.Name                   = "ColumnDivider"
 		div.AnchorPoint            = Vector2.new(0.5, 0)
@@ -4598,7 +4723,7 @@ function Tab.new(props: TabProps, theme: { [string]: any }, contentParent: Frame
 		columnDivider              = div
 	end
 
-	-- ── Sidebar modern tab button ─────────────────────────────────────────
+	
 	local tabBtn = Instance.new("TextButton")
 	tabBtn.Name                   = "TabBtn_" .. name
 	tabBtn.Size                   = UDim2.new(1, 0, 0, 36)
@@ -4621,7 +4746,7 @@ function Tab.new(props: TabProps, theme: { [string]: any }, contentParent: Frame
 	tabStroke.Transparency    = 1
 	tabStroke.Parent          = tabBtn
 
-	-- Left glowing active indicator pill
+	
 	local indicator = Instance.new("Frame")
 	indicator.Name                   = "Indicator"
 	indicator.AnchorPoint            = Vector2.new(0, 0.5)
@@ -4637,7 +4762,7 @@ function Tab.new(props: TabProps, theme: { [string]: any }, contentParent: Frame
 	indCorner.CornerRadius = UDim.new(1, 0)
 	indCorner.Parent       = indicator
 
-	-- Content row inside tab button
+	
 	local contentRow = Instance.new("Frame")
 	contentRow.Name                   = "ContentRow"
 	contentRow.Size                   = UDim2.fromScale(1, 1)
@@ -4729,7 +4854,7 @@ function Tab.new(props: TabProps, theme: { [string]: any }, contentParent: Frame
 		badgeFrame                = bf
 	end
 
-	-- Hover animations (inactive state only)
+	
 	tabBtn.MouseEnter:Connect(function()
 		if tabContainer.Visible then return end
 		tween.fire(tabBtn, constants.tweenFast, {
@@ -4789,7 +4914,7 @@ function Tab.new(props: TabProps, theme: { [string]: any }, contentParent: Frame
 	self._elements         = {}
 	self._windowFrame      = windowFrame
 
-	-- Proxies for tab.Left and tab.Right (Obsidian style)
+	
 	local function createSideProxy(targetScroll: ScrollingFrame)
 		return {
 			CreateSection     = function(_, p) return self:_createOn(targetScroll, Section, p) end,
@@ -4809,7 +4934,7 @@ function Tab.new(props: TabProps, theme: { [string]: any }, contentParent: Frame
 	self.Left  = createSideProxy(leftScroll)
 	self.Right = createSideProxy(if isDual and rightScroll then rightScroll else leftScroll)
 
-	-- Theme subscription
+	
 	self._themeUnsub = themeUtil.subscribe(function(t)
 		self._theme = t
 		tokens = getTokens(t)
@@ -4851,7 +4976,7 @@ function Tab.new(props: TabProps, theme: { [string]: any }, contentParent: Frame
 	return self
 end
 
--- Helper: assign layout order to each new element
+
 local function nextOrder(self: Tab): number
 	local count = (self :: any)._elementCount + 1
 	(self :: any)._elementCount = count
@@ -4955,7 +5080,7 @@ function Tab:CreateColorPicker(props: ColorPicker.ColorPickerProps): ColorPicker
 	return self:_createColorPickerOn(self:_resolveParent(side), props)
 end
 
--- ── Left-Column Convenience Helpers ─────────────────────────────────────
+
 function Tab:CreateLeftSection(props)     return self:_createOn((self :: any)._leftScrollFrame, Section, props) end
 function Tab:CreateLeftLabel(props)       return self:_createOn((self :: any)._leftScrollFrame, Label, props) end
 function Tab:CreateLeftButton(props)      return self:_createOn((self :: any)._leftScrollFrame, Button, props) end
@@ -4966,7 +5091,7 @@ function Tab:CreateLeftKeybind(props)     return self:_createOn((self :: any)._l
 function Tab:CreateLeftDropdown(props)    return self:_createOn((self :: any)._leftScrollFrame, Dropdown, props) end
 function Tab:CreateLeftColorPicker(props) return self:_createColorPickerOn((self :: any)._leftScrollFrame, props) end
 
--- ── Right-Column Convenience Helpers ────────────────────────────────────
+
 function Tab:CreateRightSection(props)     return self:_createOn((self :: any)._rightScrollFrame or (self :: any)._leftScrollFrame, Section, props) end
 function Tab:CreateRightLabel(props)       return self:_createOn((self :: any)._rightScrollFrame or (self :: any)._leftScrollFrame, Label, props) end
 function Tab:CreateRightButton(props)      return self:_createOn((self :: any)._rightScrollFrame or (self :: any)._leftScrollFrame, Button, props) end
@@ -5060,12 +5185,11 @@ end
 
 return Tab
 
-end)() end,
-    [14] = function()local wax,script,require=ImportGlobals(14)local ImportGlobals return (function(...)--!strict
+end)() end,[14]=function()local wax,script,require=ImportGlobals(14)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- toggle.luau — Boolean toggle switch with sliding knob animation.
--- Persists value to Flags registry when a flag key is provided.
+
+
+
 
 local constants = require(script.Parent.Parent.utility.constants)
 local tween     = require(script.Parent.Parent.utility.tween)
@@ -5098,7 +5222,7 @@ function Toggle.new(props: ToggleProps, theme: { [string]: any }, parent: Instan
 	local flagKey     = props.flag
 	local callback    = props.callback
 
-	-- Resolve initial value from Flags if the key exists
+	
 	local initValue: boolean
 	if flagKey and flags:Get(flagKey) ~= nil then
 		initValue = flags:Get(flagKey) :: boolean
@@ -5106,13 +5230,13 @@ function Toggle.new(props: ToggleProps, theme: { [string]: any }, parent: Instan
 		initValue = props.value == true
 	end
 
-	-- ── Frame ──────────────────────────────────────────────────────────────
+	
 	local frame, stroke = element.makeFrame("Toggle_" .. name, theme, parent)
 
-	-- ── Text content ──────────────────────────────────────────────────────
+	
 	local inner = Instance.new("Frame")
 	inner.Name                   = "Inner"
-	inner.Size                   = UDim2.new(1, -56, 1, 0)  -- leave room for switch
+	inner.Size                   = UDim2.new(1, -56, 1, 0)  
 	inner.BackgroundTransparency = 1
 	inner.Parent                 = frame
 
@@ -5133,8 +5257,8 @@ function Toggle.new(props: ToggleProps, theme: { [string]: any }, parent: Instan
 	titleLabel.TextTruncate           = Enum.TextTruncate.AtEnd
 	titleLabel.Parent                 = inner
 
-	-- ── Switch widget ──────────────────────────────────────────────────────
-	-- Track
+	
+	
 	local trackW, trackH = 36, 20
 	local track = Instance.new("Frame")
 	track.Name             = "Track"
@@ -5150,7 +5274,7 @@ function Toggle.new(props: ToggleProps, theme: { [string]: any }, parent: Instan
 	trackCorner.CornerRadius = UDim.new(1, 0)
 	trackCorner.Parent       = track
 
-	-- Knob
+	
 	local knobSize = trackH - 6
 	local knob = Instance.new("Frame")
 	knob.Name             = "Knob"
@@ -5167,7 +5291,7 @@ function Toggle.new(props: ToggleProps, theme: { [string]: any }, parent: Instan
 	knobCorner.CornerRadius = UDim.new(1, 0)
 	knobCorner.Parent       = knob
 
-	-- Accent glow on track (hidden when off)
+	
 	local glow = Instance.new("Frame")
 	glow.Name                   = "Glow"
 	glow.Size                   = UDim2.fromScale(1, 1)
@@ -5181,7 +5305,7 @@ function Toggle.new(props: ToggleProps, theme: { [string]: any }, parent: Instan
 	glowCorner.CornerRadius = UDim.new(1, 0)
 	glowCorner.Parent       = glow
 
-	-- ── Self ─────────────────────────────────────────────────────────────
+	
 	local self = setmetatable({}, Toggle) :: Toggle
 	self.value  = initValue
 	self._frame = frame
@@ -5195,7 +5319,7 @@ function Toggle.new(props: ToggleProps, theme: { [string]: any }, parent: Instan
 	;(self :: any)._trackW   = trackW
 	;(self :: any)._knobSize = knobSize
 
-	-- Theme subscription
+	
 	;(self :: any)._themeUnsub = themeUtil.subscribe(function(t)
 		self._theme = t
 		frame.BackgroundTransparency = t.ElementTransparency or 0
@@ -5211,10 +5335,10 @@ function Toggle.new(props: ToggleProps, theme: { [string]: any }, parent: Instan
 		theme = t
 	end)
 
-	-- Apply initial visual state without firing callback
+	
 	self:Set(initValue, true)
 
-	-- ── Interaction ───────────────────────────────────────────────────────
+	
 	local btn = Instance.new("TextButton")
 	btn.Name                   = "Interact"
 	btn.Size                   = UDim2.fromScale(1, 1)
@@ -5294,15 +5418,14 @@ end
 
 return Toggle
 
-end)() end,
-    [15] = function()local wax,script,require=ImportGlobals(15)local ImportGlobals return (function(...)--!strict
+end)() end,[15]=function()local wax,script,require=ImportGlobals(15)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- window.luau — Root window component.
--- Handles: ScreenGui creation, drag (clamped, RenderStepped), viewport-reactive sizing,
--- minimize/close/keybind toggle, tab sidebar, notification routing, and theme application.
---
--- Sizing / clamping ported from Rayfield Gen2.
+
+
+
+
+
+
 
 local constants    = require(script.Parent.Parent.utility.constants)
 local element      = require(script.Parent.Parent.utility.element)
@@ -5317,17 +5440,17 @@ local ColorPicker  = require(script.Parent.colorpicker)
 local Dropdown     = require(script.Parent.dropdown)
 local Keybind      = require(script.Parent.keybind)
 
-local ICON_SETTINGS = "rbxassetid://129180860773723" -- Unified vector settings
-local ICON_MINIMIZE = "rbxassetid://108115485663409" -- Unified vector minimize
-local ICON_RESTORE  = "rbxassetid://88738500661569"  -- Unified vector restore / maximize
-local ICON_CLOSE    = "rbxassetid://83277910885129"  -- Unified vector close
+local ICON_SETTINGS = "rbxassetid://129180860773723" 
+local ICON_MINIMIZE = "rbxassetid://108115485663409" 
+local ICON_RESTORE  = "rbxassetid://88738500661569"  
+local ICON_CLOSE    = "rbxassetid://83277910885129"  
 
 export type WindowProps = {
 	name:         string?,
 	subtitle:     string?,
 	theme:        (string | { [string]: any })?,
-	keybind:      (EnumItem | string)?,   -- toggle key (default RightShift)
-	keepOnScreen: boolean?,               -- clamp drag so window can't be pulled off screen (default true)
+	keybind:      (EnumItem | string)?,   
+	keepOnScreen: boolean?,               
 }
 
 export type Window = {
@@ -5347,10 +5470,10 @@ export type Window = {
 local Window = {}
 Window.__index = Window
 
--- Reconcile viewport changes no more than once every N seconds (backstop for missed signals).
+
 local VIEWPORT_RECONCILE_INTERVAL = 2
 
--- Resolve toggle keybind (default RightShift)
+
 local function resolveKeybind(v: (EnumItem | string)?): EnumItem
 	if typeof(v) == "EnumItem" then return v :: EnumItem end
 	if typeof(v) == "string" then
@@ -5360,13 +5483,13 @@ local function resolveKeybind(v: (EnumItem | string)?): EnumItem
 	return Enum.KeyCode.RightShift
 end
 
--- Initial size from the current camera viewport (safe to call before layout exists).
+
 local function fitWindowSize(): UDim2
 	local cam = workspace.CurrentCamera
 	return windowSizing.fit(cam and cam.ViewportSize)
 end
 
--- ── Window.new ────────────────────────────────────────────────────────────────
+
 
 function Window.new(props: WindowProps): Window
 	local windowName = props.name or "Delirium"
@@ -5374,11 +5497,11 @@ function Window.new(props: WindowProps): Window
 	local toggleKey  = resolveKeybind(props.keybind)
 	local keepOnScreen = if props.keepOnScreen ~= nil then props.keepOnScreen else true
 
-	-- Resolve theme
+	
 	local resolvedTheme = themeUtil.resolve(props.theme)
 	variables.activeTheme = resolvedTheme
 
-	-- ── Design tokens ─────────────────────────────────────────────────────
+	
 	local colorSurface       = resolvedTheme.WindowColor.Keypoints[1].Value
 	local colorTitleBar      = resolvedTheme.TitleBarColor   or Color3.fromHex("#111114")
 	local colorBorder        = resolvedTheme.SurfaceStroke   or Color3.fromHex("#2b2b2b")
@@ -5388,7 +5511,7 @@ function Window.new(props: WindowProps): Window
 	local colorTextPrimary   = resolvedTheme.TitlingColor    or Color3.fromHex("#ffffff")
 	local colorTextSecondary = resolvedTheme.PlaceholderColor or Color3.fromHex("#8a8a92")
 
-	-- ── ScreenGui ────────────────────────────────────────────────────────
+	
 	local gui = Instance.new("ScreenGui")
 	gui.Name                   = variables.httpService:GenerateGUID(false)
 	gui.DisplayOrder           = constants.displayOrder.window
@@ -5398,7 +5521,7 @@ function Window.new(props: WindowProps): Window
 	gui.ClipToDeviceSafeArea   = false
 	gui.Parent                 = variables.guiContainer
 
-	-- ── Initial window size (viewport-fitted) ─────────────────────────────
+	
 	local initialSize = fitWindowSize()
 	local W = initialSize.X.Offset
 	local H = initialSize.Y.Offset
@@ -5408,21 +5531,23 @@ function Window.new(props: WindowProps): Window
 	local initX = math.floor(vp.X / 2)
 	local initY = math.floor(vp.Y / 2)
 
-	-- ── Main window frame ─────────────────────────────────────────────────
+	
 	local windowFrame = Instance.new("Frame")
 	windowFrame.Name                   = "Window"
 	windowFrame.AnchorPoint            = Vector2.new(0.5, 0.5)
 	windowFrame.Position               = UDim2.fromOffset(initX, initY)
 	windowFrame.Size                   = UDim2.fromOffset(W, H)
 	windowFrame.BackgroundColor3       = Color3.fromRGB(255, 255, 255)
-	-- Start transparent so UICorner has time to clip before the frame is opaque.
-	-- Show() tweens this to 0; avoids the one-frame square-corner flash on open.
+	
+	
 	windowFrame.BackgroundTransparency = 1
 	windowFrame.BorderSizePixel        = 0
-	windowFrame.ClipsDescendants       = true   -- UICorner clips children to rounded shape
+	windowFrame.ClipsDescendants       = true   
 	windowFrame.Parent                 = gui
 
 	local winScale = Instance.new("UIScale")
+	
+	
 	winScale.Scale = 1.0
 	winScale.Parent = windowFrame
 
@@ -5442,19 +5567,19 @@ function Window.new(props: WindowProps): Window
 	winStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	winStroke.Parent          = windowFrame
 
--- ── Title bar ─────────────────────────────────────────────────────────
+
 	local TITLEBAR_H = 50
 
 	local titleBar = Instance.new("Frame")
 	titleBar.Name                   = "TitleBar"
 	titleBar.Size                   = UDim2.new(1, 0, 0, TITLEBAR_H)
-	titleBar.BackgroundTransparency = 1   -- bg drawn by titleBarBg child
+	titleBar.BackgroundTransparency = 1   
 	titleBar.BorderSizePixel        = 0
 	titleBar.ZIndex                 = constants.zIndex.windowChrome
 	titleBar.Parent                 = windowFrame
 
-	-- Colored bg child with conditional UICorner.
-	-- Square by default (window open). Rounded on minimise-complete so the pill looks right.
+	
+	
 	local titleBarBg = Instance.new("Frame")
 	titleBarBg.Name             = "Background"
 	titleBarBg.Size             = UDim2.fromScale(1, 1)
@@ -5463,11 +5588,11 @@ function Window.new(props: WindowProps): Window
 	titleBarBg.ZIndex           = constants.zIndex.windowChrome - 1
 	titleBarBg.Parent           = titleBar
 	local titleBarCorner = Instance.new("UICorner")
-	titleBarCorner.CornerRadius = UDim.new(0, 0)  -- set to CornerRoundness on minimise-complete
+	titleBarCorner.CornerRadius = UDim.new(0, 0)  
 	titleBarCorner.Parent       = titleBarBg
 
 
-	-- Separator: garis tipis 1px di bawah titlebar
+	
 	local titleSep = Instance.new("Frame")
 	titleSep.Name                   = "Separator"
 	titleSep.Size                   = UDim2.new(1, 0, 0, 1)
@@ -5486,7 +5611,7 @@ function Window.new(props: WindowProps): Window
 	accentStrip.BackgroundColor3 = colorAccent
 	accentStrip.BorderSizePixel  = 0
 	accentStrip.ZIndex           = constants.zIndex.windowChrome + 2
-	accentStrip.Parent           = windowFrame         -- ← pindah dari titleBar
+	accentStrip.Parent           = windowFrame         
 	do
 		local c = Instance.new("UICorner")
 		c.CornerRadius = UDim.new(1, 0)
@@ -5502,7 +5627,7 @@ function Window.new(props: WindowProps): Window
 	accentStripGrad.Parent = accentStrip
 
 
--- Logo mark: geser ke kiri biar masuk area merah di pojok
+
 	local logoMark = Instance.new("Frame")
 	logoMark.Name             = "LogoMark"
 	logoMark.AnchorPoint      = Vector2.new(0, 0.5)
@@ -5555,7 +5680,7 @@ function Window.new(props: WindowProps): Window
 	nameLabel.FontFace               = resolvedTheme.TitleFont
 		or Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.SemiBold)
 	nameLabel.TextXAlignment         = Enum.TextXAlignment.Left
-	nameLabel.ZIndex                 = constants.zIndex.windowChrome + 1  -- above titleBarBg (windowChrome-1 = 499)
+	nameLabel.ZIndex                 = constants.zIndex.windowChrome + 1  
 	nameLabel.Parent                 = titleBar
 
 	local subtitleLabel: TextLabel? = nil
@@ -5577,7 +5702,7 @@ function Window.new(props: WindowProps): Window
 		subtitleLabel.Parent                 = titleBar
 	end
 
-	-- ── Title bar controls (right-anchored pill buttons) ──────────────────
+	
 	local controlsFrame = Instance.new("Frame")
 	controlsFrame.Name                   = "Controls"
 	controlsFrame.AnchorPoint            = Vector2.new(1, 0.5)
@@ -5662,7 +5787,7 @@ function Window.new(props: WindowProps): Window
 	genericHover(minBtn, minIcon)
 	genericHover(settingsBtn, settingsIcon)
 
-	-- ── Body layout ───────────────────────────────────────────────────────
+	
 	local body = Instance.new("Frame")
 	body.Name                   = "Body"
 	body.Position               = UDim2.fromOffset(0, TITLEBAR_H)
@@ -5671,11 +5796,11 @@ function Window.new(props: WindowProps): Window
 	body.ClipsDescendants       = true
 	body.Parent                 = windowFrame
 
-	-- Input blocker: lives inside body at max ZIndex so it's in the same
-	-- stacking context as sidebar tabs and all elements.
-	-- When the settings panel opens, this catches every click/drag/scroll
-	-- aimed at the body — buttons, sliders, dropdowns, scroll frames, all of it.
-	-- The dim visual is handled separately by spOverlay.
+	
+	
+	
+	
+	
 	local bodyBlocker = Instance.new("TextButton")
 	bodyBlocker.Name                   = "BodyBlocker"
 	bodyBlocker.Size                   = UDim2.fromScale(1, 1)
@@ -5740,7 +5865,7 @@ function Window.new(props: WindowProps): Window
 	sidebarPad.PaddingBottom = UDim.new(0, 8)
 	sidebarPad.Parent        = tabListScroll
 
-	-- Divider: garis vertikal pemisah antara sidebar dan contentArea
+	
 	local divider = Instance.new("Frame")
 	divider.Name                   = "Divider"
 	divider.AnchorPoint            = Vector2.new(0, 0)
@@ -5760,28 +5885,32 @@ function Window.new(props: WindowProps): Window
 	contentArea.ClipsDescendants       = true
 	contentArea.Parent                 = body
 
-	-- ── Settings panel ──────────────────────────────────────────────────────
+	
 	local SP_W    = 520
 	local SP_H    = 340
 	local SP_TB   = 34
 
 	local spAccent   = colorAccent
-	local userScale  = 1.0
+	
+	
+	
+	local isTouchOnly = variables.isTouchOnly
+	local userScale  = if isTouchOnly then 0.9 else 1.0
 	local currentToggleKey = toggleKey
 	local keepOnScreenVal  = keepOnScreen
 
-	-- Overlay: dims the entire windowFrame while settings panel is open.
-	-- Reuse element.makeOverlay anywhere else a modal dim is needed.
+	
+	
 	local spOverlay = element.makeOverlay(windowFrame, constants.zIndex.popup - 1)
-	-- Exclude the title bar from the overlay so drag/close/settings buttons
-	-- remain interactive while the settings panel is open.
+	
+	
 	spOverlay.Position = UDim2.fromOffset(0, TITLEBAR_H + 1)
 	spOverlay.Size     = UDim2.new(1, 0, 1, -(TITLEBAR_H + 1))
-	-- Active = true makes the Frame actually consume mouse events so the body
-	-- (sidebar tabs, scroll frames) can't be clicked or scrolled through it.
+	
+	
 	spOverlay.Active   = true
 
-	-- Panel frame
+	
 	local settingsPanel = Instance.new("Frame")
 	settingsPanel.Name             = "SettingsPanel"
 	settingsPanel.AnchorPoint      = Vector2.new(0.5, 0.5)
@@ -5814,7 +5943,7 @@ function Window.new(props: WindowProps): Window
 		sk.Parent          = settingsPanel
 	end
 
-	-- Panel titlebar
+	
 	local spTB = Instance.new("Frame")
 	spTB.Name             = "TitleBar"
 	spTB.Size             = UDim2.new(1, 0, 0, SP_TB)
@@ -5822,7 +5951,7 @@ function Window.new(props: WindowProps): Window
 	spTB.BorderSizePixel  = 0
 	spTB.ZIndex           = constants.zIndex.popup
 	spTB.Parent           = settingsPanel
-	local spTBCornerCover: Frame = Instance.new("Frame") -- kept as stub for references below; invisible
+	local spTBCornerCover: Frame = Instance.new("Frame") 
 	spTBCornerCover.Size             = UDim2.new(0, 0, 0, 0)
 	spTBCornerCover.BackgroundTransparency = 1
 	spTBCornerCover.Parent           = spTB
@@ -5901,7 +6030,7 @@ function Window.new(props: WindowProps): Window
 		variables.settingsOpen = false
 	end)
 
-	-- Body
+	
 	local spBody = Instance.new("Frame")
 	spBody.Name                   = "Body"
 	spBody.Position               = UDim2.fromOffset(0, SP_TB + 1)
@@ -5910,7 +6039,7 @@ function Window.new(props: WindowProps): Window
 	spBody.ZIndex                 = constants.zIndex.popup
 	spBody.Parent                 = settingsPanel
 
-	-- Content pane (ScrollingFrame for mobile responsiveness)
+	
 	local spContent = Instance.new("ScrollingFrame")
 	spContent.Name                    = "Content"
 	spContent.Position                = UDim2.fromOffset(0, 0)
@@ -5930,20 +6059,39 @@ function Window.new(props: WindowProps): Window
 	local s: any = nil
 	local spAccentUpdaters: { (Color3) -> () } = {}
 
+	
+	
+	
+	
+	local _preConns: { RBXScriptConnection } = {}
+
+	
+	
+	
+	
+	
+	local _accentBroadcastPending = false
 	local function updateAccent(col: Color3)
 		colorAccent = col
 		spAccent = col
 		accentStrip.BackgroundColor3 = col
 		logoMark.BackgroundColor3 = col
 		resolvedTheme.AccentColor = col
-		resolvedTheme.ElementStrokeHover = col   -- keep hover tint in sync with accent
+		resolvedTheme.ElementStrokeHover = col   
 		for _, fn in spAccentUpdaters do
 			fn(col)
 		end
-		themeUtil.broadcast(resolvedTheme)  -- propagate accent to all subscribed components
+		
+		if not _accentBroadcastPending then
+			_accentBroadcastPending = true
+			task.defer(function()
+				_accentBroadcastPending = false
+				themeUtil.broadcast(resolvedTheme)
+			end)
+		end
 	end
 
-	-- Helper: standard setting row container
+	
 	local function spMakeRow(parent: Frame, label: string, order: number): Frame
 		local row = Instance.new("Frame")
 		row.Name                   = label
@@ -5999,7 +6147,7 @@ function Window.new(props: WindowProps): Window
 		return row
 	end
 
-	-- Helper: section header
+	
 	local function spMakeSectionHeader(parent: Frame, title: string, order: number)
 		local hdr = Instance.new("Frame")
 		hdr.Name                   = "Header_" .. title
@@ -6026,7 +6174,7 @@ function Window.new(props: WindowProps): Window
 		lbl.Parent                 = hdr
 	end
 
-	-- Helper: interactive slider row
+	
 	local function spMakeSlider(
 		parent: Frame,
 		label: string,
@@ -6148,7 +6296,7 @@ function Window.new(props: WindowProps): Window
 		trigger.InputBegan:Connect(function(input)
 			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 				dragging = true
-				-- DPI fix: use GetMouseLocation for mouse; Touch position is already viewport-scaled.
+				
 				local posX = if input.UserInputType == Enum.UserInputType.Touch
 					then input.Position.X
 					else variables.userInputService:GetMouseLocation().X
@@ -6156,7 +6304,10 @@ function Window.new(props: WindowProps): Window
 			end
 		end)
 
-		variables.userInputService.InputChanged:Connect(function(input)
+		
+		
+		
+		table.insert(_preConns, variables.userInputService.InputChanged:Connect(function(input)
 			if not settingsPanel.Visible then
 				dragging = false
 				return
@@ -6167,15 +6318,15 @@ function Window.new(props: WindowProps): Window
 					else variables.userInputService:GetMouseLocation().X
 				setFromMouse(posX)
 			end
-		end)
+		end))
 
-		variables.userInputService.InputEnded:Connect(function(input)
+		table.insert(_preConns, variables.userInputService.InputEnded:Connect(function(input)
 			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 				dragging = false
 			end
-		end)
+		end))
 
-		-- Hover highlight on the row stroke
+		
 		local rowStroke = row:FindFirstChildWhichIsA("UIStroke")
 		trigger.MouseEnter:Connect(function()
 			if rowStroke then
@@ -6192,218 +6343,11 @@ function Window.new(props: WindowProps): Window
 		end)
 	end
 
-	-- Helper: interactive toggle row
-	local function spMakeToggle(
-		parent: Frame,
-		label: string,
-		initialState: boolean,
-		order: number,
-		callback: (state: boolean) -> ()
-	)
-		local row = spMakeRow(parent, label, order)
-		local state = initialState
-
-		local pillBtn = Instance.new("TextButton")
-		pillBtn.Name             = "Pill"
-		pillBtn.AnchorPoint      = Vector2.new(1, 0.5)
-		pillBtn.Position         = UDim2.new(1, -12, 0.5, 0)
-		pillBtn.Size             = UDim2.fromOffset(32, 16)
-		pillBtn.BackgroundColor3 = if state then spAccent else (resolvedTheme.ToggleTrack or Color3.fromRGB(50, 48, 70))
-		pillBtn.BorderSizePixel  = 0
-		pillBtn.Text             = ""
-		pillBtn.AutoButtonColor  = false
-		pillBtn.ZIndex           = constants.zIndex.popup + 1
-		pillBtn.Parent           = row
-		do
-			local c = Instance.new("UICorner")
-			c.CornerRadius = UDim.new(1, 0)
-			c.Parent       = pillBtn
-		end
-
-		local knob = Instance.new("Frame")
-		knob.Name             = "Knob"
-		knob.AnchorPoint      = Vector2.new(if state then 1 else 0, 0.5)
-		knob.Position         = UDim2.new(if state then 1 else 0, if state then -3 else 3, 0.5, 0)
-		knob.Size             = UDim2.fromOffset(10, 10)
-		knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-		knob.BorderSizePixel  = 0
-		knob.ZIndex           = constants.zIndex.popup + 2
-		knob.Parent           = pillBtn
-		do
-			local c = Instance.new("UICorner")
-			c.CornerRadius = UDim.new(1, 0)
-			c.Parent       = knob
-		end
-
-		local function syncVisual()
-			pillBtn.BackgroundColor3 = if state then spAccent else (resolvedTheme.ToggleTrack or Color3.fromRGB(50, 48, 70))
-			knob.AnchorPoint = Vector2.new(if state then 1 else 0, 0.5)
-			knob.Position = UDim2.new(if state then 1 else 0, if state then -3 else 3, 0.5, 0)
-		end
-
-		table.insert(spAccentUpdaters, function(newAccent)
-			if state then
-				pillBtn.BackgroundColor3 = newAccent
-			end
-		end)
-
-		pillBtn.MouseButton1Click:Connect(function()
-			state = not state
-			syncVisual()
-			callback(state)
-		end)
-	end
-
-	-- Helper: interactive keybind row
-	local function spMakeKeybind(
-		parent: Frame,
-		label: string,
-		initialKey: Enum.KeyCode,
-		order: number,
-		callback: (key: Enum.KeyCode) -> ()
-	)
-		local row = spMakeRow(parent, label, order)
-		local currentKey = initialKey
-		local listening = false
-
-		local bindBtn = Instance.new("TextButton")
-		bindBtn.Name             = "KeybindBtn"
-		bindBtn.AnchorPoint      = Vector2.new(1, 0.5)
-		bindBtn.Position         = UDim2.new(1, -12, 0.5, 0)
-		bindBtn.Size             = UDim2.fromOffset(80, 22)
-		bindBtn.BackgroundColor3 = Color3.fromRGB(30, 28, 42)
-		bindBtn.BorderSizePixel  = 0
-		bindBtn.Text             = currentKey.Name
-		bindBtn.TextColor3       = colorTextPrimary
-		bindBtn.TextSize         = 11
-		bindBtn.FontFace         = resolvedTheme.Font
-			or Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium)
-		bindBtn.AutoButtonColor  = false
-		bindBtn.ZIndex           = constants.zIndex.popup + 1
-		bindBtn.Parent           = row
-		do
-			local c = Instance.new("UICorner")
-			c.CornerRadius = UDim.new(0, 4)
-			c.Parent       = bindBtn
-		end
-		local stroke = Instance.new("UIStroke")
-		stroke.Color           = colorBorder
-		stroke.Thickness       = 1
-		stroke.Transparency    = 0.4
-		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-		stroke.Parent          = bindBtn
-
-		local inputConn: RBXScriptConnection? = nil
-
-		local function stopListening()
-			listening = false
-			bindBtn.Text = currentKey.Name
-			bindBtn.TextColor3 = colorTextPrimary
-			stroke.Color = colorBorder
-			if inputConn then
-				inputConn:Disconnect()
-				inputConn = nil
-			end
-		end
-
-		bindBtn.MouseButton1Click:Connect(function()
-			if listening then
-				stopListening()
-				return
-			end
-			listening = true
-			bindBtn.Text = "..."
-			bindBtn.TextColor3 = spAccent
-			stroke.Color = spAccent
-
-			inputConn = variables.userInputService.InputBegan:Connect(function(input, gpe)
-				if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
-				if input.KeyCode == Enum.KeyCode.Unknown then return end
-
-				if input.KeyCode == Enum.KeyCode.Escape then
-					stopListening()
-					return
-				end
-
-				currentKey = input.KeyCode
-				stopListening()
-				callback(currentKey)
-			end)
-		end)
-	end
-
-	-- Helper: preset accent color picker
-	local function spMakeAccentPicker(
-		parent: Frame,
-		label: string,
-		order: number,
-		callback: (accent: Color3) -> ()
-	)
-		local row = spMakeRow(parent, label, order)
-		local container = Instance.new("Frame")
-		container.Name                   = "Palette"
-		container.AnchorPoint            = Vector2.new(1, 0.5)
-		container.Position               = UDim2.new(1, -12, 0.5, 0)
-		container.Size                   = UDim2.new(0, 140, 0, 20)
-		container.BackgroundTransparency = 1
-		container.ZIndex                 = constants.zIndex.popup + 1
-		container.Parent                 = row
-
-		local layout = Instance.new("UIListLayout")
-		layout.FillDirection       = Enum.FillDirection.Horizontal
-		layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-		layout.VerticalAlignment   = Enum.VerticalAlignment.Center
-		layout.Padding             = UDim.new(0, 6)
-		layout.SortOrder           = Enum.SortOrder.LayoutOrder
-		layout.Parent              = container
-
-		local palette = {
-			Color3.fromHex("#4cc2ff"), -- Cyan
-			Color3.fromHex("#a855f7"), -- Purple
-			Color3.fromHex("#10b981"), -- Emerald
-			Color3.fromHex("#f43f5e"), -- Rose
-			Color3.fromHex("#f59e0b"), -- Amber
-			Color3.fromHex("#e2e8f0"), -- Slate
-		}
-
-		for idx, col in palette do
-			local chip = Instance.new("TextButton")
-			chip.Name             = "Chip_" .. idx
-			chip.Size             = UDim2.fromOffset(16, 16)
-			chip.BackgroundColor3 = col
-			chip.BorderSizePixel  = 0
-			chip.Text             = ""
-			chip.AutoButtonColor  = false
-			chip.LayoutOrder      = idx
-			chip.ZIndex           = constants.zIndex.popup + 2
-			chip.Parent           = container
-			do
-				local c = Instance.new("UICorner")
-				c.CornerRadius = UDim.new(1, 0)
-				c.Parent       = chip
-			end
-			local sk = Instance.new("UIStroke")
-			sk.Color           = if col == spAccent then Color3.fromRGB(255, 255, 255) else Color3.fromRGB(0, 0, 0)
-			sk.Thickness       = 1.5
-			sk.Transparency    = if col == spAccent then 0.1 else 0.6
-			sk.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-			sk.Parent          = chip
-
-			chip.MouseButton1Click:Connect(function()
-				callback(col)
-				for _, other in container:GetChildren() do
-					if other:IsA("TextButton") then
-						local otherSk = other:FindFirstChildWhichIsA("UIStroke")
-						if otherSk then
-							local isThis = (other == chip)
-							otherSk.Color = if isThis then Color3.fromRGB(255, 255, 255) else Color3.fromRGB(0, 0, 0)
-							otherSk.Transparency = if isThis then 0.1 else 0.6
-						end
-					end
-				end
-			end)
-		end
-	end
+	
+	
+	
+	
+	
 
 	local spIfaceFrame = Instance.new("Frame")
 	spIfaceFrame.Name                   = "Interface"
@@ -6428,22 +6372,22 @@ function Window.new(props: WindowProps): Window
 		p.Parent        = spIfaceFrame
 	end
 
-	-- Section 1: Appearance
+	
 	spMakeSectionHeader(spIfaceFrame, "Appearance", 1)
 
 	local currentCornerRadius = (resolvedTheme.CornerRoundness or UDim.new(0, 10)).Offset
 	spMakeSlider(spIfaceFrame, "Corner Roundness", 0, 16, 1, currentCornerRadius, "px", 2, function(r)
 		local cr = UDim.new(0, r)
-		-- winCorner rounds the outer window frame.
+		
 		winCorner.CornerRadius = cr
-		-- titleBarBg is solid and covers the top-left/top-right corners of the window.
-		-- ClipsDescendants clips to rectangle (not UICorner shape), so titleBarBg would
-		-- paint over the rounded corners unless its own UICorner also matches.
-		-- Only update when NOT minimized — minimize state manages titleBarCorner separately.
+		
+		
+		
+		
 		if not (s and (s :: any)._minimized) then
 			titleBarCorner.CornerRadius = cr
 		end
-		-- Persist so minimize/restore animation uses the latest value.
+		
 		resolvedTheme.CornerRoundness = cr
 	end)
 
@@ -6461,16 +6405,18 @@ function Window.new(props: WindowProps): Window
 		)
 		if s then s._scaleTween = tw end
 
-		-- Re-clamp position after scale tween completes using live AbsoluteSize.
-		-- This is more reliable than computing ahead-of-time with Size.Offset * scale.
+		
+		
 		tw.Completed:Once(function()
+			
+			tw:Destroy()
 			if s then s._scaleTween = nil end
 			if not self then return end
 			local wf = (self :: any)._windowFrame
 			if not wf then return end
 			local screen = (self :: any)._gui.AbsoluteSize
 			local margin = 8
-			-- AbsoluteSize is already post-scale (Roblox applies UIScale to it)
+			
 			local curW = wf.AbsoluteSize.X
 			local curH = wf.AbsoluteSize.Y
 			local curPos = wf.Position
@@ -6521,12 +6467,12 @@ function Window.new(props: WindowProps): Window
 		windowFrame.BackgroundTransparency = pct / 100
 	end)
 
-	-- Section 2: Controls & Window
+	
 	spMakeSectionHeader(spIfaceFrame, "Controls & Window", 6)
 
 	do
-		-- Use the real Keybind component so the settings UI is consistent with
-		-- the actual Keybind element used everywhere else in the library.
+		
+		
 		local kb = Keybind.new({
 			name      = "Menu Keybind",
 			value     = currentToggleKey,
@@ -6538,7 +6484,7 @@ function Window.new(props: WindowProps): Window
 		kb._frame.LayoutOrder = 7
 	end
 
-	-- Section 3: Font
+	
 	spMakeSectionHeader(spIfaceFrame, "Font", 10)
 	do
 		local FONT_MAP: { [string]: string } = {
@@ -6561,7 +6507,7 @@ function Window.new(props: WindowProps): Window
 				resolvedTheme.Font      = Font.new(family, Enum.FontWeight.Medium)
 				resolvedTheme.TitleFont = Font.new(family, Enum.FontWeight.SemiBold)
 				themeUtil.broadcast(resolvedTheme)
-				-- Apply font family to every text element in the window, preserving weight & style
+				
 				for _, desc in windowFrame:GetDescendants() do
 					if desc:IsA("TextLabel") or desc:IsA("TextButton") then
 						local existing = (desc :: TextLabel).FontFace
@@ -6584,7 +6530,7 @@ function Window.new(props: WindowProps): Window
 		settingsPanel.Size = UDim2.fromOffset(targetW, targetH)
 	end
 
-	-- Wire settingsBtn toggle
+	
 	settingsBtn.MouseButton1Click:Connect(function()
 		local next = not settingsPanel.Visible
 		if next then
@@ -6602,7 +6548,7 @@ function Window.new(props: WindowProps): Window
 		end
 	end)
 
-	-- ── Self ──────────────────────────────────────────────────────────────
+	
 	self = setmetatable({}, Window) :: Window
 	self.unloaded = false
 	self._gui     = gui
@@ -6621,25 +6567,42 @@ function Window.new(props: WindowProps): Window
 	s._visible       = false
 	s._minimized     = false
 	s._hasBeenDragged = false
-	s._windowSize    = initialSize    -- UDim2, updated by _applyWindowSize
+	s._windowSize    = initialSize    
 	s._titlebarH     = TITLEBAR_H
 	s._body          = body
 	s._minBtn        = minBtn
 	s._minIcon       = minIcon
 	s._titleSep      = titleSep
 	s._keepOnScreen  = keepOnScreenVal
-	s._dragging      = false          -- true while titleBar is being dragged
-	s._pendingResize = false          -- resize banked while hidden/minimized
-	s._connections   = {}             -- tracked connections for cleanup
-	s._activeTween    = nil           -- running minimize/restore Size tween
-	s._scaleTween     = nil           -- running UI scale tween
-	s._posScaleTween  = nil           -- running position clamp tween on scale
-	s._activeAnimConn = nil           -- RenderStepped position-tracker connection
-	s._minimizeAnimId = nil           -- guard token for body-hide task.delay
+	s._dragging      = false          
+	s._pendingResize = false          
+	s._connections   = _preConns      
+	s._activeTween    = nil           
+	s._scaleTween     = nil           
+	s._posScaleTween  = nil           
+	s._activeAnimConn = nil           
+	s._minimizeAnimId = nil           
 	s._titleBarBg     = titleBarBg
 	s._titleBarCorner = titleBarCorner
 
-	-- Theme subscription: reactive properties that update on theme change
+	
+	if userScale ~= 1.0 then
+		winScale.Scale       = userScale
+		variables.uiScale    = userScale
+		s._userScale         = userScale
+	end
+
+	
+	
+	if isTouchOnly then
+		for _, btn in { settingsBtn, minBtn, closeBtn } :: { TextButton } do
+			btn.Size = UDim2.fromOffset(34, 34)
+		end
+		
+		controlsFrame.Size = UDim2.fromOffset(120, 36)
+	end
+
+	
 	s._themeUnsub = themeUtil.subscribe(function(t)
 		s._theme = t
 		winStroke.Color = t.SurfaceStroke
@@ -6672,7 +6635,7 @@ function Window.new(props: WindowProps): Window
 		end
 	end)
 
-	-- ── Drag system (RenderStepped, clamped) ──────────────────────────────
+	
 	do
 		local uis        = variables.userInputService
 		local dragging   = false
@@ -6680,7 +6643,7 @@ function Window.new(props: WindowProps): Window
 		local startPos   = UDim2.fromOffset(0, 0)
 		local lastX, lastY = 0, 0
 
-		-- Guard: skip interactive frames while fully hidden.
+		
 		local function interactive(): boolean
 			return (self :: any)._visible
 		end
@@ -6691,7 +6654,7 @@ function Window.new(props: WindowProps): Window
 				and input.UserInputType ~= Enum.UserInputType.Touch then return end
 			if not interactive() then return end
 
-			-- If clicking within controlsFrame (minimize, close, settings), ignore drag
+			
 			local mouse = uis:GetMouseLocation()
 			local cp    = controlsFrame.AbsolutePosition
 			local cs    = controlsFrame.AbsoluteSize
@@ -6771,7 +6734,7 @@ function Window.new(props: WindowProps): Window
 		table.insert((self :: any)._connections, wfr)
 	end
 
-	-- ── Window controls ───────────────────────────────────────────────────
+	
 	closeBtn.MouseButton1Click:Connect(function()
 		self:Unload()
 	end)
@@ -6780,25 +6743,27 @@ function Window.new(props: WindowProps): Window
 		self:ToggleMinimise()
 	end)
 
-	-- ── Toggle keybind ────────────────────────────────────────────────────
-	variables.userInputService.InputBegan:Connect(function(input, gameProcessed)
+	
+	
+	
+	table.insert(s._connections, variables.userInputService.InputBegan:Connect(function(input, gameProcessed)
 		if gameProcessed then return end
 		if self.unloaded then return end
 		local activeKey = (self :: any)._toggleKey or toggleKey
 		if input.KeyCode == activeKey then
 			self:ToggleHide()
 		end
-	end)
+	end))
 
 	windowFrame.Visible = false
 
-	-- Start viewport watcher — keeps the window sized to the screen on resize/rotation.
+	
 	self:_watchViewport()
 
 	return self
 end
 
--- ── Sizing & clamping methods ─────────────────────────────────────────────────
+
 
 function Window:_clampedPositionForScale(position: UDim2, scale: number): UDim2
 	if not (self :: any)._keepOnScreen then return position end
@@ -6834,7 +6799,7 @@ function Window:_clampedPositionForScale(position: UDim2, scale: number): UDim2
 	return UDim2.fromOffset(newX, newY)
 end
 
--- Where position ends up once clamped to the current screen.
+
 function Window:_clampedPosition(position: UDim2): UDim2
 	if not (self :: any)._keepOnScreen then return position end
 	local s = (self :: any)
@@ -6847,13 +6812,13 @@ function Window:_clampToScreen()
 	wf.Position = self:_clampedPosition(wf.Position)
 end
 
--- Apply a new viewport-fitted size. Banks the change if the window is hidden,
--- minimized, or mid-drag (to avoid fighting a tween or a live drag).
+
+
 function Window:_applyWindowSize()
 	if self.unloaded then return end
 	local s = (self :: any)
 
-	-- Recompute both the window size and the shared UI scale for this viewport.
+	
 	local cam = variables.workspace.CurrentCamera
 	local userMultiplier = s._userScale or 1.0
 	variables.uiScale = userMultiplier
@@ -6890,8 +6855,8 @@ function Window:_applyWindowSize()
 	end
 end
 
--- Watch CurrentCamera.ViewportSize. Rebinds when the camera is swapped.
--- A Heartbeat backstop fires every VIEWPORT_RECONCILE_INTERVAL seconds.
+
+
 function Window:_watchViewport()
 	local cameraConn: RBXScriptConnection? = nil
 	local pending = false
@@ -6909,9 +6874,9 @@ function Window:_watchViewport()
 		if cameraConn then cameraConn:Disconnect(); cameraConn = nil end
 		local cam = variables.workspace.CurrentCamera
 		if cam then
-			-- Note: cameraConn is managed via the local variable above — not added
-			-- to _connections, since bind() disconnects and replaces it on every
-			-- camera swap. Adding it would accumulate dead entries over time.
+			
+			
+			
 			cameraConn = cam:GetPropertyChangedSignal("ViewportSize"):Connect(request)
 		end
 		request()
@@ -6932,7 +6897,7 @@ function Window:_watchViewport()
 	table.insert((self :: any)._connections, hbConn)
 end
 
--- ── Tab management ────────────────────────────────────────────────────────────
+
 
 function Window:CreateTab(props: Tab.TabProps): Tab.Tab
 	local tabs: { Tab.Tab }        = (self :: any)._tabs
@@ -6976,21 +6941,21 @@ function Window:_activateTab(target: Tab.Tab)
 	s._activeTab = target
 end
 
--- ── Notify ────────────────────────────────────────────────────────────────────
+
 
 function Window:Notify(props: notification.NotifyProps)
 	if self.unloaded then return end
 	notification.send(props, (self :: any)._theme)
 end
 
--- ── Show / Hide / ToggleHide ──────────────────────────────────────────────────
+
 
 function Window:Show()
 	if self.unloaded then return end
 	local s = (self :: any)
 	local windowFrame: Frame = s._windowFrame
 
-	-- If previously minimised, restore full geometry before the show tween.
+	
 	if s._minimized then
 		if s._activeTween then
 			s._activeTween:Cancel()
@@ -7009,7 +6974,7 @@ function Window:Show()
 		if s._minIcon then (s._minIcon :: ImageLabel).Image = ICON_MINIMIZE end
 	end
 
-	-- Apply any banked resize before we show.
+	
 	if s._pendingResize then
 		s._pendingResize = false
 		windowFrame.Size = s._windowSize
@@ -7018,11 +6983,11 @@ function Window:Show()
 	s._visible   = true
 	windowFrame.Position = self:_clampedPosition(windowFrame.Position)
 
-	-- BackgroundTransparency starts at 1 (set in constructor) so the frame is
-	-- invisible on the first rendered frame. We must wait until after that frame
-	-- has been drawn before tweening opacity — otherwise Roblox may render one
-	-- frame where UICorner hasn't been computed yet, producing a square-corner
-	-- flash the moment the window becomes visible.
+	
+	
+	
+	
+	
 	windowFrame.BackgroundTransparency = 1
 	windowFrame.Visible = true
 	task.spawn(function()
@@ -7055,7 +7020,7 @@ function Window:ToggleMinimise()
 	local s = (self :: any)
 	if not s._visible then return end
 
-	-- Cancel any running animation
+	
 	if s._activeTween then
 		s._activeTween:Cancel()
 		s._activeTween = nil
@@ -7072,7 +7037,7 @@ function Window:ToggleMinimise()
 	local TWEEN_INFO = TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
 
 	if s._minimized then
-		-- ── RESTORE ──────────────────────────────────────────────
+		
 		s._minimized     = false
 		s._pendingResize = false
 
@@ -7083,12 +7048,12 @@ function Window:ToggleMinimise()
 			targetPos = self:_clampedPosition(targetPos)
 		end
 
-		-- Square titleBar corners immediately — body expanding into that space
+		
 		if s._titleBarCorner then
 			(s._titleBarCorner :: UICorner).CornerRadius = UDim.new(0, 0)
 		end
 
-		-- Keep body hidden while the window frame expands so elements don't squash or flash
+		
 		body.Visible = false
 		if divider then divider.Visible = false end
 
@@ -7097,7 +7062,9 @@ function Window:ToggleMinimise()
 			Position = targetPos,
 		})
 		s._activeTween = tw
-		tw.Completed:Connect(function()
+		tw.Completed:Once(function()
+			
+			tw:Destroy()
 			if s._activeTween == tw then
 				s._activeTween = nil
 				if not s._minimized then
@@ -7108,24 +7075,25 @@ function Window:ToggleMinimise()
 			end
 		end)
 		;(s._minBtn :: TextButton).Text = ""
-		-- Fade icon: RESTORE → MINIMIZE
+		
 		if s._minIcon then
 			local _ic = s._minIcon :: ImageLabel
 			local _fo = tween.play(_ic, TweenInfo.new(0.1, Enum.EasingStyle.Quad), { ImageTransparency = 1 })
 			_fo.Completed:Once(function()
+				_fo:Destroy() 
 				_ic.Image = ICON_MINIMIZE
 				tween.fire(_ic, TweenInfo.new(0.1, Enum.EasingStyle.Quad), { ImageTransparency = 0 })
 			end)
 		end
 	else
-		-- ── MINIMIZE ─────────────────────────────────────────────
+		
 		s._minimized = true
 
 		local topY = windowFrame.Position.Y.Offset - math.floor(fullH / 2)
 		local minCenterY = topY + math.floor(titlebarH / 2)
 		local targetPos = UDim2.fromOffset(windowFrame.Position.X.Offset, minCenterY)
 
-		-- Hide body immediately so content never squashes or flickers while shrinking
+		
 		body.Visible = false
 		if divider then divider.Visible = false end
 		if s._titleSep then (s._titleSep :: Frame).Visible = false end
@@ -7135,10 +7103,12 @@ function Window:ToggleMinimise()
 			Position = targetPos,
 		})
 		s._activeTween = tw
-		tw.Completed:Connect(function()
+		tw.Completed:Once(function()
+			
+			tw:Destroy()
 			if s._activeTween == tw then
 				s._activeTween = nil
-				-- Round titleBar corners now it's the full visible face of the minimised window
+				
 				if s._titleBarCorner then
 					local cr = s._theme.CornerRoundness or UDim.new(0, 10)
 					;(s._titleBarCorner :: UICorner).CornerRadius = cr
@@ -7146,11 +7116,12 @@ function Window:ToggleMinimise()
 			end
 		end)
 		;(s._minBtn :: TextButton).Text = ""
-		-- Fade icon: MINIMIZE → RESTORE
+		
 		if s._minIcon then
 			local _ic = s._minIcon :: ImageLabel
 			local _fo = tween.play(_ic, TweenInfo.new(0.1, Enum.EasingStyle.Quad), { ImageTransparency = 1 })
 			_fo.Completed:Once(function()
+				_fo:Destroy() 
 				_ic.Image = ICON_RESTORE
 				tween.fire(_ic, TweenInfo.new(0.1, Enum.EasingStyle.Quad), { ImageTransparency = 0 })
 			end)
@@ -7158,7 +7129,7 @@ function Window:ToggleMinimise()
 	end
 end
 
--- ── ChangeTheme ───────────────────────────────────────────────────────────────
+
 
 function Window:ChangeTheme(newTheme: string | { [string]: any })
 	local s = (self :: any)
@@ -7168,7 +7139,7 @@ function Window:ChangeTheme(newTheme: string | { [string]: any })
 	themeUtil.broadcast(resolved)
 end
 
--- ── Unload ────────────────────────────────────────────────────────────────────
+
 
 function Window:Unload()
 	if self.unloaded then return end
@@ -7201,15 +7172,14 @@ end
 
 return Window
 
-end)() end,
-    [17] = function()local wax,script,require=ImportGlobals(17)local ImportGlobals return (function(...)--!strict
+end)() end,[17]=function()local wax,script,require=ImportGlobals(17)local ImportGlobals return (function(...)
 
--- Delirium UI Library — Default Dark Theme
--- Win11-style near-black palette with blue (#4cc2ff) accent.
--- Ported from oldsrc design language.
+
+
+
 
 return {
-	-- ── Window ───────────────────────────────────────────────────────────────
+	
 	WindowColor = ColorSequence.new({
 		ColorSequenceKeypoint.new(0,      Color3.fromHex("#141414")),
 		ColorSequenceKeypoint.new(0.9999, Color3.fromHex("#191919")),
@@ -7220,7 +7190,7 @@ return {
 	TitleBarColor   = Color3.fromHex("#111114"),
 	CornerRoundness = UDim.new(0, 8),
 
-	-- ── Tab sidebar ───────────────────────────────────────────────────────────
+	
 	TabColor      = Color3.fromHex("#9d9d9d"),
 	TabBackground = ColorSequence.new(
 		Color3.fromHex("#2a2a2a"),
@@ -7231,7 +7201,7 @@ return {
 		Color3.fromHex("#222222")
 	),
 
-	-- ── Elements ──────────────────────────────────────────────────────────────
+	
 	ElementGradient = ColorSequence.new({
 		ColorSequenceKeypoint.new(0,      Color3.fromHex("#2a2a2a")),
 		ColorSequenceKeypoint.new(0.9999, Color3.fromHex("#1e1e1e")),
@@ -7249,26 +7219,26 @@ return {
 	ElementCornerRadius            = UDim.new(0, 6),
 	ElementTextHoverColor          = Color3.fromHex("#ffffff"),
 
-	-- ── Typography ────────────────────────────────────────────────────────────
+	
 	TitleFont        = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.SemiBold),
 	Font             = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium),
 	ContentColor     = Color3.fromHex("#ffffff"),
 	TitlingColor     = Color3.fromHex("#ffffff"),
 	PlaceholderColor = Color3.fromHex("#9d9d9d"),
 
-	-- ── Accent (Win11 blue) ───────────────────────────────────────────────────
+	
 	AccentColor  = Color3.fromHex("#4cc2ff"),
 	AccentStroke = Color3.fromHex("#60cdff"),
 	AccentGlow   = 0.35,
 
-	-- ── Toggle ────────────────────────────────────────────────────────────────
+	
 	ToggleTrack               = Color3.fromRGB(0, 0, 0),
 	ToggleTrackTransparency   = 0.6,
 	ToggleKnobOff             = Color3.fromHex("#9d9d9d"),
 	ToggleKnobOffTransparency = 0.3,
 	DarkToggleOverlay         = false,
 
-	-- ── Slider ────────────────────────────────────────────────────────────────
+	
 	SliderBackground      = Color3.fromHex("#222222"),
 	SliderBackgroundHover = Color3.fromHex("#2a2a2a"),
 	SliderProgress        = ColorSequence.new(
@@ -7278,39 +7248,38 @@ return {
 	SliderHandle = Color3.fromRGB(255, 255, 255),
 	SliderStroke = Color3.fromRGB(255, 255, 255),
 
-	-- ── Dropdown ──────────────────────────────────────────────────────────────
+	
 	DropdownHighlight = Color3.fromRGB(255, 255, 255),
 
-	-- ── Input / Keybind fields ────────────────────────────────────────────────
+	
 	FieldBackground   = Color3.fromRGB(255, 255, 255),
 	FieldTransparency = 0.90,
 	FieldGlow         = Color3.fromHex("#4cc2ff"),
 
-	-- ── Pill corner (tab pills + collapsed icon) ───────────────────────────────
+	
 	PillCornerRadius = UDim.new(1, 0),
 
-	-- ── Popup buttons ─────────────────────────────────────────────────────────
+	
 	NeutralButton       = Color3.fromHex("#252525"),
 	NeutralButtonHover  = Color3.fromHex("#2e2e2e"),
 	NeutralButtonStroke = Color3.fromHex("#2b2b2b"),
 
-	-- ── Misc ──────────────────────────────────────────────────────────────────
+	
 	ErrorColor       = Color3.fromHex("#ff4f58"),
 	ErrorStrokeColor = Color3.fromHex("#ff6b74"),
 	ActionColor      = Color3.fromRGB(255, 255, 255),
 	LiveAnimation    = false,
 }
 
-end)() end,
-    [18] = function()local wax,script,require=ImportGlobals(18)local ImportGlobals return (function(...)--!strict
+end)() end,[18]=function()local wax,script,require=ImportGlobals(18)local ImportGlobals return (function(...)
 
--- Delirium UI Library — Dracula Theme
--- Deep violet/indigo palette inspired by the Dracula color scheme.
--- Override only the keys that differ from Default; the resolver in theme.luau
--- merges this on top of the default table. Keep in sync with default.luau.
+
+
+
+
 
 return {
-	-- ── Window ───────────────────────────────────────────────────────────────
+	
 	WindowColor = ColorSequence.new({
 		ColorSequenceKeypoint.new(0,      Color3.fromHex("#282a36")),
 		ColorSequenceKeypoint.new(0.9999, Color3.fromHex("#21222c")),
@@ -7320,7 +7289,7 @@ return {
 	SurfaceStroke = Color3.fromHex("#44475a"),
 	TitleBarColor = Color3.fromHex("#1e1f29"),
 
-	-- ── Tab sidebar ───────────────────────────────────────────────────────────
+	
 	TabColor      = Color3.fromHex("#bd93f9"),
 	TabBackground = ColorSequence.new(
 		Color3.fromHex("#343746"),
@@ -7331,7 +7300,7 @@ return {
 		Color3.fromHex("#2f3140")
 	),
 
-	-- ── Elements ──────────────────────────────────────────────────────────────
+	
 	ElementGradient = ColorSequence.new({
 		ColorSequenceKeypoint.new(0,      Color3.fromHex("#343746")),
 		ColorSequenceKeypoint.new(0.9999, Color3.fromHex("#2b2d3a")),
@@ -7345,24 +7314,24 @@ return {
 	ElementStrokeHover          = Color3.fromHex("#6272a4"),
 	ElementTextHoverColor       = Color3.fromHex("#f8f8f2"),
 
-	-- ── Typography ────────────────────────────────────────────────────────────
+	
 	ContentColor     = Color3.fromHex("#f8f8f2"),
 	TitlingColor     = Color3.fromHex("#ffffff"),
 	PlaceholderColor = Color3.fromHex("#8b8fa3"),
 
-	-- ── Accent (Dracula purple) ───────────────────────────────────────────────
+	
 	AccentColor  = Color3.fromHex("#bd93f9"),
 	AccentStroke = Color3.fromHex("#d7b8ff"),
 	AccentGlow   = 0.4,
 
-	-- ── Toggle ────────────────────────────────────────────────────────────────
+	
 	ToggleTrack               = Color3.fromHex("#282a36"),
 	ToggleTrackTransparency   = 0.55,
 	ToggleKnobOff             = Color3.fromHex("#8b8fa3"),
 	ToggleKnobOffTransparency = 0.35,
 	DarkToggleOverlay         = false,
 
-	-- ── Slider ────────────────────────────────────────────────────────────────
+	
 	SliderBackground      = Color3.fromHex("#2b2d3a"),
 	SliderBackgroundHover = Color3.fromHex("#343746"),
 	SliderProgress        = ColorSequence.new(
@@ -7372,38 +7341,37 @@ return {
 	SliderHandle = Color3.fromHex("#f8f8f2"),
 	SliderStroke = Color3.fromHex("#f8f8f2"),
 
-	-- ── Dropdown ──────────────────────────────────────────────────────────────
+	
 	DropdownHighlight = Color3.fromHex("#f8f8f2"),
 
-	-- ── Input / Keybind fields ────────────────────────────────────────────────
+	
 	FieldBackground   = Color3.fromHex("#f8f8f2"),
 	FieldTransparency = 0.90,
 	FieldGlow         = Color3.fromHex("#bd93f9"),
 
-	-- ── Pill corner (tab pills + collapsed icon) ───────────────────────────────
+	
 	PillCornerRadius = UDim.new(1, 0),
 
-	-- ── Popup buttons ─────────────────────────────────────────────────────────
+	
 	NeutralButton       = Color3.fromHex("#343746"),
 	NeutralButtonHover  = Color3.fromHex("#44475a"),
 	NeutralButtonStroke = Color3.fromHex("#44475a"),
 
-	-- ── Misc ──────────────────────────────────────────────────────────────────
+	
 	ErrorColor       = Color3.fromHex("#ff5555"),
 	ErrorStrokeColor = Color3.fromHex("#ff6e67"),
 	ActionColor      = Color3.fromHex("#f8f8f2"),
 	LiveAnimation    = false,
 }
-end)() end,
-    [19] = function()local wax,script,require=ImportGlobals(19)local ImportGlobals return (function(...)--!strict
+end)() end,[19]=function()local wax,script,require=ImportGlobals(19)local ImportGlobals return (function(...)
 
--- Delirium UI Library — Light Theme
--- High-contrast light variant. Override only the keys that differ from Default;
--- the resolver in theme.luau merges this on top of the default table.
--- Keep in sync with default.luau when adding new keys.
+
+
+
+
 
 return {
-	-- ── Window ───────────────────────────────────────────────────────────────
+	
 	WindowColor = ColorSequence.new({
 		ColorSequenceKeypoint.new(0,      Color3.fromRGB(245, 243, 255)),
 		ColorSequenceKeypoint.new(0.9999, Color3.fromRGB(235, 232, 250)),
@@ -7413,7 +7381,7 @@ return {
 	SurfaceStroke = Color3.fromRGB(190, 180, 220),
 	TitleBarColor = Color3.fromRGB(210, 205, 240),
 
-	-- ── Tab sidebar ───────────────────────────────────────────────────────────
+	
 	TabColor      = Color3.fromRGB(30, 20, 60),
 	TabBackground = ColorSequence.new(
 		Color3.fromRGB(210, 205, 240),
@@ -7424,7 +7392,7 @@ return {
 		Color3.fromRGB(195, 185, 230)
 	),
 
-	-- ── Elements ──────────────────────────────────────────────────────────────
+	
 	ElementGradient = ColorSequence.new({
 		ColorSequenceKeypoint.new(0,      Color3.fromRGB(232, 228, 252)),
 		ColorSequenceKeypoint.new(0.9999, Color3.fromRGB(238, 235, 255)),
@@ -7438,46 +7406,45 @@ return {
 	ElementStrokeHover          = Color3.fromRGB(124, 58, 237),
 	ElementTextHoverColor       = Color3.fromRGB(30, 20, 60),
 
-	-- ── Typography ────────────────────────────────────────────────────────────
+	
 	ContentColor     = Color3.fromRGB(40,  30,  70),
 	TitlingColor     = Color3.fromRGB(20,  10,  50),
 	PlaceholderColor = Color3.fromRGB(150, 140, 180),
 
-	-- ── Toggle ────────────────────────────────────────────────────────────────
+	
 	ToggleTrack               = Color3.fromRGB(180, 170, 215),
 	ToggleTrackTransparency   = 0.5,
 	ToggleKnobOff             = Color3.fromRGB(120, 110, 165),
 	ToggleKnobOffTransparency = 0,
 	DarkToggleOverlay         = false,
 
-	-- ── Slider ────────────────────────────────────────────────────────────────
+	
 	SliderBackground      = Color3.fromRGB(215, 210, 245),
 	SliderBackgroundHover = Color3.fromRGB(200, 195, 235),
 	SliderHandle          = Color3.fromRGB(124, 58, 237),
 	SliderStroke          = Color3.fromRGB(124, 58, 237),
 
-	-- ── Input / Keybind fields ────────────────────────────────────────────────
+	
 	FieldBackground   = Color3.fromRGB(255, 255, 255),
 	FieldTransparency = 0.6,
 	FieldGlow         = Color3.fromRGB(124, 58, 237),
 
-	-- ── Popup buttons ─────────────────────────────────────────────────────────
+	
 	NeutralButton       = Color3.fromRGB(220, 215, 245),
 	NeutralButtonHover  = Color3.fromRGB(205, 198, 235),
 	NeutralButtonStroke = Color3.fromRGB(160, 150, 200),
 
-	-- ── Misc ──────────────────────────────────────────────────────────────────
+	
 	ActionColor = Color3.fromRGB(30, 20, 60),
 }
 
-end)() end,
-    [20] = function()local wax,script,require=ImportGlobals(20)local ImportGlobals return (function(...)--!strict
+end)() end,[20]=function()local wax,script,require=ImportGlobals(20)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- types.luau — All public-facing exported types.
--- Consumers import from here to annotate their own scripts.
 
--- ── Primitive prop types ──────────────────────────────────────────────────────
+
+
+
+
 
 export type Theme = string | { [string]: any }
 
@@ -7624,7 +7591,7 @@ export type NotifyProps = {
 	duration: number?,
 }
 
--- ── Handle types ──────────────────────────────────────────────────────────────
+
 
 export type Section = {
 	Destroy: (self: Section) -> (),
@@ -7764,21 +7731,20 @@ export type Delirium = {
 
 return {}
 
-end)() end,
-    [22] = function()local wax,script,require=ImportGlobals(22)local ImportGlobals return (function(...)--!strict
+end)() end,[22]=function()local wax,script,require=ImportGlobals(22)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- assetFetcher.luau — Downloads asset bodies by id or URL.
--- Wraps executor HTTP with an LRU session cache (8 slots) so rapid duplicate
--- fetches don't spam the wire. The disk layer in imageCache/fontLoader is what
--- persists across sessions; this is just the in-memory fast path for the current run.
+
+
+
+
+
 
 local network  = require(script.Parent.network)
 local services = require(script.Parent.services)
 
 local IS_STUDIO = services.getService("RunService"):IsStudio()
 
--- ── Types ─────────────────────────────────────────────────────────────────────
+
 
 export type AssetId = number | string
 export type CacheKey = string | number
@@ -7789,22 +7755,22 @@ export type AssetFetcher = {
 	getContentFromId:   (self: AssetFetcher, id: AssetId, forced: boolean?) -> string?,
 }
 
--- ── Private constants ─────────────────────────────────────────────────────────
 
--- roproxy mirrors the assetdelivery endpoint without Roblox's anti-exploit
--- CDN restrictions that break executor requests.
+
+
+
 local DOWNLOAD_URL = "https://assetdelivery.roproxy.com/v1/asset?id=%d"
 
--- Session LRU cap — bodies are whole PNGs/TTFs, keep it lean.
+
 local CACHE_LIMIT = 8
 
--- ── Implementation ────────────────────────────────────────────────────────────
+
 
 local AssetFetcher = {}
 AssetFetcher.__index = AssetFetcher
 
--- Executors disagree on response shape; treat the body as valid only when the
--- executor also reports success (2xx status or Success=true).
+
+
 local function isGoodResponse(response: unknown): boolean
 	if type(response) ~= "table" then return false end
 	local r = response :: { Body: unknown, StatusCode: unknown, Success: unknown }
@@ -7816,7 +7782,7 @@ local function isGoodResponse(response: unknown): boolean
 	if type(r.Success) == "boolean" then
 		return r.Success :: boolean
 	end
-	-- unknown shape — can't confirm the body is the asset
+	
 	return false
 end
 
@@ -7828,11 +7794,11 @@ function AssetFetcher.new(): AssetFetcher
 	return self
 end
 
--- Canonicalise a user-supplied value into a usable AssetId:
---   number  → returned as-is
---   "12345" → 12345 (bare numeric string)
---   "rbxassetid://12345" → 12345
---   "rbxasset://..." / "rbxthumb://..." → returned as-is (passthrough)
+
+
+
+
+
 function AssetFetcher.resolve(_self: AssetFetcher, value: unknown): AssetId?
 	if type(value) == "number" then return value end
 	if type(value) ~= "string" then return nil end
@@ -7844,8 +7810,8 @@ function AssetFetcher.resolve(_self: AssetFetcher, value: unknown): AssetId?
 	return id or nil
 end
 
--- Fetch a URL body, optionally keyed into the LRU session cache.
--- `forced = true` skips the session cache (used by retry loops).
+
+
 function AssetFetcher.getContentFromUrl(
 	self: AssetFetcher,
 	url: string,
@@ -7857,12 +7823,23 @@ function AssetFetcher.getContentFromUrl(
 
 	if cacheKey ~= nil and not forced then
 		local hit = cache[cacheKey]
-		if hit then return hit end
+		if hit then
+			
+			
+			for i = 1, #order do
+				if order[i] == cacheKey then
+					table.remove(order, i)
+					table.insert(order, cacheKey)
+					break
+				end
+			end
+			return hit
+		end
 	end
 
 	local requestFn = network.getRequestFn()
 	if not requestFn then
-		-- Studio has no executor globals; warn only when running live.
+		
 		if not IS_STUDIO then
 			warn("[Delirium:assetFetcher] No executor request function found.")
 		end
@@ -7893,7 +7870,7 @@ function AssetFetcher.getContentFromUrl(
 	return body
 end
 
--- Convenience: resolve an asset id to a download URL and fetch it.
+
 function AssetFetcher.getContentFromId(
 	self: AssetFetcher,
 	id: AssetId,
@@ -7910,43 +7887,42 @@ end
 
 return AssetFetcher
 
-end)() end,
-    [23] = function()local wax,script,require=ImportGlobals(23)local ImportGlobals return (function(...)--!strict
+end)() end,[23]=function()local wax,script,require=ImportGlobals(23)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- constants.luau — Immutable visual and structural constants.
--- Theme-varying values (colors, fonts) live in themes/; put everything else here.
+
+
+
 
 local constants = {}
 
--- ── Tween presets ────────────────────────────────────────────────────────────
 
--- General UI element transitions (hover in/out, show/hide)
+
+
 constants.tweenFast   = TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
 constants.tweenNormal = TweenInfo.new(0.28, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
 constants.tweenSlow   = TweenInfo.new(0.45, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
 
--- Pill-shaped input/keybind width tween (matches the animated resize feel)
+
 constants.pillResizeInfo = TweenInfo.new(0.35, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
 constants.tweenFocus     = TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
 
--- Notification slide-in / slide-out
+
 constants.notifySlideIn  = TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 constants.notifySlideOut = TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
 
--- ── ZIndex layers (assumes Global ZIndexBehavior) ─────────────────────────────
+
 
 constants.zIndex = {
 	base             = 1,
 	element          = 10,
-	dropdown         = 50,     -- Dropdown overlay sits above elements
-	notification     = 200,    -- Corner notification cards
-	windowChrome     = 500,    -- Window title bar / buttons
-	drag             = 1000,   -- Drag ghost layer
-	popup            = 2000,   -- Modal popups dim + content
+	dropdown         = 50,     
+	notification     = 200,    
+	windowChrome     = 500,    
+	drag             = 1000,   
+	popup            = 2000,   
 }
 
--- ── DisplayOrder for top-level ScreenGuis ────────────────────────────────────
+
 
 constants.displayOrder = {
 	window      = 99990,
@@ -7954,47 +7930,54 @@ constants.displayOrder = {
 	popup       = 100000,
 }
 
--- ── Layout ───────────────────────────────────────────────────────────────────
 
--- Default window dimensions
+
+
 constants.windowSize       = Vector2.new(720, 580)
 constants.windowMinSize    = Vector2.new(560, 440)
-constants.sidebarWidth     = 164   -- Tab sidebar width in pixels
-constants.elementHeight    = 38    -- Standard element row height
-constants.elementPadding   = 6     -- Gap between stacked elements
-constants.sectionPadding   = 14    -- Gap before/after section dividers
-constants.contentPadding   = 10    -- Left/right inset inside the content pane
+constants.sidebarWidth     = 164   
+constants.elementHeight    = 38    
+constants.elementPadding   = 6     
+constants.sectionPadding   = 14    
+constants.contentPadding   = 10    
 
--- ── Misc ─────────────────────────────────────────────────────────────────────
 
--- Notification auto-dismiss default duration (seconds)
+
+
+
+
+constants.DEFAULT_FONT        = Font.new("rbxasset://fonts/families/GothamSSm.json")
+constants.DEFAULT_FONT_MEDIUM = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium)
+
+
+
+
 constants.notifyDuration = 4
 
--- Slider/Dropdown click sound (optional; Delirium plays nothing by default)
+
 constants.clickSoundId = ""
 
 return constants
 
-end)() end,
-    [24] = function()local wax,script,require=ImportGlobals(24)local ImportGlobals return (function(...)--!strict
+end)() end,[24]=function()local wax,script,require=ImportGlobals(24)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- element.luau — Shared element frame factory.
--- Builds the standard Frame + UICorner + UIGradient + UIStroke structure
--- used by all interactive components. Previously duplicated across 7 files.
+
+
+
+
 
 local constants = require(script.Parent.constants)
 
 local element = {}
 
--- Returns the root Frame and its UIStroke so callers can tween the stroke
--- without a FindFirstChildOfClass search.
---
--- Parameters:
---   name   — Instance.Name for the frame (e.g. "Toggle_MyFlag")
---   theme  — active theme table (may be {})
---   parent — where to parent the frame
---   height — pixel height; defaults to constants.elementHeight if nil
+
+
+
+
+
+
+
+
 function element.makeFrame(
 	name:   string,
 	theme:  { [string]: any },
@@ -8031,10 +8014,10 @@ function element.makeFrame(
 	return frame, stroke
 end
 
--- Creates a full-coverage dark overlay parented to `parent`.
--- Toggle .Visible to show/hide. Reuse for any modal, panel, or picker dim.
--- `zIndex`       — ZIndex relative to parent's other children (Sibling mode)
--- `transparency` — 0 = fully opaque black, 1 = invisible (default 0.55)
+
+
+
+
 function element.makeOverlay(parent: Instance, zIndex: number, transparency: number?): Frame
 	local overlay = Instance.new("Frame")
 	overlay.Name                   = "Overlay"
@@ -8051,15 +8034,14 @@ end
 
 return element
 
-end)() end,
-    [25] = function()local wax,script,require=ImportGlobals(25)local ImportGlobals return (function(...)--!strict
+end)() end,[25]=function()local wax,script,require=ImportGlobals(25)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- filesystem.luau — Executor FS abstraction.
--- In a live executor: wraps the raw globals (writefile, readfile, etc.)
--- In Studio: simulates the same API through a StringValue/Folder instance tree
--- under ReplicatedStorage, so modules can require() without erroring.
--- Never call writefile/readfile raw anywhere else in Delirium — use this.
+
+
+
+
+
+
 
 local services = require(script.Parent.services)
 
@@ -8069,7 +8051,7 @@ local runService = services.getService("RunService")
 local isStudio   = runService:IsStudio()
 local hasNativeFS = not isStudio and typeof(writefile) == "function"
 
--- ── Native executor path ─────────────────────────────────────────────────────
+
 
 if hasNativeFS then
 
@@ -8109,10 +8091,10 @@ if hasNativeFS then
 		delfolder(path)
 	end
 
--- ── Studio simulation path ────────────────────────────────────────────────────
--- Files → StringValues, folders → Folders, all rooted under ReplicatedStorage.
--- This is Glass — fragile and reset-safe, not a real disk. It's here so requires
--- don't throw in Studio; never rely on it for persistence.
+
+
+
+
 
 elseif isStudio then
 
@@ -8258,17 +8240,17 @@ elseif isStudio then
 
 end
 
--- ── Helpers ───────────────────────────────────────────────────────────────────
 
--- Creates the folder only when it doesn't exist yet.
+
+
 function filesystem.ensureFolder(path: string)
 	if not filesystem.isfolder(path) then
 		filesystem.makefolder(path)
 	end
 end
 
--- Creates every segment of a multi-level path in one shot.
--- e.g. "Delirium/Assets/Fonts" → creates Delirium, then Assets, then Fonts.
+
+
 function filesystem.ensureDir(dir: string)
 	local built = ""
 	for part in string.gmatch(dir, "[^/]+") do
@@ -8281,21 +8263,20 @@ end
 
 return filesystem
 
-end)() end,
-    [26] = function()local wax,script,require=ImportGlobals(26)local ImportGlobals return (function(...)--!strict
+end)() end,[26]=function()local wax,script,require=ImportGlobals(26)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- flags.luau — Global flag registry.
--- Flags store the persistent state values of stateful elements (Toggle, Slider,
--- Dropdown, Input, Keybind, ColorPicker). Elements write here on change;
--- consumers can read them at any time via Delirium.Flags.
---
--- Usage:
---   Delirium.Flags["MyToggle"]       -- read current value
---   Flags:Set("MyToggle", true)      -- set from outside (fires no callback)
---   Flags:Get("MyToggle")            -- returns current value or nil
---   Flags:GetAll()                   -- returns a shallow copy of the full table
---   Flags:Clear()                    -- wipes all flags (useful on Unload)
+
+
+
+
+
+
+
+
+
+
+
+
 
 export type FlagValue = boolean | number | string | { string } | Color3 | EnumItem
 
@@ -8311,9 +8292,9 @@ local store: { [string]: FlagValue } = {}
 
 local flags = {} :: FlagsRegistry
 
--- Define methods FIRST so they sit in the raw table before the metatable is applied.
--- If setmetatable (with __newindex) came first, these assignments would be intercepted
--- and routed into `store` instead — causing infinite __index recursion at runtime.
+
+
+
 
 function flags:Set(key: string, value: FlagValue)
 	store[key] = value
@@ -8331,9 +8312,9 @@ function flags:Clear()
 	table.clear(store)
 end
 
--- Apply proxy metatable AFTER methods are defined.
--- __index: method names fall through to rawget; everything else reads from store.
--- __newindex: user flag writes (string keys) go into store, not the flags table itself.
+
+
+
 local mt = {
 	__index = function(_, key: string): FlagValue?
 		local method = rawget(flags, key)
@@ -8350,22 +8331,21 @@ setmetatable(flags :: any, mt)
 
 return flags
 
-end)() end,
-    [27] = function()local wax,script,require=ImportGlobals(27)local ImportGlobals return (function(...)--!strict
+end)() end,[27]=function()local wax,script,require=ImportGlobals(27)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- fontLoader.luau — External font loading via executor disk cache.
--- How it works:
---   1. Caller supplies a numeric asset id (the manifest JSON asset on Roblox).
---   2. We download the manifest JSON once, write it to disk, then iterate each face.
---   3. Each face (.ttf) is downloaded, PNG-style signature-checked, and written to disk.
---   4. getcustomasset() converts each disk path to a local URI.
---   5. We rewrite face assetIds in the manifest to those local URIs, write a second
---      manifest.json, getcustomasset() that too, and hand it to Font.new().
---   6. All variants (weight × style) are created from the same local manifest.
---   7. Everything is cached in memory so repeat calls for the same id are instant.
---
--- Falls back to `fallbackFont` on any failure — never throws to the caller.
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 local filesystem  = require(script.Parent.filesystem)
 local AssetFetcher = require(script.Parent.assetFetcher)
@@ -8374,7 +8354,7 @@ local services    = require(script.Parent.services)
 local httpService = services.getService("HttpService")
 local runService  = services.getService("RunService")
 
--- ── Types ─────────────────────────────────────────────────────────────────────
+
 
 export type FontFace = {
 	name:    string,
@@ -8389,7 +8369,7 @@ export type FontManifest = {
 }
 
 export type CachedFont = {
-	customId:      string,           -- getcustomasset URI of the local manifest.json
+	customId:      string,           
 	manifest:      FontManifest,
 	variants:      { [string]: Font },
 }
@@ -8408,16 +8388,16 @@ export type FontLoader = {
 	bind:    (self: FontLoader, instance: Instance, property: string, id: number | string, opts: LoadOptions?) -> (),
 }
 
--- ── Constants ─────────────────────────────────────────────────────────────────
+
 
 local FONTS_ROOT    = "Delirium/Fonts"
 local DEFAULT_FONT  = Font.fromEnum(Enum.Font.SourceSans)
 local IS_STUDIO     = runService:IsStudio()
 
--- TrueType / OpenType / WOFF magic bytes for body validation.
+
 local FONT_SIGNATURES = { "\0\1\0\0", "OTTO", "true", "ttcf", "wOFF", "wOF2" }
 
--- ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 local function isFontBody(body: string): boolean
 	for _, sig in FONT_SIGNATURES do
@@ -8426,8 +8406,8 @@ local function isFontBody(body: string): boolean
 	return false
 end
 
--- Strip characters that are unsafe in a file path, keeping alphanumerics,
--- spaces, dashes, underscores, and dots.
+
+
 local function sanitizeName(name: string): string
 	return string.gsub(name, "[^%w%s%-_%.]+", "")
 end
@@ -8450,8 +8430,8 @@ local function jsonEncode(data: unknown): string?
 	return if ok and type(result) == "string" then result else nil
 end
 
--- Parses and validates the font manifest table coming off the network.
--- sanitizes face names in-place so they're safe to use as filenames.
+
+
 local function validateManifest(raw: unknown): FontManifest?
 	if type(raw) ~= "table" then return nil end
 	local m = raw :: any
@@ -8467,7 +8447,7 @@ local function validateManifest(raw: unknown): FontManifest?
 	return m :: FontManifest
 end
 
--- ── FontLoader ────────────────────────────────────────────────────────────────
+
 
 local FontLoader = {}
 FontLoader.__index = FontLoader
@@ -8476,8 +8456,8 @@ function FontLoader.new(): FontLoader
 	local self = setmetatable({
 		_cache    = {} :: { [number]: CachedFont },
 		_fetcher  = AssetFetcher.new(),
-		-- _bindings[id][instance][property] = LoadOptions?
-		-- Weak keys on inner tables so GC'd UI doesn't pin the registry.
+		
+		
 		_bindings = {} :: { [number]: any },
 		_loading  = {} :: { [number]: boolean },
 	}, FontLoader) :: any
@@ -8494,7 +8474,7 @@ local function resolveId(value: unknown): number?
 	return nil
 end
 
--- Returns the cached Font for id (any weight/style), nil if not yet loaded.
+
 function FontLoader.resolve(self: FontLoader, id: number | string): Font?
 	local numId = resolveId(id)
 	if not numId then return nil end
@@ -8504,13 +8484,13 @@ function FontLoader.resolve(self: FontLoader, id: number | string): Font?
 	return nil
 end
 
--- Core load entry-point.
--- opts.weight / opts.style select the variant (default Regular/Normal).
--- opts.saveToDisk = false degrades to the fallback — without disk there's no
---   way to hand a local URI to Font.new(), and loading from the raw rbxassetid
---   is detectable by anti-cheats.
--- opts.skipCache = true forces a fresh network round-trip even if memory-cached.
--- opts.fallback overrides the module-level fallback for this call.
+
+
+
+
+
+
+
 function FontLoader.load(
 	self:    FontLoader,
 	id:      number | string,
@@ -8532,27 +8512,27 @@ function FontLoader.load(
 		return fallback
 	end
 
-	-- 1. Memory cache hit
+	
 	if not skipCache then
 		local cached = cache[numId]
 		if cached then
 			local hit = cached.variants[key]
 			if hit then return hit end
-			-- Manifest is loaded but this variant isn't; build it from the local URI.
+			
 			local ok, built = pcall(Font.new, cached.customId, weight, style)
 			if ok and built then
 				cached.variants[key] = built
 				return built
 			end
-			-- Local manifest went stale; evict and re-download
+			
 			cache[numId] = nil
 		end
 	end
 
-	-- 2. Disk-only path is mandatory for live use (see note above)
+	
 	if not saveToDisk then return fallback end
 
-	-- 3. No getcustomasset → can't localise URIs → fall back
+	
 	local env = getfenv()
 	if type(env.getcustomasset) ~= "function" or typeof(filesystem.isfile) ~= "function" then
 		return fallback
@@ -8560,13 +8540,13 @@ function FontLoader.load(
 
 	pcall(filesystem.ensureDir, FONTS_ROOT)
 
-	-- 4. Load / download the font manifest JSON
+	
 	local manifestPath = FONTS_ROOT .. "/" .. tostring(numId) .. ".json"
 	local rawManifest: string? = nil
 	local needsWrite = false
 
 	if IS_STUDIO then
-		-- Studio: inject a well-known manifest for developer preview
+		
 		rawManifest = '{"name":"Inter","faces":[' ..
 			'{"name":"Regular","weight":400,"style":"normal","assetId":"rbxassetid://12187266066"},' ..
 			'{"name":"Bold","weight":700,"style":"normal","assetId":"rbxassetid://12187275575"}' ..
@@ -8583,7 +8563,7 @@ function FontLoader.load(
 
 	local manifest = validateManifest(jsonDecode(rawManifest))
 	if not manifest then
-		-- Corrupt or unrecognised body; evict the disk copy so next run retries
+		
 		pcall(filesystem.delfile, manifestPath)
 		return fallback
 	end
@@ -8591,7 +8571,7 @@ function FontLoader.load(
 		pcall(filesystem.writefile, manifestPath, rawManifest)
 	end
 
-	-- 5. Download each face and rewrite assetId → local URI
+	
 	local fontDir    = FONTS_ROOT .. "/" .. manifest.name
 	local allLocal   = true
 
@@ -8632,7 +8612,7 @@ function FontLoader.load(
 
 	if not allLocal then return fallback end
 
-	-- 6. Write the rewritten manifest and get a custom asset URI for it
+	
 	local rewrittenJson = jsonEncode(manifest)
 	if not rewrittenJson then return fallback end
 
@@ -8644,7 +8624,7 @@ function FontLoader.load(
 	local mOk, manifestUri = pcall(env.getcustomasset, localManifestPath)
 	if not mOk or not manifestUri then return fallback end
 
-	-- 7. Build the Font and cache it
+	
 	local fOk, font = pcall(Font.new, manifestUri, weight, style)
 	if not fOk or not font then return fallback end
 
@@ -8657,9 +8637,9 @@ function FontLoader.load(
 	return font
 end
 
--- Assigns `value` to instance[property], queuing an auto-rebind if the font
--- isn't loaded yet. Kicks off a background load the first time an id is seen.
--- Once the font lands it's applied to every registered instance automatically.
+
+
+
 function FontLoader.bind(
 	self:     FontLoader,
 	instance: Instance,
@@ -8681,14 +8661,14 @@ function FontLoader.bind(
 	local style  = (opts and opts.style)  or Enum.FontStyle.Normal
 	local key    = variantKey(weight, style)
 
-	-- Already in memory → apply immediately, no need to register.
+	
 	local cached = cache[numId]
 	if cached and cached.variants[key] then
 		(instance :: any)[property] = cached.variants[key]
 		return
 	end
 
-	-- Register this instance so it gets updated when the font lands.
+	
 	local slot = bindings[numId]
 	if not slot then
 		slot = setmetatable({}, { __mode = "k" }) :: any
@@ -8701,16 +8681,16 @@ function FontLoader.bind(
 	end
 	(props :: any)[property] = opts
 
-	-- Kick off the background load once per id (not once per binding).
+	
 	if loading[numId] then return end
 	loading[numId] = true
 
 	task.spawn(function()
-		-- load() is synchronous-blocking; runs in spawned thread so UI doesn't stall.
+		
 		self:load(numId, opts)
 		loading[numId] = nil
 
-		-- Apply to every registered instance that's still in the DataModel.
+		
 		local bound = bindings[numId]
 		if not bound then return end
 		local c = cache[numId]
@@ -8734,14 +8714,15 @@ end
 
 return FontLoader
 
-end)() end,
-    [28] = function()local wax,script,require=ImportGlobals(28)local ImportGlobals return (function(...)--!strict
+end)() end,[28]=function()local wax,script,require=ImportGlobals(28)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- utility/icons.luau — Nebula Icon Library loader and icon resolver.
--- Ports Loader.luau with multi-tier caching (in-memory, getgenv) and built-in fallbacks.
 
-local ContentProvider = game:GetService("ContentProvider")
+
+
+
+
+local services       = require(script.Parent.services)
+local ContentProvider = services.getService("ContentProvider") :: ContentProvider
 
 export type IconPackName =
 	"Lucide"
@@ -8781,9 +8762,9 @@ local PREFIX_TO_PACK: { [string]: string } = {
 	["nebula"]          = "nebulaIcons",
 }
 
--- Built-in instant fallback IDs for core icons (guaranteed available even offline / prior to HttpGet)
+
 local BUILTIN_ICONS: { [string]: number } = {
-	-- Window chrome & navigation
+	
 	["settings"]      = 10734950309,
 	["settings-2"]    = 75339943202126,
 	["minus"]         = 120931250449806,
@@ -8802,12 +8783,12 @@ local BUILTIN_ICONS: { [string]: number } = {
 	["lock"]          = 71897067930472,
 	["user"]          = 81899856845503,
 	["globe"]         = 111578783307093,
-	-- Semantic notification icons
+	
 	["info"]          = 10723415903,
 	["success"]       = 10709790387,
 	["warning"]       = 10709752935,
 	["error"]         = 10747384394,
-	-- Popular general icons
+	
 	["sword"]         = 10723407389,
 	["swords"]        = 10723407389,
 	["eye"]           = 10734975692,
@@ -8816,7 +8797,7 @@ local BUILTIN_ICONS: { [string]: number } = {
 
 local module: any = {}
 
--- Native Nebula built-in icons
+
 module.nebulaIcons = {
 	stripes       = 8834748103,
 	circles       = 73048796459024,
@@ -8830,7 +8811,7 @@ module.nebulaIcons = {
 	sparkle       = 4483362748,
 }
 
--- ── Caching Helpers ──────────────────────────────────────────────────────────
+
 
 local CACHE_KEY_PREFIX = "__DeliriumNebula_"
 
@@ -8856,21 +8837,21 @@ local function setGenvTable(packName: string, data: { [string]: number })
 	end
 end
 
--- ── Lazy Pack Loader ─────────────────────────────────────────────────────────
+
 
 local function loadPack(packName: string): { [string]: number }?
 	if module[packName] and type(module[packName]) == "table" then
 		return module[packName]
 	end
 
-	-- L1: getgenv cache
+	
 	local genvData = getGenvTable(packName)
 	if genvData then
 		module[packName] = genvData
 		return genvData
 	end
 
-	-- L2: HTTP fetch from GitHub raw
+	
 	local url = PACK_URLS[packName]
 	if not url then return nil end
 
@@ -8893,20 +8874,20 @@ local function loadPack(packName: string): { [string]: number }?
 	return nil
 end
 
--- ── Public API ───────────────────────────────────────────────────────────────
 
--- GetIcon: matches Nebula Loader:GetIcon(name, source)
--- Returns number ID. source defaults to "Lucide".
+
+
+
 function module:GetIcon(name: string, source: string?): number?
 	local packName = source or "Lucide"
 
-	-- 1. Check nebulaIcons table directly
+	
 	if packName == "nebulaIcons" or packName == "nebula" then
 		local id = module.nebulaIcons[name]
 		if id then return id end
 	end
 
-	-- 2. Check loaded or cached pack
+	
 	local pack = module[packName] or loadPack(packName)
 	if pack and pack[name] then
 		local id = pack[name]
@@ -8918,7 +8899,7 @@ function module:GetIcon(name: string, source: string?): number?
 		end
 	end
 
-	-- 3. Check built-in fallback table
+	
 	if BUILTIN_ICONS[name] then
 		return BUILTIN_ICONS[name]
 	end
@@ -8926,7 +8907,7 @@ function module:GetIcon(name: string, source: string?): number?
 	return nil
 end
 
--- GetAssetUri: returns full "rbxassetid://<id>" or nil
+
 function module.GetAssetUri(name: string, source: string?): string?
 	local id = module:GetIcon(name, source)
 	if id then
@@ -8935,30 +8916,30 @@ function module.GetAssetUri(name: string, source: string?): string?
 	return nil
 end
 
--- Resolve: universal icon resolver for Delirium components
--- Supports:
---   - 123456789 -> "rbxassetid://123456789"
---   - "123456789" -> "rbxassetid://123456789"
---   - "rbxassetid://..." or "roblox://..." -> as-is
---   - "lucide:settings" -> resolves from Lucide pack
---   - "symbol:search" -> resolves from Symbols pack
---   - "settings" -> checks built-in fallback, then Lucide, then Symbols
+
+
+
+
+
+
+
+
 function module.Resolve(icon: (string | number)?, defaultSource: string?): string?
 	if not icon or icon == "" then return nil end
 
-	-- Numeric asset ID
+	
 	if type(icon) == "number" or tonumber(icon) ~= nil then
 		return "rbxassetid://" .. tostring(icon)
 	end
 
 	local str = tostring(icon)
 
-	-- Direct URI
+	
 	if string.sub(str, 1, 13) == "rbxassetid://" or string.sub(str, 1, 9) == "roblox://" or string.sub(str, 1, 4) == "http" then
 		return str
 	end
 
-	-- Prefix format: "prefix:icon-name"
+	
 	local prefix, iconName = string.match(str, "^([%w%-_]+):([%w%-_]+)$")
 	if prefix and iconName then
 		local packName = PREFIX_TO_PACK[string.lower(prefix)] or prefix
@@ -8968,7 +8949,7 @@ function module.Resolve(icon: (string | number)?, defaultSource: string?): strin
 		end
 	end
 
-	-- Direct name lookup
+	
 	local fallbackPack = defaultSource or "Lucide"
 	local directId = module:GetIcon(str, fallbackPack)
 		or module:GetIcon(str, "Symbols")
@@ -8981,7 +8962,7 @@ function module.Resolve(icon: (string | number)?, defaultSource: string?): strin
 	return str
 end
 
--- Preload a pack asynchronously without blocking the UI
+
 function module.PreloadPack(packName: string)
 	task.spawn(function()
 		loadPack(packName)
@@ -8990,49 +8971,48 @@ end
 
 return module
 
-end)() end,
-    [29] = function()local wax,script,require=ImportGlobals(29)local ImportGlobals return (function(...)--!strict
+end)() end,[29]=function()local wax,script,require=ImportGlobals(29)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- image.luau — Image resolution & property assignment facade.
--- Wraps imageCache so callers never touch the cache or pending-rebind tables
--- directly. Key idea: in a normal executor run, images that aren't disk-cached
--- yet resolve to "" on first assign. The pending table remembers which
--- instances are waiting, and once imageCache fires onCached those properties
--- get the real URI dropped in.
+
+
+
+
+
+
+
 
 local imageCache = require(script.Parent.imageCache)
 
 export type OnSettled   = imageCache.OnSettled
 export type AvatarReady = imageCache.AvatarReady
 
--- ── Module state ──────────────────────────────────────────────────────────────
+
 
 local image = {}
 
--- Expose the rewrite map so external callers (e.g. icon helpers) can read it.
+
 image.rewrites = imageCache.rewrites
 
--- Set this to intercept blocked/empty image assignments (optional telemetry hook).
+
 image.onBlock = nil :: ((value: unknown) -> ())?
 
--- Tracks instances waiting on a background download, keyed weakly on Instance
--- so destroyed UI doesn't stay pinned. Layout: pending[id][instance][property] = true
---
--- Weak-key metatable applied per id-slot so individual instances GC freely.
+
+
+
+
 image.pending = {} :: { [number]: { [Instance]: { [string]: boolean } } }
 
--- Once preload() fires onSettled nothing else can land, so we drop the table.
+
 local settled = false
 
--- Only these properties on ImageLabel / ImageButton take image URIs.
+
 local imageProperties: { [string]: boolean } = {
 	Image        = true,
 	HoverImage   = true,
 	PressedImage = true,
 }
 
--- ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 local function idOf(value: unknown): number?
 	if type(value) == "number" then return value end
@@ -9047,7 +9027,7 @@ local function blocked(value: unknown): string
 	return ""
 end
 
--- ── imageCache callback: rebind pending instances when a download lands ───────
+
 
 imageCache.onCached = function(id: number)
 	local waiting = image.pending[id]
@@ -9066,10 +9046,10 @@ imageCache.onCached = function(id: number)
 	image.pending[id] = nil
 end
 
--- ── Public API ────────────────────────────────────────────────────────────────
 
--- Kick off manifest pre-caching. onSettled(failed) fires once every background
--- download resolves. Returns (allAlreadyCached, missCount).
+
+
+
 function image.preload(manifest: { [number]: string }, onSettled: OnSettled?): (boolean, number)
 	settled = false
 	return imageCache.preload(manifest, function(failed)
@@ -9079,22 +9059,22 @@ function image.preload(manifest: { [number]: string }, onSettled: OnSettled?): (
 	end)
 end
 
--- Returns the custom asset URI for a user avatar headshot.
+
 function image.avatar(userId: number, onReady: AvatarReady?): string
 	return imageCache.avatar(userId, onReady)
 end
 
--- Resolves any image value to a string safe to assign to an image property:
---   number        → "rbxassetid://<n>"  (or rewrite URI if cached)
---   "rbxassetid://..." → rewrite URI if cached, else the string itself
---   "rbxasset://..."   → passthrough (built-in asset, always valid)
---   nil / 0 / "" → ""
+
+
+
+
+
 function image.resolve(value: unknown): string
 	if value == nil or value == 0 or value == "" then return "" end
 
 	if type(value) == "string" then
 		local s = value :: string
-		-- built-in assets: always valid, no disk needed
+		
 		if string.sub(s, 1, 11) == "rbxasset://" then return s end
 	end
 
@@ -9104,8 +9084,8 @@ function image.resolve(value: unknown): string
 		if rewrite then return rewrite end
 	end
 
-	-- Not yet cached. If we have no id at all (e.g. a bare URL string or
-	-- rbxthumb) we can't cache it, so just pass it through.
+	
+	
 	if type(value) == "number" then
 		return "rbxassetid://" .. tostring(value)
 	end
@@ -9116,9 +9096,9 @@ function image.resolve(value: unknown): string
 	return blocked(value)
 end
 
--- Assigns an image value to `property` on `instance`, queuing a rebind if the
--- image isn't cached yet so it appears automatically once the download lands.
--- For non-image properties (e.g. BackgroundColor3) this degrades to a direct set.
+
+
+
 function image.assign(instance: Instance, property: string, value: unknown)
 	local target = instance :: any
 
@@ -9129,14 +9109,14 @@ function image.assign(instance: Instance, property: string, value: unknown)
 
 	target[property] = image.resolve(value)
 
-	-- Queue a rebind if the image is missing from the rewrite map and
-	-- preload hasn't settled yet (after settle, nothing new will ever land).
+	
+	
 	if not settled then
 		local id = idOf(value)
 		if id and not image.rewrites[id] then
 			local slot = image.pending[id]
 			if not slot then
-				-- weak so destroyed instances don't pin this table forever
+				
 				slot = setmetatable({}, { __mode = "k" }) :: any
 				image.pending[id] = slot
 			end
@@ -9152,15 +9132,14 @@ end
 
 return image
 
-end)() end,
-    [30] = function()local wax,script,require=ImportGlobals(30)local ImportGlobals return (function(...)--!strict
+end)() end,[30]=function()local wax,script,require=ImportGlobals(30)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- imageCache.luau — Disk-backed PNG cache + avatar headshots.
--- Responsibility: take an image manifest ({ [id]: url }), write each PNG to
--- disk once, then expose getcustomasset URIs so Roblox accepts them without
--- going through the CDN firewall. The disk file is the persistence layer;
--- the LRU in assetFetcher is only the per-session fast path.
+
+
+
+
+
+
 
 local filesystem = require(script.Parent.filesystem)
 local AssetFetcher = require(script.Parent.assetFetcher)
@@ -9168,46 +9147,46 @@ local services    = require(script.Parent.services)
 
 local IS_STUDIO = services.getService("RunService"):IsStudio()
 
--- ── Types ─────────────────────────────────────────────────────────────────────
+
 
 export type RewriteMap  = { [number]: string }
 export type OnSettled   = (failed: number) -> ()
 export type OnCached    = (id: number) -> ()
 export type AvatarReady = (uri: string) -> ()
 
--- ── Module state ──────────────────────────────────────────────────────────────
+
 
 local CACHE_ROOT    = "Delirium"
 local CACHE_ASSETS  = "Delirium/Assets"
 
--- Thumbnail endpoint; 48 px matches Rayfield's headshotPx default.
+
 local THUMB_ENDPOINT =
 	"https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=%d&size=48x48&format=Png&isCircular=false"
 
 local PNG_MAGIC = "\137PNG\r\n\26\n"
 
--- Fetcher singleton shared by the whole module
+
 local fetcher = AssetFetcher.new()
 
 local imageCache = {}
 
--- rewrites[id] → "rbxtemp://..." URI string, once the file is on disk.
--- image.luau reads this table directly.
+
+
 imageCache.rewrites = {} :: RewriteMap
 
--- Set by image.luau after require() so it can rebind blank UI properties when
--- a background download lands.
+
+
 imageCache.onCached = nil :: OnCached?
 
--- ── Internal helpers ──────────────────────────────────────────────────────────
+
 
 local env = getfenv()
 
--- Writes `body` to disk at `filePath` and converts it to a custom asset URI.
--- Returns nil when:
---   • the executor has no getcustomasset / file API
---   • the body fails the PNG magic check (error page, HTML redirect)
---   • any disk write or getcustomasset call errors
+
+
+
+
+
 local function cacheFile(filePath: string, url: string, cacheKey: number | string): string?
 	if type(env.getcustomasset) ~= "function" or typeof(filesystem.isfile) ~= "function" then
 		return nil
@@ -9218,8 +9197,8 @@ local function cacheFile(filePath: string, url: string, cacheKey: number | strin
 		pcall(filesystem.ensureFolder, CACHE_ASSETS)
 
 		local body = fetcher:getContentFromUrl(url, cacheKey, false)
-		-- never write a non-PNG body — an error page cached to disk would shadow
-		-- the real asset on every subsequent session
+		
+		
 		if not body or string.sub(body, 1, 8) ~= PNG_MAGIC then
 			return nil
 		end
@@ -9236,8 +9215,8 @@ local function avatarFilePath(userId: number): string
 	return CACHE_ASSETS .. "/avatar_" .. tostring(userId) .. ".png"
 end
 
--- Parses the Roblox thumbnail API response, which is an unreliable mess, and
--- returns the CDN image URL or nil.
+
+
 local function decodeThumbnailUrl(body: string): string?
 	local services = require(script.Parent.services)
 	local httpService = services.getService("HttpService")
@@ -9255,8 +9234,8 @@ local function decodeThumbnailUrl(body: string): string?
 	return nil
 end
 
--- Polls the thumbnail API with up to 4 retries (state can be "Pending" on first hit)
--- then pipes the CDN URL through cacheFile.
+
+
 local function fetchAndCacheAvatar(userId: number): string?
 	local cdnUrl: string? = nil
 	for attempt = 1, 4 do
@@ -9276,21 +9255,21 @@ local function fetchAndCacheAvatar(userId: number): string?
 	return cacheFile(avatarFilePath(userId), cdnUrl, "avatar_" .. tostring(userId))
 end
 
--- ── Public API ────────────────────────────────────────────────────────────────
 
--- Preloads a manifest of images, writing each to disk in background tasks,
--- then fires onSettled(failed) once all downloads have resolved (failed = count
--- that never cached, so callers can log without per-icon noise).
---
--- manifest: { [id: number]: url: string }
--- Returns (allAlreadyCached: boolean, missCount: number).
+
+
+
+
+
+
+
 function imageCache.preload(manifest: { [number]: string }, onSettled: OnSettled?): (boolean, number)
 	local manifestSize = 0
 	for _ in manifest do manifestSize += 1 end
 
 	if IS_STUDIO then
-		-- No getcustomasset in Studio, but numeric ids resolve fine via
-		-- rbxassetid:// passthrough in image.resolve() — not a real failure.
+		
+		
 		if onSettled then task.defer(onSettled, 0) end
 		return true, 0
 	end
@@ -9314,7 +9293,7 @@ function imageCache.preload(manifest: { [number]: string }, onSettled: OnSettled
 
 	local pending  = 0
 	local missing  = 0
-	local spawning = true -- guard: stop a synchronous-finishing download from settling mid-loop
+	local spawning = true 
 
 	for id, url in manifest do
 		local filePath = CACHE_ASSETS .. "/" .. tostring(id) .. ".png"
@@ -9352,12 +9331,12 @@ function imageCache.preload(manifest: { [number]: string }, onSettled: OnSettled
 	return missing == 0, missing
 end
 
--- Returns a custom asset URI for a user's avatar headshot.
--- If onReady is provided the download runs in the background and the callback
--- fires with the URI once it lands; the return value is "" in the meantime.
+
+
+
 function imageCache.avatar(userId: number, onReady: AvatarReady?): string
-	-- Studio: no executor request fn exists, use rbxthumb:// directly.
-	-- This works in Studio and is visually identical to the disk-cached version.
+	
+	
 	if IS_STUDIO then
 		local uri = string.format(
 			"rbxthumb://type=AvatarHeadShot&id=%d&w=48&h=48",
@@ -9387,62 +9366,61 @@ end
 
 return imageCache
 
-end)() end,
-    [31] = function()local wax,script,require=ImportGlobals(31)local ImportGlobals return (function(...)--!strict
+end)() end,[31]=function()local wax,script,require=ImportGlobals(31)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- mediaService.luau — Single entry-point for external images and fonts.
--- Require this once in Init.lua (or wherever the library boots) and pass the
--- returned singleton around. Neither image.luau nor fontLoader.luau need to be
--- required directly by components — call through here.
---
--- Usage example (Init.lua):
---
---   local MediaService = require(script.utility.mediaService)
---
---   -- Optional: preload an icon manifest before the window opens so icons are
---   -- ready on first render. manifest = { [id: number]: url: string }
---   MediaService:preloadImages(MY_ICON_MANIFEST, function(failed)
---     if failed > 0 then
---       warn("[Delirium] " .. failed .. " icon(s) failed to cache")
---     end
---   end)
---
---   -- Assign an image to a GUI property (handles pending rebind automatically)
---   MediaService:assignImage(myLabel, "Image", 80384652)
---
---   -- Resolve an image to a URI string
---   local uri = MediaService:resolveImage(80384652)
---
---   -- Load an external font by manifest asset id (e.g. an Inter manifest)
---   local inter = MediaService:loadFont(123456789, {
---     weight = Enum.FontWeight.SemiBold,
---     style  = Enum.FontStyle.Normal,
---   })
---   myLabel.FontFace = inter or Font.fromEnum(Enum.Font.SourceSans)
---
---   -- Avatar headshots
---   local uri = MediaService:avatar(userId, function(resolved)
---     myLabel.Image = resolved
---   end)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 local image      = require(script.Parent.image)
 local FontLoader = require(script.Parent.fontLoader)
 
--- ── Singleton ─────────────────────────────────────────────────────────────────
+
 
 local MediaService = {}
 MediaService.__index = MediaService
 
--- One FontLoader instance shared across all font requests so the memory cache
--- is global and a font never downloads twice in the same session.
+
+
 local fontLoader = FontLoader.new()
 
--- ── Image API ─────────────────────────────────────────────────────────────────
 
--- Kick off background caching of all images in `manifest`.
--- manifest: { [id: number]: url: string }
--- onSettled(failed) fires when every download has resolved.
+
+
+
+
 function MediaService:preloadImages(
 	manifest:   { [number]: string },
 	onSettled:  ((failed: number) -> ())?
@@ -9450,42 +9428,42 @@ function MediaService:preloadImages(
 	return image.preload(manifest, onSettled)
 end
 
--- Assigns `value` (id, rbxassetid string, or number) to `instance[property]`,
--- with an automatic rebind queued if the file hasn't cached yet.
+
+
 function MediaService:assignImage(instance: Instance, property: string, value: unknown)
 	image.assign(instance, property, value)
 end
 
--- Resolves `value` to a URI string; returns "" if the asset isn't available yet.
+
 function MediaService:resolveImage(value: unknown): string
 	return image.resolve(value)
 end
 
--- Hooks into the onBlock callback so you can surface missed images.
+
 function MediaService:setOnBlock(fn: (value: unknown) -> ())
 	image.onBlock = fn
 end
 
--- ── Avatar API ────────────────────────────────────────────────────────────────
 
--- Returns a custom asset URI for a user's headshot if already on disk.
--- If not yet cached, fires `onReady(uri)` when the download lands.
+
+
+
 function MediaService:avatar(userId: number, onReady: ((uri: string) -> ())?): string
 	return image.avatar(userId, onReady)
 end
 
--- ── Font API ──────────────────────────────────────────────────────────────────
 
--- Loads an external font by Roblox asset id (the manifest JSON asset).
--- Returns a Font object or opts.fallback / SourceSans on any failure.
---
--- opts: {
---   weight:     Enum.FontWeight  (default Regular)
---   style:      Enum.FontStyle   (default Normal)
---   saveToDisk: boolean          (default true — false degrades to fallback)
---   skipCache:  boolean          (default false)
---   fallback:   Font             (default SourceSans)
--- }
+
+
+
+
+
+
+
+
+
+
+
 function MediaService:loadFont(
 	id:   number | string,
 	opts: {
@@ -9499,21 +9477,21 @@ function MediaService:loadFont(
 	return fontLoader:load(id, opts)
 end
 
--- Quick lookup: returns the cached Font for an id (any variant), nil if not loaded.
+
 function MediaService:resolveFont(id: number | string): Font?
 	return fontLoader:resolve(id)
 end
 
--- Assigns a font to instance[property] and registers an auto-rebind so the
--- property updates automatically once the download lands — no restart needed.
---
--- Usage:
---   MediaService:bindFont(myLabel, "FontFace", 12187277209, {
---     weight = Enum.FontWeight.SemiBold,
---   })
---
--- Every call to bindFont with the same id shares one background load task.
--- Instances that are destroyed before the font lands are silently skipped.
+
+
+
+
+
+
+
+
+
+
 function MediaService:bindFont(
 	instance: Instance,
 	property: string,
@@ -9530,21 +9508,20 @@ end
 
 return MediaService
 
-end)() end,
-    [32] = function()local wax,script,require=ImportGlobals(32)local ImportGlobals return (function(...)--!strict
+end)() end,[32]=function()local wax,script,require=ImportGlobals(32)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- network.luau — Executor HTTP request function detection.
--- Probes the executor environment for a usable request fn in priority order.
--- Every module that needs to hit the network goes through this; never call
--- syn.request or http_request raw — executors disagree on which name exists.
+
+
+
+
+
 
 local network = {}
 
 export type RequestFn = (...any) -> any
 
--- Returns the first callable request fn found in the given environment,
--- or nil when the executor exposes none (e.g. non-network environments).
+
+
 function network.getRequestFn(env: any?): RequestFn?
 	env = env or getfenv()
 	return env.request
@@ -9556,20 +9533,19 @@ end
 
 return network
 
-end)() end,
-    [33] = function()local wax,script,require=ImportGlobals(33)local ImportGlobals return (function(...)--!strict
+end)() end,[33]=function()local wax,script,require=ImportGlobals(33)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- runtime.luau — Platform detection and cached service references.
--- Singleton. All other modules consume this via variables.luau (which extends it).
+
+
+
 
 local services = require(script.Parent.services)
 
 export type RuntimeState = {
-	-- true when DELIRIUM_SECURE is set in getgenv(); toggles asset proxy caching
+	
 	secureMode: boolean,
 
-	-- Cached Roblox services (cloneref-safe)
+	
 	coreGui: CoreGui,
 	workspace: Workspace,
 	runService: RunService,
@@ -9583,13 +9559,13 @@ export type RuntimeState = {
 
 	localPlayer: Player?,
 
-	-- Where ScreenGuis are parented. gethui() > CoreGui fallback.
+	
 	guiContainer: Instance,
 }
 
 local runtime = {} :: RuntimeState
 
--- Secure mode: executor sets getgenv().DELIRIUM_SECURE = true before requiring
+
 runtime.secureMode = (function(): boolean
 	if typeof(getgenv) ~= "function" then
 		return false
@@ -9612,8 +9588,20 @@ runtime.contextActionService = services.getService("ContextActionService") :: Co
 runtime.replicatedStorage    = services.getService("ReplicatedStorage") :: ReplicatedStorage
 runtime.localPlayer       = (services.getService("Players") :: Players).LocalPlayer
 
--- Resolve the best parent container for ScreenGuis.
--- Studio → PlayerGui. Exploit → gethui(). Fallback → CoreGui.
+
+
+runtime.isTouchOnly = (function(): boolean
+	local uis = runtime.userInputService
+	if not uis.TouchEnabled then return false end
+	if uis.KeyboardEnabled then return false end
+	
+	local cam = runtime.workspace.CurrentCamera
+	if cam and cam.ViewportSize.X < 600 then return true end
+	return true
+end)() :: boolean
+
+
+
 runtime.guiContainer = (function(): Instance
 	if runtime.runService:IsStudio() then
 		return (runtime.localPlayer :: Player).PlayerGui
@@ -9629,32 +9617,31 @@ end)()
 
 return runtime
 
-end)() end,
-    [34] = function()local wax,script,require=ImportGlobals(34)local ImportGlobals return (function(...)--!strict
+end)() end,[34]=function()local wax,script,require=ImportGlobals(34)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- saveManager.luau — Flag persistence layer.
---
--- Wraps flags.luau (runtime) + filesystem.luau (disk) into a save/load system.
--- Components register set-callbacks via Register() so Load() can push values back
--- into the UI. Save() snapshots flags:GetAll() so no component coordination is
--- needed on the write side — flags are the source of truth.
---
--- Profile API:
---   SaveManager:SetFolder(name)              -- change root folder (call before Load/Save)
---   SaveManager:Register(flag, set)          -- called by components; set(v) applies without firing callback
---   SaveManager:Save(profileName?)           -- serialize all flags → disk (atomic)
---   SaveManager:Load(profileName?)           -- deserialize disk → flags + registered setters
---   SaveManager:List()                       -- { string } of saved profile names
---   SaveManager:Delete(profileName)          -- remove one profile from disk
---   SaveManager:BuildConfigTab(window)       -- auto-builds a "Config" tab with full UI
---   SaveManager:SetAutoSaveInterval(secs)    -- override auto-save interval (default 30s)
---   SaveManager.deriveFlagFromName(s)        -- "My Toggle" → "my_toggle"
---   SaveManager._scheduleAutoSave()          -- debounced 0.5s auto-save; call after flag changes
---
--- Atomic write:
---   Write to <file>.saving → verify read-back → promote to real path → delete temp.
---   A crash mid-write leaves the .saving copy; Load() and List() both ignore it.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 local filesystem  = require(script.Parent.filesystem)
 local flags       = require(script.Parent.flags)
@@ -9662,7 +9649,7 @@ local services    = require(script.Parent.services)
 
 local HttpService = services.getService("HttpService") :: HttpService
 
--- ── Types ─────────────────────────────────────────────────────────────────────
+
 
 type SetCallback  = (value: any) -> ()
 type FlagEntry    = { set: SetCallback }
@@ -9680,7 +9667,7 @@ export type SaveManager = {
 	deriveFlagFromName:    (label: string) -> string,
 }
 
--- ── Module state ──────────────────────────────────────────────────────────────
+
 
 local SaveManager   = {} :: any
 SaveManager.__index = SaveManager
@@ -9692,15 +9679,15 @@ local _folder      : string  = "Delirium"
 local _loading     : boolean = false
 local _savePending : boolean = false
 
--- auto-save state
+
 local _autoEnabled  : boolean = false
 local _autoInterval : number  = 30
 local _autoThread   : thread? = nil
 local _getAutoProfile : (() -> string)? = nil
 
--- ── Helpers ───────────────────────────────────────────────────────────────────
 
--- FNV-1a 32-bit hash — stable fallback for non-ASCII labels.
+
+
 local function fnv1a(s: string): number
 	local h: number = 2166136261
 	for i = 1, #s do
@@ -9715,7 +9702,7 @@ local function profilePath(name: string?): string
 	return _folder .. "/" .. n .. ".json"
 end
 
--- Serialize EnumItems (KeyCode etc.) to survive JSON round-trips.
+
 local function serializeValue(v: any): any
 	if typeof(v) == "EnumItem" then
 		return { __enumType = tostring(v.EnumType), __name = v.Name }
@@ -9740,8 +9727,8 @@ local function deserializeValue(v: any): any
 	return v
 end
 
--- Atomic write: stage → verify → promote → delete temp.
--- FIX: was leaving name.json.saving on disk alongside name.json.
+
+
 local function atomicWrite(path: string, content: string): boolean
 	local tempPath = path .. ".saving"
 
@@ -9750,7 +9737,7 @@ local function atomicWrite(path: string, content: string): boolean
 	local wOk = pcall(filesystem.writefile, tempPath, content)
 	if not wOk then return false end
 
-	-- Verify read-back before promoting (guards against partial writes).
+	
 	local rOk, readBack = pcall(filesystem.readfile, tempPath)
 	if not rOk or readBack ~= content then
 		pcall(filesystem.delfile, tempPath)
@@ -9759,14 +9746,17 @@ local function atomicWrite(path: string, content: string): boolean
 
 	local promOk = pcall(filesystem.writefile, path, content)
 
-	-- Always remove the temp — whether promote succeeded or not.
-	-- This is the line that was missing, causing the double-file bug.
+	
+	
 	pcall(filesystem.delfile, tempPath)
 
 	return promOk
 end
 
--- ── Auto-save internals ───────────────────────────────────────────────────────
+
+
+
+
 
 local function stopAutoSave()
 	if _autoThread then
@@ -9791,11 +9781,11 @@ local function startAutoSave(getProfile: () -> string)
 	end)
 end
 
--- ── Public API ────────────────────────────────────────────────────────────────
 
--- Derives a deterministic flag key from a human-readable label.
--- ASCII: lowercase, spaces → underscore, strip non-alphanumeric, cap at 48 chars.
--- Non-ASCII / empty-after-sanitize: FNV-1a hash → "Flag%08x".
+
+
+
+
 function SaveManager.deriveFlagFromName(label: string): string
 	if #label == 0 then return "" end
 	local sanitized = label
@@ -9807,21 +9797,21 @@ function SaveManager.deriveFlagFromName(label: string): string
 	return string.format("Flag%08x", fnv1a(label))
 end
 
--- Change the root folder. Must be called before Load/Save.
+
 function SaveManager:SetFolder(name: string)
 	_folder = name
 end
 
--- Override the auto-save interval in seconds (default: 30).
--- Call before BuildConfigTab or before the user enables the toggle.
+
+
 function SaveManager:SetAutoSaveInterval(seconds: number)
 	_autoInterval = seconds
 end
 
--- Register a component's setter for a flag.
--- set(value) must apply the value without firing the component's Changed callback
--- (to avoid triggering an autoSave loop while loading).
--- If Load() already ran and this flag had a stored value, it is applied immediately.
+
+
+
+
 function SaveManager:Register(flag: string, set: SetCallback)
 	_registry[flag] = { set = set }
 
@@ -9832,9 +9822,9 @@ function SaveManager:Register(flag: string, set: SetCallback)
 	end
 end
 
--- Serialize all current flags to JSON and write atomically.
--- profileName defaults to "flags" → Delirium/flags.json.
--- Flags in _ignored (including internal Config-tab flags) are skipped.
+
+
+
 function SaveManager:Save(profileName: string?)
 	local snapshot = flags:GetAll()
 	local data: { [string]: any } = {}
@@ -9852,9 +9842,9 @@ function SaveManager:Save(profileName: string?)
 	atomicWrite(profilePath(profileName), encoded)
 end
 
--- Read from disk and push values into flags + registered setters.
--- Flags with no registered setter are held in _pendingLoad and applied
--- the moment their component calls Register().
+
+
+
 function SaveManager:Load(profileName: string?)
 	local path = profilePath(profileName)
 
@@ -9887,8 +9877,8 @@ function SaveManager:Load(profileName: string?)
 	_loading = false
 end
 
--- Returns a list of all profile names in the folder.
--- Filters out .saving temps and non-.json files.
+
+
 function SaveManager:List(): { string }
 	local names: { string } = {}
 	pcall(function()
@@ -9897,8 +9887,8 @@ function SaveManager:List(): { string }
 		for _, path in files do
 			local normalized = path:gsub("\\", "/")
 			local filename   = normalized:match("([^/]+)$") or ""
-			-- skip any .saving leftover — should be none after the atomicWrite fix,
-			-- but guard anyway so List() is always clean.
+			
+			
 			if filename:match("%.saving$") then continue end
 			local name = filename:match("^(.+)%.json$")
 			if name then
@@ -9910,7 +9900,7 @@ function SaveManager:List(): { string }
 	return names
 end
 
--- Delete a named profile. Silent if the file doesn't exist.
+
 function SaveManager:Delete(profileName: string)
 	if not profileName or #profileName == 0 then return end
 	pcall(function()
@@ -9920,8 +9910,8 @@ function SaveManager:Delete(profileName: string)
 	end)
 end
 
--- Debounced auto-save — call after any flag change to persist 0.5s later.
--- Skipped when Load() is running to avoid looping saves during restore.
+
+
 function SaveManager:_scheduleAutoSave()
 	if _loading then return end
 	if _savePending then return end
@@ -9932,19 +9922,19 @@ function SaveManager:_scheduleAutoSave()
 	end)
 end
 
--- ── BuildConfigTab ────────────────────────────────────────────────────────────
--- Creates a "Config" tab on the given Window with a full config management UI:
---   • Profile name input
---   • Saved profiles dropdown
---   • Save / Load / Delete buttons
---   • Auto-save toggle (on/off, uses _autoInterval)
---
--- Internal flags (__SM_*) are added to _ignored so they're never written to disk.
---
--- Usage (in your script, after CreateWindow):
---   SaveManager:BuildConfigTab(Window)
+
+
+
+
+
+
+
+
+
+
+
 function SaveManager:BuildConfigTab(window: any)
-	-- Mark internal flags as ignored so they're never serialized
+	
 	_ignored["__SM_ProfileName"] = true
 	_ignored["__SM_ProfileList"] = true
 	_ignored["__SM_AutoSave"]    = true
@@ -9959,7 +9949,7 @@ function SaveManager:BuildConfigTab(window: any)
 
 	col:CreateSection({ name = "Configuration" })
 
-	-- ── Profile name input ────────────────────────────────────────────────────
+	
 	local nameInput = col:CreateInput({
 		name         = "Profile Name",
 		placeholder  = "flags  (default)",
@@ -9973,7 +9963,7 @@ function SaveManager:BuildConfigTab(window: any)
 		return if v and #(v :: string) > 0 then v :: string else "flags"
 	end
 
-	-- ── Saved profiles dropdown ───────────────────────────────────────────────
+	
 	local profilesDD = col:CreateDropdown({
 		name        = "Saved Profiles",
 		options     = self:List(),
@@ -9991,7 +9981,7 @@ function SaveManager:BuildConfigTab(window: any)
 		dd:SetOptions(self:List())
 	end
 
-	-- ── Save ──────────────────────────────────────────────────────────────────
+	
 	col:CreateButton({
 		name        = "Save",
 		description = "Write all flags to the named profile on disk.",
@@ -10003,7 +9993,7 @@ function SaveManager:BuildConfigTab(window: any)
 		end,
 	})
 
-	-- ── Load ──────────────────────────────────────────────────────────────────
+	
 	col:CreateButton({
 		name        = "Load",
 		description = "Restore flags from the selected profile and sync UI.",
@@ -10014,7 +10004,7 @@ function SaveManager:BuildConfigTab(window: any)
 		end,
 	})
 
-	-- ── Delete ────────────────────────────────────────────────────────────────
+	
 	col:CreateButton({
 		name        = "Delete",
 		description = "Permanently remove the named profile from disk.",
@@ -10026,7 +10016,7 @@ function SaveManager:BuildConfigTab(window: any)
 		end,
 	})
 
-	-- ── Auto-save toggle ──────────────────────────────────────────────────────
+	
 	col:CreateToggle({
 		name        = "Auto Save",
 		description = "Automatically saves every " .. tostring(_autoInterval) .. " seconds.",
@@ -10047,14 +10037,20 @@ function SaveManager:BuildConfigTab(window: any)
 	})
 end
 
+
+
+
+function SaveManager:StopAutoSave()
+	stopAutoSave()
+end
+
 return SaveManager
 
-end)() end,
-    [35] = function()local wax,script,require=ImportGlobals(35)local ImportGlobals return (function(...)--!strict
+end)() end,[35]=function()local wax,script,require=ImportGlobals(35)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- services.luau — Thin wrapper around game:GetService with cloneref guard.
--- Every service in Delirium is fetched through here; never call game:GetService raw.
+
+
+
 
 local services = {}
 
@@ -10065,18 +10061,17 @@ end
 
 return services
 
-end)() end,
-    [36] = function()local wax,script,require=ImportGlobals(36)local ImportGlobals return (function(...)--!strict
+end)() end,[36]=function()local wax,script,require=ImportGlobals(36)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- signal.luau — Lightweight typed signal / event system.
---
--- Usage:
---   local sig = Signal.new()
---   local conn = sig:Connect(function(value) print(value) end)
---   sig:Fire("hello")
---   conn:Disconnect()
---   sig:Destroy()
+
+
+
+
+
+
+
+
+
 
 export type Connection = {
 	Connected: boolean,
@@ -10086,7 +10081,7 @@ export type Connection = {
 export type Signal<T...> = {
 	Connect:      (self: Signal<T...>, fn: (T...) -> ()) -> Connection,
 	Once:         (self: Signal<T...>, fn: (T...) -> ()) -> Connection,
-	Fire:         (self: Signal<T...>, T...) -> (),
+	Fire:         (self: Signal<T...>,T...) -> (),
 	Wait:         (self: Signal<T...>) -> T...,
 	DisconnectAll:(self: Signal<T...>) -> (),
 	Destroy:      (self: Signal<T...>) -> (),
@@ -10146,11 +10141,11 @@ end
 
 function Signal:Fire(...: any)
 	if self._destroyed then return end
-	-- Snapshot to handle mutations during iteration
+	
 	local snapshot = table.clone(self._listeners)
 	for _, entry in snapshot do
 		if entry.once then
-			-- Remove from live list before calling
+			
 			for i = #self._listeners, 1, -1 do
 				if self._listeners[i] == entry then
 					table.remove(self._listeners, i)
@@ -10181,40 +10176,39 @@ end
 
 return Signal
 
-end)() end,
-    [37] = function()local wax,script,require=ImportGlobals(37)local ImportGlobals return (function(...)--!strict
+end)() end,[37]=function()local wax,script,require=ImportGlobals(37)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- theme.luau — Theme resolution, merging, validation, diffing, and broadcast.
---
--- ARCHITECTURE NOTE:
--- theme.apply() (pass-bindings style) is kept for backwards compat but is NOT
--- how live ChangeTheme propagation should work — it requires the caller to
--- collect every component's binding list manually, which means anything that
--- wasn't explicitly passed gets skipped.
---
--- The correct pattern is the subscriber registry:
---
---   Component constructor:
---     local unsub = theme.subscribe(function(t)
---         label.TextColor3 = t.ContentColor
---         frame.BackgroundColor3 = t.ElementStroke
---     end)
---
---   Component destructor / Destroy():
---     unsub()
---
---   Window ChangeTheme:
---     local resolved = theme.resolve(input)
---     theme.broadcast(resolved)
---
--- Every subscribed component gets the new theme simultaneously. Nothing slips.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 local defaultTheme = require(script.Parent.Parent.themes.default)
 local lightTheme   = require(script.Parent.Parent.themes.light)
 local draculaTheme = require(script.Parent.Parent.themes.dracula)
 
--- ── Types ─────────────────────────────────────────────────────────────────────
+
 
 export type ThemeTable      = { [string]: any }
 export type ThemeInput      = string | ThemeTable
@@ -10234,7 +10228,7 @@ export type ValidationResult = {
 
 export type DiffResult = { [string]: { from: any, to: any } }
 
--- ── Private state ─────────────────────────────────────────────────────────────
+
 
 local _registry: { [string]: ThemeTable } = {
 	Default = defaultTheme,
@@ -10247,33 +10241,33 @@ for name in _registry do
 	_lower[string.lower(name)] = name
 end
 
--- Subscriber registry. Key = unique auto-incremented id.
+
 local _subscribers: { [number]: ThemeListener } = {}
 local _nextId = 0
 
--- Last broadcast theme, so late-subscribing components can pull it immediately.
+
 local _current: ThemeTable = table.clone(defaultTheme)
 
--- ── Internal ──────────────────────────────────────────────────────────────────
+
 
 local function _canonicalName(name: string): string?
 	if _registry[name] then return name end
 	return _lower[string.lower(name)]
 end
 
--- ── Public API ────────────────────────────────────────────────────────────────
+
 
 local theme = {}
 
---[[
-	resolve(input?)
 
-	Returns a fully populated ThemeTable (always a fresh copy).
 
-	  nil          → clone of Default
-	  string       → Default merged with named variant (case-insensitive)
-	  ThemeTable   → Default merged with the partial table
-]]
+
+
+
+
+
+
+
 function theme.resolve(input: ThemeInput?): ThemeTable
 	if input == nil then
 		return table.clone(defaultTheme)
@@ -10288,19 +10282,19 @@ function theme.resolve(input: ThemeInput?): ThemeTable
 		if canonical == "Default" then
 			return table.clone(defaultTheme)
 		end
-		-- Variant themes are partial overrides — always merge onto Default.
+		
 		return theme.merge(defaultTheme, _registry[canonical])
 	end
 
 	return theme.merge(defaultTheme, input :: ThemeTable)
 end
 
---[[
-	merge(base, override)
 
-	Shallow-merges `override` on top of `base`. Returns a new table.
-	Theme values are leaf scalars or opaque Roblox types — no deep merge needed.
-]]
+
+
+
+
+
 function theme.merge(base: ThemeTable, override: ThemeTable): ThemeTable
 	local result = table.clone(base)
 	for k, v in override do
@@ -10309,28 +10303,28 @@ function theme.merge(base: ThemeTable, override: ThemeTable): ThemeTable
 	return result
 end
 
---[[
-	subscribe(listener)
 
-	Registers a callback that fires whenever theme.broadcast() is called.
-	The listener is called immediately with the current theme so the component
-	initialises correctly without a separate apply() call.
 
-	Returns an Unsubscribe function — call it in the component's Destroy/cleanup.
 
-	  local unsub = theme.subscribe(function(t)
-	      frame.BackgroundColor3 = t.ElementStroke
-	      label.TextColor3       = t.ContentColor
-	  end)
-	  -- later:
-	  unsub()
-]]
+
+
+
+
+
+
+
+
+
+
+
+
+
 function theme.subscribe(listener: ThemeListener): Unsubscribe
 	_nextId += 1
 	local id = _nextId
 	_subscribers[id] = listener
 
-	-- Fire immediately so the component gets the current theme on creation.
+	
 	listener(_current)
 
 	return function()
@@ -10338,17 +10332,17 @@ function theme.subscribe(listener: ThemeListener): Unsubscribe
 	end
 end
 
---[[
-	broadcast(resolved)
 
-	Pushes a resolved theme to every registered subscriber.
-	Call this inside Window:ChangeTheme() after resolving the new input.
 
-	  function Window:ChangeTheme(input: ThemeInput)
-	      local resolved = theme.resolve(input)
-	      theme.broadcast(resolved)
-	  end
-]]
+
+
+
+
+
+
+
+
+
 function theme.broadcast(resolved: ThemeTable)
 	_current = resolved
 	for _, listener in _subscribers do
@@ -10359,24 +10353,24 @@ function theme.broadcast(resolved: ThemeTable)
 	end
 end
 
---[[
-	current()
 
-	Returns the last broadcasted theme table. Read-only reference —
-	do not mutate. Useful for one-shot reads without subscribing.
-]]
+
+
+
+
+
 function theme.current(): ThemeTable
 	return _current
 end
 
---[[
-	apply(resolved, bindings)
 
-	Legacy/manual apply. Kept for backwards compat.
-	Prefer subscribe() + broadcast() for live theme switching.
 
-	Warns on unknown binding keys to catch typos early.
-]]
+
+
+
+
+
+
 function theme.apply(resolved: ThemeTable, bindings: BindingList)
 	for _, b in bindings do
 		local val = resolved[b.key]
@@ -10388,13 +10382,13 @@ function theme.apply(resolved: ThemeTable, bindings: BindingList)
 	end
 end
 
---[[
-	registerTheme(name, input)
 
-	Adds a named theme to the runtime registry.
-	Partial override tables and full tables both work.
-	Cannot overwrite "Default".
-]]
+
+
+
+
+
+
 function theme.registerTheme(name: string, input: ThemeInput)
 	if name == "Default" then
 		warn('[Delirium] theme.registerTheme: cannot overwrite "Default".')
@@ -10415,10 +10409,10 @@ function theme.registerTheme(name: string, input: ThemeInput)
 	_lower[string.lower(name)] = name
 end
 
---[[
-	list()
-	Returns sorted array of all registered theme names.
-]]
+
+
+
+
 function theme.list(): { string }
 	local names: { string } = {}
 	for name in _registry do
@@ -10428,28 +10422,28 @@ function theme.list(): { string }
 	return names
 end
 
---[[
-	isTheme(name)
-	True when `name` resolves to a registered theme (case-insensitive).
-]]
+
+
+
+
 function theme.isTheme(name: string): boolean
 	return _canonicalName(name) ~= nil
 end
 
---[[
-	extend(baseName, override)
-	Resolve `baseName`, merge `override` on top, return result.
-	Does not register — use registerTheme() to save it.
-]]
+
+
+
+
+
 function theme.extend(baseName: string, override: ThemeTable): ThemeTable
 	return theme.merge(theme.resolve(baseName), override)
 end
 
---[[
-	validate(t)
-	Checks `t` against Default's key set.
-	Returns { missing, unknown } arrays.
-]]
+
+
+
+
+
 function theme.validate(t: ThemeTable): ValidationResult
 	local missing: { string } = {}
 	local unknown: { string } = {}
@@ -10466,11 +10460,11 @@ function theme.validate(t: ThemeTable): ValidationResult
 	return { missing = missing, unknown = unknown }
 end
 
---[[
-	diff(a, b)
-	Returns keys that differ between two theme tables.
-	{ [key] = { from = a[key], to = b[key] } }
-]]
+
+
+
+
+
 function theme.diff(a: ThemeTable, b: ThemeTable): DiffResult
 	local result: DiffResult = {}
 	local seen: { [string]: boolean } = {}
@@ -10488,19 +10482,18 @@ function theme.diff(a: ThemeTable, b: ThemeTable): DiffResult
 end
 
 return theme
-end)() end,
-    [38] = function()local wax,script,require=ImportGlobals(38)local ImportGlobals return (function(...)--!strict
+end)() end,[38]=function()local wax,script,require=ImportGlobals(38)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- tween.luau — Convenience wrappers around TweenService.
--- All tweens in Delirium are created through here so cleanup is consistent.
+
+
+
 
 local runtime   = require(script.Parent.runtime)
 local constants = require(script.Parent.constants)
 
 local tween = {}
 
--- Create and play a tween. Returns the Tween instance (for chaining or cancelling).
+
 function tween.play(
 	instance: Instance,
 	tweenInfo: TweenInfo,
@@ -10511,8 +10504,8 @@ function tween.play(
 	return t
 end
 
--- Tween a property and destroy the Tween object once it completes.
--- Use this for fire-and-forget transitions where you don't need the handle.
+
+
 function tween.fire(
 	instance: Instance,
 	tweenInfo: TweenInfo,
@@ -10525,7 +10518,7 @@ function tween.fire(
 	end)
 end
 
--- Cancel a tween if it's still running, then destroy it.
+
 function tween.cancel(t: Tween?)
 	if t then
 		t:Cancel()
@@ -10533,8 +10526,8 @@ function tween.cancel(t: Tween?)
 	end
 end
 
--- Tween transparency to 0 (fully visible) then back to 1 (transparent) — pulse effect.
--- Returns both tweens so they can be cancelled.
+
+
 function tween.pulse(
 	instance: GuiObject,
 	tweenIn: TweenInfo,
@@ -10551,7 +10544,7 @@ function tween.pulse(
 	return fadeIn, fadeOut
 end
 
--- Pill resize helper (for Input and Keybind dynamic width hugging)
+
 function tween.resizePill(
 	instance: GuiObject,
 	targetSize: UDim2,
@@ -10567,68 +10560,69 @@ end
 
 return tween
 
-end)() end,
-    [39] = function()local wax,script,require=ImportGlobals(39)local ImportGlobals return (function(...)--!strict
+end)() end,[39]=function()local wax,script,require=ImportGlobals(39)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- variables.luau — Shared mutable state singleton.
--- Extends runtime with library-wide state that components and utility modules read.
--- This is the single source of truth for anything that changes at runtime
--- (active theme, current font, etc.).
+
+
+
+
+
 
 local runtime  = require(script.Parent.runtime)
 local constants = require(script.Parent.constants)
 
 export type VariablesState = typeof(runtime) & {
-	-- Active theme table (resolved, full copy)
+	
 	activeTheme: { [string]: any },
 
-	-- Primary and title fonts (can be swapped by ChangeTheme)
+	
 	font:      Font,
 	titleFont: Font,
+
+	
+	isTouchOnly: boolean,
 }
 
--- Clone the runtime fields into our mutable state table
+
 local variables: VariablesState = table.clone(runtime) :: any
 
--- Default fonts — GothamSSm is the Roblox brand font used as Delirium default
--- (same asset as Rayfield). Swap here or via ChangeTheme's Font/TitleFont keys.
+
+
 variables.font      = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium)
 variables.titleFont = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.SemiBold)
 
--- ── Shared mutable state ────────────────────────────────────────────────────
 
--- Active theme starts nil; init.luau calls theme.resolve() on CreateWindow
+
+
 variables.activeTheme = {} :: { [string]: any }
 
--- Current UI scale relative to the desktop reference (1366×768).
--- Updated by Window:_applyWindowSize() on every viewport change.
--- Notification and other floating layers read this at creation time.
+
+
+
 variables.uiScale = 1.0
 
--- True while the settings panel is open; component hover handlers check this
--- to suppress visual feedback when input is blocked by the modal overlay.
+
+
 variables.settingsOpen = false
 
 return variables
 
-end)() end,
-    [40] = function()local wax,script,require=ImportGlobals(40)local ImportGlobals return (function(...)--!strict
+end)() end,[40]=function()local wax,script,require=ImportGlobals(40)local ImportGlobals return (function(...)
 
--- Delirium UI Library
--- windowSizing.luau — Responsive window sizing against the active viewport.
--- Ported from Rayfield Gen2 (windowSizing.luau) and tuned for Delirium's layout.
---
--- fit(viewport) returns a UDim2.fromOffset(w, h) that:
---   • never exceeds 86% width / 80% height of the screen
---   • never drops below a pixel floor margin (20px x, 24px y)
---   • is capped at defaultSize on large screens
---   • scales down freely on small screens (no minSize floor that could exceed viewport)
---   • compensates width when height is forced down (so a short screen earns width back)
---   • returns the default size for any implausible viewport (camera mid-init, 1x1 reports)
---
--- computeScale(viewport) returns a 0–1 scale factor relative to a 1366×768 desktop
--- reference. Used by variables.uiScale and notification.luau to scale floating layers.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 local constants = require(script.Parent.constants)
 
@@ -10637,31 +10631,31 @@ local windowSizing = {}
 local defaultSize = constants.windowSize
 local minSize     = constants.windowMinSize
 
--- Fraction of the viewport each axis is allowed to consume.
--- Vertical is tighter so the window never reads as filling the screen.
+
+
 local maxOccupancyX, maxOccupancyY = 0.86, 0.80
 
--- Pixel floors: on a large monitor these dominate and give a margin.
--- On small screens the occupancy caps take over instead.
+
+
 local marginFloorX, marginFloorY = 20, 24
 
--- When a short screen forces height down from the default, the window earns
--- extra width proportional to how much height it lost, capped by the aspect ceiling.
+
+
 local widthCompensation = 60
 local maxAspectRatio    = 1.80
 
--- Any axis below this is treated as a stale camera report. Skip sizing.
+
 local minPlausibleViewport = 200
 
--- Desktop reference for computeScale(). 1366×768 = 1.0.
+
 local REFERENCE = Vector2.new(1366, 768)
 
 windowSizing.defaultSize = defaultSize
 windowSizing.minSize     = minSize
 
--- Fraction of height lost relative to the full default→min range. 0 = nothing lost.
--- NOTE: on screens smaller than minSize.Y this exceeds 1.0; that is intentional—
--- the width compensation is then capped by availableX downstream.
+
+
+
 local function heightDeficit(height: number): number
 	return math.clamp(
 		(defaultSize.Y - height) / (defaultSize.Y - minSize.Y),
@@ -10669,8 +10663,8 @@ local function heightDeficit(height: number): number
 	)
 end
 
--- Returns the UDim2 size Delirium should use for the given viewport.
--- Pass nil (or an implausible viewport) to get the unmodified default.
+
+
 function windowSizing.fit(viewport: Vector2?): UDim2
 	if not viewport
 		or viewport.X < minPlausibleViewport
@@ -10682,24 +10676,24 @@ function windowSizing.fit(viewport: Vector2?): UDim2
 	local availableX = math.min(viewport.X * maxOccupancyX, viewport.X - marginFloorX)
 	local availableY = math.min(viewport.Y * maxOccupancyY, viewport.Y - marginFloorY)
 
-	-- Height: cap at defaultSize but NEVER clamp up to minSize — on a phone screen
-	-- where availableY < minSize.Y, the old clamp would produce a window taller than
-	-- the viewport. Let it shrink freely; minSize is only a soft hint on large screens.
+	
+	
+	
 	local height = math.floor(math.min(availableY, defaultSize.Y))
 
 	local deficit = heightDeficit(height)
 	local width   = math.max(defaultSize.X + widthCompensation * deficit, minSize.X)
 
-	-- Hard limits: screen edge and aspect ceiling.
+	
 	width = math.floor(math.min(width, availableX, height * maxAspectRatio))
 
 	return UDim2.fromOffset(width, height)
 end
 
--- Returns a 0–1 UI scale factor proportional to the current viewport relative to
--- the 1366×768 desktop reference. Clamped: never above 1.0 (desktop doesn't zoom),
--- never below 0.45 (smallest practical usable size).
--- Consumers: variables.uiScale (updated by Window), notification.luau.
+
+
+
+
 function windowSizing.computeScale(viewport: Vector2?): number
 	if not viewport
 		or viewport.X < minPlausibleViewport
@@ -10714,355 +10708,27 @@ end
 
 return windowSizing
 
-end)() end
-} -- [RefId] = Closure
+end)() end} 
 
--- Holds the actual DOM data
-local ObjectTree = {
-    {
-        1,
-        2,
-        {
-            "Delirium"
-        },
-        {
-            {
-                21,
-                1,
-                {
-                    "utility"
-                },
-                {
-                    {
-                        32,
-                        2,
-                        {
-                            "network"
-                        }
-                    },
-                    {
-                        31,
-                        2,
-                        {
-                            "mediaService"
-                        }
-                    },
-                    {
-                        23,
-                        2,
-                        {
-                            "constants"
-                        }
-                    },
-                    {
-                        29,
-                        2,
-                        {
-                            "image"
-                        }
-                    },
-                    {
-                        25,
-                        2,
-                        {
-                            "filesystem"
-                        }
-                    },
-                    {
-                        28,
-                        2,
-                        {
-                            "icons"
-                        }
-                    },
-                    {
-                        24,
-                        2,
-                        {
-                            "element"
-                        }
-                    },
-                    {
-                        27,
-                        2,
-                        {
-                            "fontLoader"
-                        }
-                    },
-                    {
-                        22,
-                        2,
-                        {
-                            "assetFetcher"
-                        }
-                    },
-                    {
-                        40,
-                        2,
-                        {
-                            "windowSizing"
-                        }
-                    },
-                    {
-                        38,
-                        2,
-                        {
-                            "tween"
-                        }
-                    },
-                    {
-                        39,
-                        2,
-                        {
-                            "variables"
-                        }
-                    },
-                    {
-                        37,
-                        2,
-                        {
-                            "theme"
-                        }
-                    },
-                    {
-                        30,
-                        2,
-                        {
-                            "imageCache"
-                        }
-                    },
-                    {
-                        26,
-                        2,
-                        {
-                            "flags"
-                        }
-                    },
-                    {
-                        35,
-                        2,
-                        {
-                            "services"
-                        }
-                    },
-                    {
-                        33,
-                        2,
-                        {
-                            "runtime"
-                        }
-                    },
-                    {
-                        34,
-                        2,
-                        {
-                            "saveManager"
-                        }
-                    },
-                    {
-                        36,
-                        2,
-                        {
-                            "signal"
-                        }
-                    }
-                }
-            },
-            {
-                16,
-                1,
-                {
-                    "themes"
-                },
-                {
-                    {
-                        18,
-                        2,
-                        {
-                            "dracula"
-                        }
-                    },
-                    {
-                        19,
-                        2,
-                        {
-                            "light"
-                        }
-                    },
-                    {
-                        17,
-                        2,
-                        {
-                            "default"
-                        }
-                    }
-                }
-            },
-            {
-                2,
-                1,
-                {
-                    "components"
-                },
-                {
-                    {
-                        6,
-                        2,
-                        {
-                            "dropdown"
-                        }
-                    },
-                    {
-                        10,
-                        2,
-                        {
-                            "notification"
-                        }
-                    },
-                    {
-                        4,
-                        2,
-                        {
-                            "colorpicker"
-                        }
-                    },
-                    {
-                        3,
-                        2,
-                        {
-                            "button"
-                        }
-                    },
-                    {
-                        5,
-                        2,
-                        {
-                            "descriptor"
-                        }
-                    },
-                    {
-                        8,
-                        2,
-                        {
-                            "keybind"
-                        }
-                    },
-                    {
-                        13,
-                        2,
-                        {
-                            "tab"
-                        }
-                    },
-                    {
-                        15,
-                        2,
-                        {
-                            "window"
-                        }
-                    },
-                    {
-                        12,
-                        2,
-                        {
-                            "slider"
-                        }
-                    },
-                    {
-                        11,
-                        2,
-                        {
-                            "section"
-                        }
-                    },
-                    {
-                        14,
-                        2,
-                        {
-                            "toggle"
-                        }
-                    },
-                    {
-                        9,
-                        2,
-                        {
-                            "label"
-                        }
-                    },
-                    {
-                        7,
-                        2,
-                        {
-                            "input"
-                        }
-                    }
-                }
-            },
-            {
-                20,
-                2,
-                {
-                    "types"
-                }
-            }
-        }
-    }
-}
 
--- Line offsets for debugging (only included when minifyTables is false)
-local LineOffsets = {
-    8,
-    [3] = 109,
-    [4] = 256,
-    [5] = 1123,
-    [6] = 1201,
-    [7] = 2203,
-    [8] = 2527,
-    [9] = 3026,
-    [10] = 3109,
-    [11] = 3628,
-    [12] = 3738,
-    [13] = 4388,
-    [14] = 5064,
-    [15] = 5298,
-    [17] = 7205,
-    [18] = 7305,
-    [19] = 7398,
-    [20] = 7474,
-    [22] = 7768,
-    [23] = 7914,
-    [24] = 7979,
-    [25] = 8055,
-    [26] = 8285,
-    [27] = 8354,
-    [28] = 8738,
-    [29] = 8994,
-    [30] = 9156,
-    [31] = 9391,
-    [32] = 9534,
-    [33] = 9560,
-    [34] = 9633,
-    [35] = 10053,
-    [36] = 10069,
-    [37] = 10185,
-    [38] = 10492,
-    [39] = 10571,
-    [40] = 10616
-}
+local ObjectTree = {{1,2,{"Delirium"},{{2,1,{"components"},{{9,2,{"label"}},{13,2,{"tab"}},{8,2,{"keybind"}},{11,2,{"section"}},{6,2,{"dropdown"}},{15,2,{"window"}},{5,2,{"descriptor"}},{7,2,{"input"}},{12,2,{"slider"}},{4,2,{"colorpicker"}},{3,2,{"button"}},{10,2,{"notification"}},{14,2,{"toggle"}}}},{21,1,{"utility"},{{24,2,{"element"}},{28,2,{"icons"}},{31,2,{"mediaService"}},{26,2,{"flags"}},{29,2,{"image"}},{38,2,{"tween"}},{32,2,{"network"}},{37,2,{"theme"}},{39,2,{"variables"}},{23,2,{"constants"}},{34,2,{"saveManager"}},{30,2,{"imageCache"}},{40,2,{"windowSizing"}},{36,2,{"signal"}},{35,2,{"services"}},{22,2,{"assetFetcher"}},{25,2,{"filesystem"}},{27,2,{"fontLoader"}},{33,2,{"runtime"}}}},{20,2,{"types"}},{16,1,{"themes"},{{19,2,{"light"}},{18,2,{"dracula"}},{17,2,{"default"}}}}}}}
 
--- Misc AOT variable imports
+
+local LineOffsets = nil
+
+
 local WaxVersion = "0.4.1"
 local EnvName = "WaxRuntime"
 
--- ++++++++ RUNTIME IMPL BELOW ++++++++ --
 
--- Localizing certain libraries and built-ins for runtime efficiency
+
+
 local string, task, setmetatable, error, next, table, unpack, coroutine, script, type, require, pcall, tostring, tonumber, _VERSION =
       string, task, setmetatable, error, next, table, unpack, coroutine, script, type, require, pcall, tostring, tonumber, _VERSION
 
 local table_insert = table.insert
 local table_remove = table.remove
-local table_freeze = table.freeze or function(t) return t end -- lol
+local table_freeze = table.freeze or function(t) return t end 
 
 local coroutine_wrap = coroutine.wrap
 
@@ -11070,8 +10736,8 @@ local string_sub = string.sub
 local string_match = string.match
 local string_gmatch = string.gmatch
 
--- The Lune runtime has its own `task` impl, but it must be imported by its builtin
--- module path, "@lune/task"
+
+
 if _VERSION and string_sub(_VERSION, 1, 4) == "Lune" then
     local RequireSuccess, LuneTaskLib = pcall(require, "@lune/task")
     if RequireSuccess and LuneTaskLib then
@@ -11081,12 +10747,12 @@ end
 
 local task_defer = task and task.defer
 
--- If we're not running on the Roblox engine, we won't have a `task` global
+
 local Defer = task_defer or function(f, ...)
     coroutine_wrap(f)(...)
 end
 
--- ClassName "IDs"
+
 local ClassNameIdBindings = {
     [1] = "Folder",
     [2] = "ModuleScript",
@@ -11095,21 +10761,21 @@ local ClassNameIdBindings = {
     [5] = "StringValue",
 }
 
-local RefBindings = {} -- [RefId] = RealObject
+local RefBindings = {} 
 
 local ScriptClosures = {}
-local ScriptClosureRefIds = {} -- [ScriptClosure] = RefId
+local ScriptClosureRefIds = {} 
 local StoredModuleValues = {}
 local ScriptsToRun = {}
 
--- wax.shared __index/__newindex
+
 local SharedEnvironment = {}
 
--- We're creating 'fake' instance refs soley for traversal of the DOM for require() compatibility
--- It's meant to be as lazy as possible
-local RefChildren = {} -- [Ref] = {ChildrenRef, ...}
 
--- Implemented instance methods
+
+local RefChildren = {} 
+
+
 local InstanceMethods = {
     GetFullName = { {}, function(self)
         local Path = self.Name
@@ -11118,7 +10784,7 @@ local InstanceMethods = {
         while ObjectPointer do
             Path = ObjectPointer.Name .. "." .. Path
 
-            -- Move up the DOM (parent will be nil at the end, and this while loop will stop)
+            
             ObjectPointer = ObjectPointer.Parent
         end
 
@@ -11160,8 +10826,8 @@ local InstanceMethods = {
 
         if recursive then
             for Child in next, Children do
-                -- Yeah, Roblox follows this behavior- instead of searching the entire base of a
-                -- ref first, the engine uses a direct recursive call
+                
+                
                 return Child:FindFirstChild(name, true)
             end
         end
@@ -11178,13 +10844,13 @@ local InstanceMethods = {
         end
     end},
 
-    -- Just to implement for traversal usage
+    
     WaitForChild = { {"string", "number?"}, function(self, name)
         return self:FindFirstChild(name)
     end},
 }
 
--- "Proxies" to instance methods, with err checks etc
+
 local InstanceMethodProxies = {}
 for MethodName, MethodObject in next, InstanceMethods do
     local Types = MethodObject[1]
@@ -11221,15 +10887,15 @@ for MethodName, MethodObject in next, InstanceMethods do
 end
 
 local function CreateRef(className, name, parent)
-    -- `name` and `parent` can also be set later by the init script if they're absent
+    
 
-    -- Extras
+    
     local StringValue_Value
 
-    -- Will be set to RefChildren later aswell
+    
     local Children = setmetatable({}, {__mode = "k"})
 
-    -- Err funcs
+    
     local function InvalidMember(member)
         error(member .. " is not a valid (virtual) member of " .. className .. " \"" .. name .. "\"", 3)
     end
@@ -11243,16 +10909,16 @@ local function CreateRef(className, name, parent)
     RefMetatable.__metatable = false
 
     RefMetatable.__index = function(_, index)
-        if index == "ClassName" then -- First check "properties"
+        if index == "ClassName" then 
             return className
         elseif index == "Name" then
             return name
         elseif index == "Parent" then
             return parent
         elseif className == "StringValue" and index == "Value" then
-            -- Supporting StringValue.Value for Rojo .txt file conv
+            
             return StringValue_Value
-        else -- Lastly, check "methods"
+        else 
             local InstanceMethod = InstanceMethodProxies[index]
 
             if InstanceMethod then
@@ -11260,45 +10926,45 @@ local function CreateRef(className, name, parent)
             end
         end
 
-        -- Next we'll look thru child refs
+        
         for Child in next, Children do
             if Child.Name == index then
                 return Child
             end
         end
 
-        -- At this point, no member was found; this is the same err format as Roblox
+        
         InvalidMember(index)
     end
 
     RefMetatable.__newindex = function(_, index, value)
-        -- __newindex is only for props fyi
+        
         if index == "ClassName" then
             ReadOnlyProperty(index)
         elseif index == "Name" then
             name = value
         elseif index == "Parent" then
-            -- We'll just ignore the process if it's trying to set itself
+            
             if value == Ref then
                 return
             end
 
             if parent ~= nil then
-                -- Remove this ref from the CURRENT parent
+                
                 RefChildren[parent][Ref] = nil
             end
 
             parent = value
 
             if value ~= nil then
-                -- And NOW we're setting the new parent
+                
                 RefChildren[value][Ref] = true
             end
         elseif className == "StringValue" and index == "Value" then
-            -- Supporting StringValue.Value for Rojo .txt file conv
+            
             StringValue_Value = value
         else
-            -- Same err as __index when no member is found
+            
             InvalidMember(index)
         end
     end
@@ -11318,18 +10984,18 @@ local function CreateRef(className, name, parent)
     return Ref
 end
 
--- Create real ref DOM from object tree
+
 local function CreateRefFromObject(object, parent)
     local RefId = object[1]
     local ClassNameId = object[2]
-    local Properties = object[3] -- Optional
-    local Children = object[4] -- Optional
+    local Properties = object[3] 
+    local Children = object[4] 
 
     local ClassName = ClassNameIdBindings[ClassNameId]
 
     local Name = Properties and table_remove(Properties, 1) or ClassName
 
-    local Ref = CreateRef(ClassName, Name, parent) -- 3rd arg may be nil if this is from root
+    local Ref = CreateRef(ClassName, Name, parent) 
     RefBindings[RefId] = Ref
 
     if Properties then
@@ -11352,7 +11018,7 @@ for _, Object in next, ObjectTree do
     CreateRefFromObject(Object, RealObjectRoot)
 end
 
--- Now we'll set script closure refs and check if they should be ran as a BaseScript
+
 for RefId, Closure in next, ClosureBindings do
     local Ref = RefBindings[RefId]
 
@@ -11368,7 +11034,7 @@ end
 local function LoadScript(scriptRef)
     local ScriptClassName = scriptRef.ClassName
 
-    -- First we'll check for a cached module value (packed into a tbl)
+    
     local StoredModuleValue = StoredModuleValues[scriptRef]
     if StoredModuleValue and ScriptClassName == "ModuleScript" then
         return unpack(StoredModuleValue)
@@ -11381,7 +11047,7 @@ local function LoadScript(scriptRef)
 
         local VirtualFullName = scriptRef:GetFullName()
 
-        -- Check for vanilla/Roblox format
+        
         local OriginalErrorLine, BaseErrorMessage = string_match(originalErrorMessage, "[^:]+:(%d+): (.+)")
 
         if not OriginalErrorLine or not LineOffsets then
@@ -11401,7 +11067,7 @@ local function LoadScript(scriptRef)
         return VirtualFullName .. ":" .. RealErrorLine .. ": " .. BaseErrorMessage
     end
 
-    -- If it's a BaseScript, we'll just run it directly!
+    
     if ScriptClassName == "LocalScript" or ScriptClassName == "Script" then
         local RunSuccess, ErrorMessage = pcall(Closure)
         if not RunSuccess then
@@ -11421,8 +11087,8 @@ local function LoadScript(scriptRef)
     end
 end
 
--- We'll assign the actual func from the top of this output for flattening user globals at runtime
--- Returns (in a tuple order): wax, script, require
+
+
 function ImportGlobals(refId)
     local ScriptRef = RefBindings[refId]
 
@@ -11437,7 +11103,7 @@ function ImportGlobals(refId)
         return unpack(PCallReturn)
     end
 
-    -- `wax.shared` index
+    
     local WaxShared = table_freeze(setmetatable({}, {
         __index = SharedEnvironment,
         __newindex = function(_, index, value)
@@ -11452,13 +11118,13 @@ function ImportGlobals(refId)
     }))
 
     local Global_wax = table_freeze({
-        -- From AOT variable imports
+        
         version = WaxVersion,
         envname = EnvName,
 
         shared = WaxShared,
 
-        -- "Real" globals instead of the env set ones
+        
         script = script,
         require = require,
     })
@@ -11480,7 +11146,7 @@ function ImportGlobals(refId)
 
             return LoadScript(module)
         elseif ModuleArgType == "string" and string_sub(module, 1, 1) ~= "@" then
-            -- The control flow on this SUCKS
+            
 
             if #module == 0 then
                 error("Attempted to call require with empty string", 2)
@@ -11501,7 +11167,7 @@ function ImportGlobals(refId)
                     RealIndex = "Parent"
                 end
 
-                -- Don't advance dir if it's just another "/" either
+                
                 if RealIndex ~= "" then
                     local ResultRef = CurrentRefPointer:FindFirstChild(RealIndex)
                     if not ResultRef then
@@ -11518,7 +11184,7 @@ function ImportGlobals(refId)
                     end
                 end
 
-                -- For possible checks next cycle
+                
                 PreviousPathMatch = PathMatch
             end
 
@@ -11534,7 +11200,7 @@ function ImportGlobals(refId)
         return RealCall(require, module, ...)
     end
 
-    -- Now, return flattened globals ready for direct runtime exec
+    
     return Global_wax, Global_script, Global_require
 end
 
@@ -11542,5 +11208,4 @@ for _, ScriptRef in next, ScriptsToRun do
     Defer(LoadScript, ScriptRef)
 end
 
--- AoT adjustment: Load init module (MainModule behavior)
 return LoadScript(RealObjectRoot:GetChildren()[1])

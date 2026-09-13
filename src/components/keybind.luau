@@ -452,11 +452,11 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 		self._theme = t
 		theme = t
 		titleLabel.TextColor3 = t.ContentColor or Color3.fromHex("#ffffff")
-		titleLabel.FontFace   = t.Font or Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium)
+		titleLabel.FontFace   = t.Font or constants.DEFAULT_FONT_MEDIUM
 		pill.BackgroundColor3       = t.FieldBackground or Color3.fromRGB(255, 255, 255)
 		pill.BackgroundTransparency = t.FieldTransparency or 0.90
 		pill.TextColor3             = t.ContentColor or Color3.fromHex("#ffffff")
-		pill.FontFace               = t.Font or Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium)
+		pill.FontFace               = t.Font or constants.DEFAULT_FONT_MEDIUM
 		pillStroke.Color            = t.ElementStroke or Color3.fromHex("#2b2b2b")
 		stroke.Color                = t.ElementStroke or Color3.fromHex("#2b2b2b")
 	end)

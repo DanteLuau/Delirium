@@ -817,9 +817,9 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 			else (t.ElementStroke or Color3.fromHex("#2b2b2b"))
 
 		titleLabel.TextColor3      = t.ContentColor or Color3.fromHex("#ffffff")
-		titleLabel.FontFace        = t.Font or Font.new("rbxasset://fonts/families/GothamSSm.json")
+		titleLabel.FontFace        = t.Font or constants.DEFAULT_FONT
 		popTitle.TextColor3        = t.PlaceholderColor or Color3.fromHex("#9d9d9d")
-		popTitle.FontFace          = t.Font or Font.new("rbxasset://fonts/families/GothamSSm.json")
+		popTitle.FontFace          = t.Font or constants.DEFAULT_FONT
 		hexInput.TextColor3        = t.ContentColor or Color3.fromHex("#ffffff")
 		hexInput.PlaceholderColor3 = t.PlaceholderColor or Color3.fromHex("#9d9d9d")
 		if alphaInput then

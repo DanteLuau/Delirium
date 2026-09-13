@@ -515,11 +515,13 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 		stroke.Color = s._theme.ElementStroke or Color3.fromHex("#2b2b2b")
 		listWrap.Visible = false
 		listWrap.Size = UDim2.new(1, 0, 0, 0)
-		-- M4 FIX: reset position to default so next open() recomputes flip direction.
 		listWrap.Position = UDim2.new(0, 0, 0, HEADER_H + LIST_GAP)
 		listWrap.BackgroundTransparency = 1
 		listStroke.Transparency = 1
 		frame.Size = UDim2.new(1, 0, 0, HEADER_H)
+		-- Restore ZIndex that was raised on open.
+		frame.ZIndex = s._originalZIndex or 1
+		s._originalZIndex = nil
 	end
 
 	local function openDropdown()
@@ -527,24 +529,59 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 		s._open = true
 		local fullH = getListH()
 
-		-- M4 FIX: clamp list to screen edge — flip upward if not enough space below.
-		-- Compares the bottom of the expanded frame against the parent scroll frame's
-		-- AbsolutePosition + AbsoluteSize. On mobile short windows this prevents the
-		-- list from being silently clipped by ClipsDescendants.
+		-- Flip detection: walk up to the nearest ClipsDescendants ancestor to get the
+		-- real visible boundary. frame.Parent may be an AutomaticSize frame that grows
+		-- with content — using it as boundary causes a false positive that always flips
+		-- the list upward inside settings panels and nested layouts.
 		local flipUp = false
 		do
-			local parentFrame = frame.Parent
-			if parentFrame then
-				local parentBottom = parentFrame.AbsolutePosition.Y + parentFrame.AbsoluteSize.Y
-				local frameBottom  = frame.AbsolutePosition.Y + HEADER_H + LIST_GAP + fullH
-				if frameBottom > parentBottom and frame.AbsolutePosition.Y > fullH then
-					flipUp = true
+			local clipAncestor: GuiObject? = nil
+			do
+				local p: Instance? = frame.Parent
+				while p ~= nil and not p:IsA("ScreenGui") do
+					if p:IsA("GuiObject") and (p :: GuiObject).ClipsDescendants then
+						clipAncestor = p :: GuiObject
+						break
+					end
+					p = p.Parent
 				end
 			end
+
+			local boundaryTop: number
+			local boundaryBottom: number
+			if clipAncestor then
+				boundaryTop    = clipAncestor.AbsolutePosition.Y
+				boundaryBottom = clipAncestor.AbsolutePosition.Y + clipAncestor.AbsoluteSize.Y
+			else
+				-- No clipping ancestor — fall back to frame.Parent.
+				local pf = frame.Parent
+				if pf and pf:IsA("GuiObject") then
+					local g = pf :: GuiObject
+					boundaryTop    = g.AbsolutePosition.Y
+					boundaryBottom = g.AbsolutePosition.Y + g.AbsoluteSize.Y
+				else
+					boundaryTop    = 0
+					boundaryBottom = math.huge
+				end
+			end
+
+			local frameBottom = frame.AbsolutePosition.Y + HEADER_H + LIST_GAP + fullH
+			local spaceAbove  = frame.AbsolutePosition.Y - boundaryTop
+			if frameBottom > boundaryBottom and spaceAbove >= fullH + LIST_GAP then
+				flipUp = true
+			end
 		end
+
+		-- Raise ZIndex so the open list renders above sibling rows (e.g. inside
+		-- the settings panel where rows have ZIndex 2000). Stored and restored on close.
+		if not s._originalZIndex then
+			s._originalZIndex = frame.ZIndex
+		end
+		frame.ZIndex = 32766
+
 		s._flipUp = flipUp
 		if flipUp then
-			-- Open list above the header row
+			-- List opens above the header row. Don't expand frame downward.
 			listWrap.Position = UDim2.new(0, 0, 0, -(fullH + LIST_GAP))
 		else
 			listWrap.Position = UDim2.new(0, 0, 0, HEADER_H + LIST_GAP)
@@ -557,7 +594,13 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 		listWrap.Size = UDim2.new(1, 0, 0, fullH)
 		listWrap.BackgroundTransparency = 0
 		listStroke.Transparency = 0
-		frame.Size = UDim2.new(1, 0, 0, HEADER_H + LIST_GAP + fullH)
+		-- Only expand frame downward when list is below the header.
+		-- With flipUp the list sits above; growing downward just pushes layout siblings.
+		if flipUp then
+			frame.Size = UDim2.new(1, 0, 0, HEADER_H)
+		else
+			frame.Size = UDim2.new(1, 0, 0, HEADER_H + LIST_GAP + fullH)
+		end
 
 		if s._searchEnabled and s._searchBox then
 			task.defer(function()

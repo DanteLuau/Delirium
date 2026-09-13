@@ -5,3 +5,4 @@ bundling.txt
 component-token-map.txt
 DELIRIUM_DEV.txt
 example.client.luau
+.darklua.json

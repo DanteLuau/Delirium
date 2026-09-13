@@ -126,10 +126,10 @@ function Button.new(props: ButtonProps, theme: { [string]: any }, parent: Instan
 		stroke.Color = t.ElementStroke or Color3.fromHex("#2b2b2b")
 		stroke.Transparency = t.ElementStrokeTransparency or 0
 		titleLabel.TextColor3 = t.ContentColor or Color3.fromHex("#ffffff")
-		titleLabel.FontFace = t.Font or Font.new("rbxasset://fonts/families/GothamSSm.json")
+		titleLabel.FontFace = t.Font or constants.DEFAULT_FONT
 		if descLabel then
 			descLabel.TextColor3 = t.PlaceholderColor or Color3.fromHex("#9d9d9d")
-			descLabel.FontFace = t.Font or Font.new("rbxasset://fonts/families/GothamSSm.json")
+			descLabel.FontFace = t.Font or constants.DEFAULT_FONT
 		end
 		theme = t
 	end)
