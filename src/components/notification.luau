@@ -413,10 +413,14 @@ function notification.send(props: NotifyProps, theme: { [string]: any }?)
 	timeLbl.TextXAlignment         = Enum.TextXAlignment.Right
 	timeLbl.Parent                 = header
 
+	-- M5 FIX: on mobile the close button is ~9px effective after 0.65 MOBILE_SCALE.
+	-- Bump to at least 24px so it's reliably hittable with a fingertip.
+	-- _scale < 1 is the mobile proxy (_scale = MOBILE_SCALE = 0.65 on phones).
+	local closeBtnPx = if _scale < 1 then math.max(px(14), 24) else px(14)
 	local closeBtn = Instance.new("TextButton")
 	closeBtn.Name                   = "CloseBtn"
 	closeBtn.LayoutOrder            = 4
-	closeBtn.Size                   = UDim2.fromOffset(px(14), px(14))
+	closeBtn.Size                   = UDim2.fromOffset(closeBtnPx, closeBtnPx)
 	closeBtn.BackgroundTransparency = 1
 	closeBtn.BorderSizePixel        = 0
 	closeBtn.Font                   = Enum.Font.GothamMedium

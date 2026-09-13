@@ -386,6 +386,16 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 				stopRecording()
 				self:Set(input.UserInputType)
 				return
+			elseif input.UserInputType == Enum.UserInputType.Touch then
+				-- M3 FIX: touch-only devices can never set a keybind because Touch
+				-- falls through all branches and leaves the pill stuck on "..."
+				-- (re-entering recording on every subsequent tap).
+				-- Collapse Touch → MB1 the same way Roblox collapses tap → click
+				-- everywhere else, so mobile users get a usable binding.
+				suppressNextClick = true
+				stopRecording()
+				self:Set(Enum.UserInputType.MouseButton1)
+				return
 			end
 			return
 		end

@@ -16,6 +16,9 @@ export type VariablesState = typeof(runtime) & {
 	-- Primary and title fonts (can be swapped by ChangeTheme)
 	font:      Font,
 	titleFont: Font,
+
+	-- isTouchOnly forwarded from runtime for convenience
+	isTouchOnly: boolean,
 }
 
 -- Clone the runtime fields into our mutable state table

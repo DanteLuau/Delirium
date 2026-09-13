@@ -4,16 +4,18 @@
 -- dropdown.luau — Oldsrc dropdown layout & behavior ported to src, with zero animations.
 -- Supports single/multi-select, searchable lists, special types (Player/Team), per-item disable, and flag persistence.
 
-local UserInputService = game:GetService("UserInputService")
-local Players          = game:GetService("Players")
-local Teams            = game:GetService("Teams")
-
+-- B5 FIX: was raw game:GetService — use cloneref-safe wrappers.
 local constants = require(script.Parent.Parent.utility.constants)
 local flags     = require(script.Parent.Parent.utility.flags)
 local runtime   = require(script.Parent.Parent.utility.runtime)
+local services  = require(script.Parent.Parent.utility.services)
 local signal    = require(script.Parent.Parent.utility.signal)
 local themeUtil = require(script.Parent.Parent.utility.theme)
 local icons     = require(script.Parent.Parent.utility.icons)
+
+local UserInputService = runtime.userInputService
+local Players          = services.getService("Players") :: Players
+local Teams            = services.getService("Teams") :: Teams
 
 local HEADER_H        = 36
 local LIST_GAP        = 4
@@ -502,6 +504,7 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 	local function closeDropdown()
 		if not s._open then return end
 		s._open = false
+		s._flipUp = false
 		if s._searchEnabled and s._searchBox then
 			s._searchBox.Text = ""
 			s._searchQuery = ""
@@ -512,6 +515,8 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 		stroke.Color = s._theme.ElementStroke or Color3.fromHex("#2b2b2b")
 		listWrap.Visible = false
 		listWrap.Size = UDim2.new(1, 0, 0, 0)
+		-- M4 FIX: reset position to default so next open() recomputes flip direction.
+		listWrap.Position = UDim2.new(0, 0, 0, HEADER_H + LIST_GAP)
 		listWrap.BackgroundTransparency = 1
 		listStroke.Transparency = 1
 		frame.Size = UDim2.new(1, 0, 0, HEADER_H)
@@ -521,6 +526,29 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 		if s._open or not s._enabled then return end
 		s._open = true
 		local fullH = getListH()
+
+		-- M4 FIX: clamp list to screen edge — flip upward if not enough space below.
+		-- Compares the bottom of the expanded frame against the parent scroll frame's
+		-- AbsolutePosition + AbsoluteSize. On mobile short windows this prevents the
+		-- list from being silently clipped by ClipsDescendants.
+		local flipUp = false
+		do
+			local parentFrame = frame.Parent
+			if parentFrame then
+				local parentBottom = parentFrame.AbsolutePosition.Y + parentFrame.AbsoluteSize.Y
+				local frameBottom  = frame.AbsolutePosition.Y + HEADER_H + LIST_GAP + fullH
+				if frameBottom > parentBottom and frame.AbsolutePosition.Y > fullH then
+					flipUp = true
+				end
+			end
+		end
+		s._flipUp = flipUp
+		if flipUp then
+			-- Open list above the header row
+			listWrap.Position = UDim2.new(0, 0, 0, -(fullH + LIST_GAP))
+		else
+			listWrap.Position = UDim2.new(0, 0, 0, HEADER_H + LIST_GAP)
+		end
 
 		-- Instant open: zero animations
 		arrow.Rotation = 180

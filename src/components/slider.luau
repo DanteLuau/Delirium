@@ -4,8 +4,7 @@
 -- slider.luau — Oldsrc slider layout & behavior ported to src, with zero animations.
 -- Supports normal (54px) and compact (36px) modes, full/hidden max formats, and flag persistence.
 
-local UserInputService = game:GetService("UserInputService")
-
+-- B5 FIX: was raw game:GetService — use the cloneref-safe alias from variables.
 local constants = require(script.Parent.Parent.utility.constants)
 local flags     = require(script.Parent.Parent.utility.flags)
 local runtime   = require(script.Parent.Parent.utility.runtime)
@@ -507,7 +506,7 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		if input.UserInputType == Enum.UserInputType.Touch then
 			touchX = input.Position.X
 		else
-			touchX = UserInputService:GetMouseLocation().X
+			touchX = variables.userInputService:GetMouseLocation().X
 		end
 
 		local trackLeft = track.AbsolutePosition.X
@@ -525,7 +524,7 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		applyT(tFromMouseX(track, touchX, kw))
 	end)
 
-	s._conns.inputChanged = UserInputService.InputChanged:Connect(function(input: InputObject)
+	s._conns.inputChanged = variables.userInputService.InputChanged:Connect(function(input: InputObject)
 		if pendingTouchStart and input.UserInputType == Enum.UserInputType.Touch then
 			local dx = math.abs(input.Position.X - pendingTouchStart.X)
 			local dy = math.abs(input.Position.Y - pendingTouchStart.Y)
@@ -545,7 +544,7 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		if input.UserInputType == Enum.UserInputType.Touch then
 			inputX = input.Position.X
 		else
-			inputX = UserInputService:GetMouseLocation().X
+			inputX = variables.userInputService:GetMouseLocation().X
 		end
 		local kw = knob.AbsoluteSize.X > 0 and knob.AbsoluteSize.X or KNOB_W
 		applyT(tFromMouseX(track, inputX, kw))
@@ -562,7 +561,7 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		end
 	end
 
-	s._conns.inputEnded = UserInputService.InputEnded:Connect(function(input: InputObject)
+	s._conns.inputEnded = variables.userInputService.InputEnded:Connect(function(input: InputObject)
 		if input.UserInputType ~= Enum.UserInputType.MouseButton1
 			and input.UserInputType ~= Enum.UserInputType.Touch then return end
 		pendingTouchStart = nil

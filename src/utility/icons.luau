@@ -4,7 +4,9 @@
 -- utility/icons.luau — Nebula Icon Library loader and icon resolver.
 -- Ports Loader.luau with multi-tier caching (in-memory, getgenv) and built-in fallbacks.
 
-local ContentProvider = game:GetService("ContentProvider")
+-- B5 FIX: was raw game:GetService — use cloneref-safe wrapper.
+local services       = require(script.Parent.services)
+local ContentProvider = services.getService("ContentProvider") :: ContentProvider
 
 export type IconPackName =
 	"Lucide"

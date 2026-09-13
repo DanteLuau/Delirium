@@ -53,6 +53,18 @@ runtime.contextActionService = services.getService("ContextActionService") :: Co
 runtime.replicatedStorage    = services.getService("ReplicatedStorage") :: ReplicatedStorage
 runtime.localPlayer       = (services.getService("Players") :: Players).LocalPlayer
 
+-- M1/M5: computed once at module load so all consumers share one truth.
+-- Touch-only = has touch hardware but no keyboard (phone/tablet without bluetooth kbd).
+runtime.isTouchOnly = (function(): boolean
+	local uis = runtime.userInputService
+	if not uis.TouchEnabled then return false end
+	if uis.KeyboardEnabled then return false end
+	-- Fallback: very narrow viewport is a reliable phone signal.
+	local cam = runtime.workspace.CurrentCamera
+	if cam and cam.ViewportSize.X < 600 then return true end
+	return true
+end)() :: boolean
+
 -- Resolve the best parent container for ScreenGuis.
 -- Studio → PlayerGui. Exploit → gethui(). Fallback → CoreGui.
 runtime.guiContainer = (function(): Instance

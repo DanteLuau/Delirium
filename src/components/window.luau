@@ -126,6 +126,8 @@ function Window.new(props: WindowProps): Window
 	windowFrame.Parent                 = gui
 
 	local winScale = Instance.new("UIScale")
+	-- M1 FIX: initial scale applied below after isTouchOnly is computed (see userScale).
+	-- Assigned here as 1.0 placeholder; overwritten by the self init block.
 	winScale.Scale = 1.0
 	winScale.Parent = windowFrame
 
@@ -469,7 +471,11 @@ function Window.new(props: WindowProps): Window
 	local SP_TB   = 34
 
 	local spAccent   = colorAccent
-	local userScale  = 1.0
+	-- M1 FIX: on touch-only devices the default 1.0 scale leaves 11-13px text
+	-- cramped in a ~335px window. Boot at 0.9 so controls are slightly smaller
+	-- and more content fits, while staying readable. User can override via Settings.
+	local isTouchOnly = variables.isTouchOnly
+	local userScale  = if isTouchOnly then 0.9 else 1.0
 	local currentToggleKey = toggleKey
 	local keepOnScreenVal  = keepOnScreen
 
@@ -633,6 +639,18 @@ function Window.new(props: WindowProps): Window
 	local s: any = nil
 	local spAccentUpdaters: { (Color3) -> () } = {}
 
+	-- A2 FIX: connections created inside spMakeSlider (InputChanged + InputEnded)
+	-- happen before `s` is assigned, so we can't table.insert into s._connections yet.
+	-- Accumulate them here; after s is initialized, s._connections is seeded with this
+	-- table so Unload() disconnects them correctly.
+	local _preConns: { RBXScriptConnection } = {}
+
+	-- B1 FIX: coalesce accent-drag broadcasts to once per frame.
+	-- ColorPicker.callback fires at drag rate (60-120 Hz); without this every
+	-- mouse-move during accent drag triggers a full subscriber iteration + (previously)
+	-- a Dropdown.buildOptions() on every open dropdown — dozens of instance allocs
+	-- per frame. task.defer collapses multiple same-frame calls into one broadcast.
+	local _accentBroadcastPending = false
 	local function updateAccent(col: Color3)
 		colorAccent = col
 		spAccent = col
@@ -643,7 +661,14 @@ function Window.new(props: WindowProps): Window
 		for _, fn in spAccentUpdaters do
 			fn(col)
 		end
-		themeUtil.broadcast(resolvedTheme)  -- propagate accent to all subscribed components
+		-- Coalesce: only one broadcast per frame even if drag fires multiple InputChanged.
+		if not _accentBroadcastPending then
+			_accentBroadcastPending = true
+			task.defer(function()
+				_accentBroadcastPending = false
+				themeUtil.broadcast(resolvedTheme)
+			end)
+		end
 	end
 
 	-- Helper: standard setting row container
@@ -859,7 +884,10 @@ function Window.new(props: WindowProps): Window
 			end
 		end)
 
-		variables.userInputService.InputChanged:Connect(function(input)
+		-- A2 FIX: these global UIS connections capture the whole settings-panel
+		-- closure chain. They must be tracked and disconnected on Unload().
+		-- _preConns is seeded into s._connections once self is initialized.
+		table.insert(_preConns, variables.userInputService.InputChanged:Connect(function(input)
 			if not settingsPanel.Visible then
 				dragging = false
 				return
@@ -870,13 +898,13 @@ function Window.new(props: WindowProps): Window
 					else variables.userInputService:GetMouseLocation().X
 				setFromMouse(posX)
 			end
-		end)
+		end))
 
-		variables.userInputService.InputEnded:Connect(function(input)
+		table.insert(_preConns, variables.userInputService.InputEnded:Connect(function(input)
 			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 				dragging = false
 			end
-		end)
+		end))
 
 		-- Hover highlight on the row stroke
 		local rowStroke = row:FindFirstChildWhichIsA("UIStroke")
@@ -895,218 +923,11 @@ function Window.new(props: WindowProps): Window
 		end)
 	end
 
-	-- Helper: interactive toggle row
-	local function spMakeToggle(
-		parent: Frame,
-		label: string,
-		initialState: boolean,
-		order: number,
-		callback: (state: boolean) -> ()
-	)
-		local row = spMakeRow(parent, label, order)
-		local state = initialState
-
-		local pillBtn = Instance.new("TextButton")
-		pillBtn.Name             = "Pill"
-		pillBtn.AnchorPoint      = Vector2.new(1, 0.5)
-		pillBtn.Position         = UDim2.new(1, -12, 0.5, 0)
-		pillBtn.Size             = UDim2.fromOffset(32, 16)
-		pillBtn.BackgroundColor3 = if state then spAccent else (resolvedTheme.ToggleTrack or Color3.fromRGB(50, 48, 70))
-		pillBtn.BorderSizePixel  = 0
-		pillBtn.Text             = ""
-		pillBtn.AutoButtonColor  = false
-		pillBtn.ZIndex           = constants.zIndex.popup + 1
-		pillBtn.Parent           = row
-		do
-			local c = Instance.new("UICorner")
-			c.CornerRadius = UDim.new(1, 0)
-			c.Parent       = pillBtn
-		end
-
-		local knob = Instance.new("Frame")
-		knob.Name             = "Knob"
-		knob.AnchorPoint      = Vector2.new(if state then 1 else 0, 0.5)
-		knob.Position         = UDim2.new(if state then 1 else 0, if state then -3 else 3, 0.5, 0)
-		knob.Size             = UDim2.fromOffset(10, 10)
-		knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-		knob.BorderSizePixel  = 0
-		knob.ZIndex           = constants.zIndex.popup + 2
-		knob.Parent           = pillBtn
-		do
-			local c = Instance.new("UICorner")
-			c.CornerRadius = UDim.new(1, 0)
-			c.Parent       = knob
-		end
-
-		local function syncVisual()
-			pillBtn.BackgroundColor3 = if state then spAccent else (resolvedTheme.ToggleTrack or Color3.fromRGB(50, 48, 70))
-			knob.AnchorPoint = Vector2.new(if state then 1 else 0, 0.5)
-			knob.Position = UDim2.new(if state then 1 else 0, if state then -3 else 3, 0.5, 0)
-		end
-
-		table.insert(spAccentUpdaters, function(newAccent)
-			if state then
-				pillBtn.BackgroundColor3 = newAccent
-			end
-		end)
-
-		pillBtn.MouseButton1Click:Connect(function()
-			state = not state
-			syncVisual()
-			callback(state)
-		end)
-	end
-
-	-- Helper: interactive keybind row
-	local function spMakeKeybind(
-		parent: Frame,
-		label: string,
-		initialKey: Enum.KeyCode,
-		order: number,
-		callback: (key: Enum.KeyCode) -> ()
-	)
-		local row = spMakeRow(parent, label, order)
-		local currentKey = initialKey
-		local listening = false
-
-		local bindBtn = Instance.new("TextButton")
-		bindBtn.Name             = "KeybindBtn"
-		bindBtn.AnchorPoint      = Vector2.new(1, 0.5)
-		bindBtn.Position         = UDim2.new(1, -12, 0.5, 0)
-		bindBtn.Size             = UDim2.fromOffset(80, 22)
-		bindBtn.BackgroundColor3 = Color3.fromRGB(30, 28, 42)
-		bindBtn.BorderSizePixel  = 0
-		bindBtn.Text             = currentKey.Name
-		bindBtn.TextColor3       = colorTextPrimary
-		bindBtn.TextSize         = 11
-		bindBtn.FontFace         = resolvedTheme.Font
-			or Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium)
-		bindBtn.AutoButtonColor  = false
-		bindBtn.ZIndex           = constants.zIndex.popup + 1
-		bindBtn.Parent           = row
-		do
-			local c = Instance.new("UICorner")
-			c.CornerRadius = UDim.new(0, 4)
-			c.Parent       = bindBtn
-		end
-		local stroke = Instance.new("UIStroke")
-		stroke.Color           = colorBorder
-		stroke.Thickness       = 1
-		stroke.Transparency    = 0.4
-		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-		stroke.Parent          = bindBtn
-
-		local inputConn: RBXScriptConnection? = nil
-
-		local function stopListening()
-			listening = false
-			bindBtn.Text = currentKey.Name
-			bindBtn.TextColor3 = colorTextPrimary
-			stroke.Color = colorBorder
-			if inputConn then
-				inputConn:Disconnect()
-				inputConn = nil
-			end
-		end
-
-		bindBtn.MouseButton1Click:Connect(function()
-			if listening then
-				stopListening()
-				return
-			end
-			listening = true
-			bindBtn.Text = "..."
-			bindBtn.TextColor3 = spAccent
-			stroke.Color = spAccent
-
-			inputConn = variables.userInputService.InputBegan:Connect(function(input, gpe)
-				if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
-				if input.KeyCode == Enum.KeyCode.Unknown then return end
-
-				if input.KeyCode == Enum.KeyCode.Escape then
-					stopListening()
-					return
-				end
-
-				currentKey = input.KeyCode
-				stopListening()
-				callback(currentKey)
-			end)
-		end)
-	end
-
-	-- Helper: preset accent color picker
-	local function spMakeAccentPicker(
-		parent: Frame,
-		label: string,
-		order: number,
-		callback: (accent: Color3) -> ()
-	)
-		local row = spMakeRow(parent, label, order)
-		local container = Instance.new("Frame")
-		container.Name                   = "Palette"
-		container.AnchorPoint            = Vector2.new(1, 0.5)
-		container.Position               = UDim2.new(1, -12, 0.5, 0)
-		container.Size                   = UDim2.new(0, 140, 0, 20)
-		container.BackgroundTransparency = 1
-		container.ZIndex                 = constants.zIndex.popup + 1
-		container.Parent                 = row
-
-		local layout = Instance.new("UIListLayout")
-		layout.FillDirection       = Enum.FillDirection.Horizontal
-		layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-		layout.VerticalAlignment   = Enum.VerticalAlignment.Center
-		layout.Padding             = UDim.new(0, 6)
-		layout.SortOrder           = Enum.SortOrder.LayoutOrder
-		layout.Parent              = container
-
-		local palette = {
-			Color3.fromHex("#4cc2ff"), -- Cyan
-			Color3.fromHex("#a855f7"), -- Purple
-			Color3.fromHex("#10b981"), -- Emerald
-			Color3.fromHex("#f43f5e"), -- Rose
-			Color3.fromHex("#f59e0b"), -- Amber
-			Color3.fromHex("#e2e8f0"), -- Slate
-		}
-
-		for idx, col in palette do
-			local chip = Instance.new("TextButton")
-			chip.Name             = "Chip_" .. idx
-			chip.Size             = UDim2.fromOffset(16, 16)
-			chip.BackgroundColor3 = col
-			chip.BorderSizePixel  = 0
-			chip.Text             = ""
-			chip.AutoButtonColor  = false
-			chip.LayoutOrder      = idx
-			chip.ZIndex           = constants.zIndex.popup + 2
-			chip.Parent           = container
-			do
-				local c = Instance.new("UICorner")
-				c.CornerRadius = UDim.new(1, 0)
-				c.Parent       = chip
-			end
-			local sk = Instance.new("UIStroke")
-			sk.Color           = if col == spAccent then Color3.fromRGB(255, 255, 255) else Color3.fromRGB(0, 0, 0)
-			sk.Thickness       = 1.5
-			sk.Transparency    = if col == spAccent then 0.1 else 0.6
-			sk.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-			sk.Parent          = chip
-
-			chip.MouseButton1Click:Connect(function()
-				callback(col)
-				for _, other in container:GetChildren() do
-					if other:IsA("TextButton") then
-						local otherSk = other:FindFirstChildWhichIsA("UIStroke")
-						if otherSk then
-							local isThis = (other == chip)
-							otherSk.Color = if isThis then Color3.fromRGB(255, 255, 255) else Color3.fromRGB(0, 0, 0)
-							otherSk.Transparency = if isThis then 0.1 else 0.6
-						end
-					end
-				end
-			end)
-		end
-	end
+	-- A3 FIX: spMakeToggle, spMakeKeybind, spMakeAccentPicker were defined here
+	-- but never called — the settings panel uses the real Toggle/Keybind/ColorPicker
+	-- components instead (Keybind.new, ColorPicker.new). They were also carrying an
+	-- untracked UserInputService.InputBegan connection inside spMakeKeybind (line 1022
+	-- in the original). Removed all three dead closures.
 
 	local spIfaceFrame = Instance.new("Frame")
 	spIfaceFrame.Name                   = "Interface"
@@ -1167,6 +988,8 @@ function Window.new(props: WindowProps): Window
 		-- Re-clamp position after scale tween completes using live AbsoluteSize.
 		-- This is more reliable than computing ahead-of-time with Size.Offset * scale.
 		tw.Completed:Once(function()
+			-- A5 FIX: tween.play() doesn't auto-destroy; destroy here after Completed.
+			tw:Destroy()
 			if s then s._scaleTween = nil end
 			if not self then return end
 			local wf = (self :: any)._windowFrame
@@ -1333,7 +1156,7 @@ function Window.new(props: WindowProps): Window
 	s._keepOnScreen  = keepOnScreenVal
 	s._dragging      = false          -- true while titleBar is being dragged
 	s._pendingResize = false          -- resize banked while hidden/minimized
-	s._connections   = {}             -- tracked connections for cleanup
+	s._connections   = _preConns      -- A2 FIX: seeded with pre-init UIS conns from spMakeSlider
 	s._activeTween    = nil           -- running minimize/restore Size tween
 	s._scaleTween     = nil           -- running UI scale tween
 	s._posScaleTween  = nil           -- running position clamp tween on scale
@@ -1341,6 +1164,23 @@ function Window.new(props: WindowProps): Window
 	s._minimizeAnimId = nil           -- guard token for body-hide task.delay
 	s._titleBarBg     = titleBarBg
 	s._titleBarCorner = titleBarCorner
+
+	-- M1 FIX: apply initial scale (0.9 on touch, 1.0 on desktop) now that s exists.
+	if userScale ~= 1.0 then
+		winScale.Scale       = userScale
+		variables.uiScale    = userScale
+		s._userScale         = userScale
+	end
+
+	-- M5 FIX: title bar buttons are 26×26 — below 38px ergonomic floor on touch.
+	-- Bump to 34×34 on touch-only so they're reliably hittable with a fingertip.
+	if isTouchOnly then
+		for _, btn in { settingsBtn, minBtn, closeBtn } :: { TextButton } do
+			btn.Size = UDim2.fromOffset(34, 34)
+		end
+		-- Widen the controls frame to fit the larger buttons.
+		controlsFrame.Size = UDim2.fromOffset(120, 36)
+	end
 
 	-- Theme subscription: reactive properties that update on theme change
 	s._themeUnsub = themeUtil.subscribe(function(t)
@@ -1484,14 +1324,16 @@ function Window.new(props: WindowProps): Window
 	end)
 
 	-- ── Toggle keybind ────────────────────────────────────────────────────
-	variables.userInputService.InputBegan:Connect(function(input, gameProcessed)
+	-- A1 FIX: capture this global InputBegan connection so Unload() disconnects it.
+	-- Without this the closure pins self + the whole window instance graph in memory.
+	table.insert(s._connections, variables.userInputService.InputBegan:Connect(function(input, gameProcessed)
 		if gameProcessed then return end
 		if self.unloaded then return end
 		local activeKey = (self :: any)._toggleKey or toggleKey
 		if input.KeyCode == activeKey then
 			self:ToggleHide()
 		end
-	end)
+	end))
 
 	windowFrame.Visible = false
 
@@ -1800,7 +1642,9 @@ function Window:ToggleMinimise()
 			Position = targetPos,
 		})
 		s._activeTween = tw
-		tw.Completed:Connect(function()
+		tw.Completed:Once(function()
+			-- A5 FIX: destroy Tween on Completed; tween.play() won't do it automatically.
+			tw:Destroy()
 			if s._activeTween == tw then
 				s._activeTween = nil
 				if not s._minimized then
@@ -1816,6 +1660,7 @@ function Window:ToggleMinimise()
 			local _ic = s._minIcon :: ImageLabel
 			local _fo = tween.play(_ic, TweenInfo.new(0.1, Enum.EasingStyle.Quad), { ImageTransparency = 1 })
 			_fo.Completed:Once(function()
+				_fo:Destroy() -- A5 FIX: destroy the fade-out tween after Completed
 				_ic.Image = ICON_MINIMIZE
 				tween.fire(_ic, TweenInfo.new(0.1, Enum.EasingStyle.Quad), { ImageTransparency = 0 })
 			end)
@@ -1838,7 +1683,9 @@ function Window:ToggleMinimise()
 			Position = targetPos,
 		})
 		s._activeTween = tw
-		tw.Completed:Connect(function()
+		tw.Completed:Once(function()
+			-- A5 FIX: destroy Tween on Completed.
+			tw:Destroy()
 			if s._activeTween == tw then
 				s._activeTween = nil
 				-- Round titleBar corners now it's the full visible face of the minimised window
@@ -1854,6 +1701,7 @@ function Window:ToggleMinimise()
 			local _ic = s._minIcon :: ImageLabel
 			local _fo = tween.play(_ic, TweenInfo.new(0.1, Enum.EasingStyle.Quad), { ImageTransparency = 1 })
 			_fo.Completed:Once(function()
+				_fo:Destroy() -- A5 FIX: destroy the fade-out tween after Completed
 				_ic.Image = ICON_RESTORE
 				tween.fire(_ic, TweenInfo.new(0.1, Enum.EasingStyle.Quad), { ImageTransparency = 0 })
 			end)
