@@ -9,10 +9,12 @@
 export type Theme = string | { [string]: any }
 
 export type WindowProps = {
-	name:     string?,
-	subtitle: string?,
-	theme:    Theme?,
-	keybind:  (EnumItem | string)?,
+	name:         string?,
+	subtitle:     string?,
+	theme:        Theme?,
+	keybind:      (EnumItem | string)?,
+	keepOnScreen: boolean?,
+	gestureBar:   boolean?,
 }
 
 export type TabProps = {
@@ -125,6 +127,7 @@ export type InputProps = {
 	placeholder:  string?,
 	numeric:      boolean?,
 	clearOnFocus: boolean?,
+	enterOnly:    boolean?,
 	callback:     ((value: string) -> ())?,
 }
 
@@ -273,20 +276,24 @@ export type Tab = {
 export type Window = {
 	unloaded: boolean,
 
-	CreateTab:   (self: Window, props: TabProps) -> Tab,
-	Notify:      (self: Window, props: NotifyProps) -> (),
-	Show:        (self: Window) -> (),
-	Hide:        (self: Window) -> (),
-	ToggleHide:  (self: Window) -> (),
-	ChangeTheme: (self: Window, theme: Theme) -> (),
-	Unload:      (self: Window) -> (),
+	CreateTab:      (self: Window, props: TabProps) -> Tab,
+	Notify:         (self: Window, props: NotifyProps) -> (),
+	Show:           (self: Window) -> (),
+	Hide:           (self: Window) -> (),
+	ToggleHide:     (self: Window) -> (),
+	ToggleMinimise: (self: Window) -> (),
+	ChangeTheme:    (self: Window, theme: Theme) -> (),
+	Unload:         (self: Window) -> (),
 }
 
 export type Delirium = {
-	Flags:        { [string]: any },
-	Icons:        any,
-	NebulaIcons:  any,
-	CreateWindow: (self: Delirium, props: WindowProps) -> Window,
+	Flags:         { [string]: any },
+	Icons:         any,
+	NebulaIcons:   any,
+	MediaService:  any,
+	SaveManager:   any,
+	LoadingScreen: any,
+	CreateWindow:  (self: Delirium, props: WindowProps) -> Window,
 }
 
 return {}

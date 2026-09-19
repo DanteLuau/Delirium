@@ -5,7 +5,8 @@
 -- Ports Loader.luau with multi-tier caching (in-memory, getgenv) and built-in fallbacks.
 
 -- B5 FIX: was raw game:GetService — use cloneref-safe wrapper.
-local services       = require(script.Parent.services)
+local services        = require(script.Parent.services)
+local filesystem      = require(script.Parent.filesystem)
 local ContentProvider = services.getService("ContentProvider") :: ContentProvider
 
 export type IconPackName =
@@ -121,7 +122,8 @@ local function setGenvTable(packName: string, data: { [string]: number })
 	end
 end
 
--- ── Lazy Pack Loader ─────────────────────────────────────────────────────────
+-- ── Lazy Pack Loader (L1: memory, L2: getgenv, L3: disk, L4: network) ───────
+local ICONS_DIR = "Delirium/assets/icons"
 
 local function loadPack(packName: string): { [string]: number }?
 	if module[packName] and type(module[packName]) == "table" then
@@ -135,7 +137,28 @@ local function loadPack(packName: string): { [string]: number }?
 		return genvData
 	end
 
-	-- L2: HTTP fetch from GitHub raw
+	-- L2: disk cache (Delirium/assets/icons/<packName>.lua)
+	local diskPath = ICONS_DIR .. "/" .. packName .. ".lua"
+	local diskOk, diskSrc = pcall(function()
+		if filesystem.isfile(diskPath) then
+			return filesystem.readfile(diskPath)
+		end
+		return nil
+	end)
+
+	if diskOk and diskSrc and #diskSrc > 10 then
+		local diskFn = loadstring(diskSrc)
+		if diskFn then
+			local okRun, diskTable = pcall(diskFn)
+			if okRun and type(diskTable) == "table" then
+				module[packName] = diskTable
+				setGenvTable(packName, diskTable)
+				return diskTable
+			end
+		end
+	end
+
+	-- L3: HTTP fetch from GitHub raw
 	local url = PACK_URLS[packName]
 	if not url then return nil end
 
@@ -144,6 +167,13 @@ local function loadPack(packName: string): { [string]: number }?
 		if not httpGet then return nil end
 		local src = httpGet(game, url)
 		if not src or #src < 10 then return nil end
+
+		-- Save to disk asynchronously so next launch is instant
+		pcall(function()
+			filesystem.ensureDir(ICONS_DIR)
+			filesystem.writefile(diskPath, src)
+		end)
+
 		local fn = loadstring(src)
 		if not fn then return nil end
 		return fn()

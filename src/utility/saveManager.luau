@@ -86,6 +86,7 @@ local flags       = require(script.Parent.flags)
 local services    = require(script.Parent.services)
 
 local HttpService = services.getService("HttpService") :: HttpService
+local MarketplaceService = services.getService("MarketplaceService") :: MarketplaceService
 
 -- ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -95,6 +96,8 @@ type FlagEntry   = { element: any?, set: Setter }
 export type SaveManager = {
 	-- config
 	SetFolder:           (self: SaveManager, name: string) -> (),
+	SetSubFolder:        (self: SaveManager, name: string?) -> (),
+	SetSubfolder:        (self: SaveManager, name: string?) -> (),
 	SetAutoSaveInterval: (self: SaveManager, seconds: number) -> (),
 	-- registration
 	Register:            (self: SaveManager, flag: string, target: any) -> (),
@@ -130,8 +133,12 @@ local _registry  : { [string]: FlagEntry } = {}
 local _pendingLoad : { [string]: any } = {}
 -- flags that should never be serialized (internal UI state)
 local _ignored   : { [string]: boolean } = {}
--- root folder on disk
+-- root folder on disk (e.g. "Delirium" or "SCRIPTHUB")
 local _folder    : string  = "Delirium"
+-- optional game or sub-directory under <root>/configs/
+local _subFolder : string? = nil
+-- cached detected game name
+local _detectedGameName : string? = nil
 -- true while Load() is running; suppresses ScheduleAutoSave during restore
 local _loading   : boolean = false
 -- debounce gate for ScheduleAutoSave
@@ -143,8 +150,40 @@ local _autoInterval : number  = 30
 local _autoThread   : thread? = nil
 -- current active profile name — single source of truth (not read from element internals)
 local _activeProfile : string = "flags"
+-- unsubscribe function returned by flags:Subscribe — nil until installed
+local _autoSaveHook : (() -> ())? = nil
 
 -- ── Helpers ───────────────────────────────────────────────────────────────────
+
+-- Sanitize string for valid filesystem path (strip illegal chars: \ / : * ? " < > |)
+local function sanitizeName(name: string): string
+	local cleaned = name:gsub('[\\/:*?"<>|]', ""):match("^%s*(.-)%s*$") or ""
+	return cleaned
+end
+
+-- Resolve current game name via MarketplaceService with fallback to PlaceId
+local function getGameName(): string
+	if _detectedGameName then
+		return _detectedGameName
+	end
+
+	local resolvedName: string? = nil
+	local placeId = game.PlaceId
+
+	pcall(function()
+		local productInfo = MarketplaceService:GetProductInfo(placeId)
+		if productInfo and type(productInfo.Name) == "string" and #productInfo.Name > 0 then
+			resolvedName = sanitizeName(productInfo.Name)
+		end
+	end)
+
+	if not resolvedName or #resolvedName == 0 then
+		resolvedName = tostring(placeId)
+	end
+
+	_detectedGameName = resolvedName
+	return resolvedName :: string
+end
 
 -- FNV-1a 32-bit hash for non-ASCII label fallback.
 local function fnv1a(s: string): number
@@ -163,8 +202,29 @@ local function resolveProfile(name: string?): string
 	return if #trimmed > 0 then trimmed else "flags"
 end
 
+-- Resolve the active config directory:
+--   If _subFolder is string: "<_folder>/configs/<_subFolder>"
+--   If _subFolder is nil:    "<_folder>/configs/<auto_detected_game_name>"
+--   If _subFolder is "":     "<_folder>/configs" (root configs folder without subfolder)
+local function getFolder(): string
+	local sub: string? = nil
+	if _subFolder ~= nil then
+		if #_subFolder > 0 then
+			sub = _subFolder
+		end
+	else
+		-- Automatically use the game name by default
+		sub = getGameName()
+	end
+
+	if sub and #sub > 0 then
+		return _folder .. "/configs/" .. sub
+	end
+	return _folder .. "/configs"
+end
+
 local function profilePath(name: string?): string
-	return _folder .. "/" .. resolveProfile(name) .. ".json"
+	return getFolder() .. "/" .. resolveProfile(name) .. ".json"
 end
 
 -- Serialize special Roblox types that don't survive JSON round-trips.
@@ -195,8 +255,9 @@ end
 -- Returns true if the final file was written successfully.
 local function atomicWrite(path: string, content: string): boolean
 	local tempPath = path .. ".saving"
+	local targetDir = getFolder()
 
-	filesystem.ensureDir(_folder)
+	filesystem.ensureDir(targetDir)
 
 	if not pcall(filesystem.writefile, tempPath, content) then return false end
 
@@ -254,11 +315,28 @@ end
 
 -- ── Configuration ─────────────────────────────────────────────────────────────
 
--- Change the root folder. Must be called before Load/Save.
+-- Change the root folder (e.g. "Delirium", "SCRIPTHUB"). Must be called before Load/Save.
 function SaveManager:SetFolder(name: string)
 	assert(type(name) == "string" and #name > 0, "SaveManager:SetFolder — name must be a non-empty string")
 	_folder = name
 end
+
+-- Set the game / subfolder name under <_folder>/configs/<name>.
+-- Defaults automatically to the current game name (via MarketplaceService / PlaceId).
+--   SaveManager:SetSubFolder("Custom Game") -> uses "Custom Game"
+--   SaveManager:SetSubFolder()              -> resets to auto-detect game name
+--   SaveManager:SetSubFolder("")            -> saves directly in <_folder>/configs/ without a subfolder
+function SaveManager:SetSubFolder(name: string?)
+	if name == nil then
+		_subFolder = nil -- Revert to auto-detecting current game name
+	elseif #name > 0 then
+		_subFolder = sanitizeName(name)
+	else
+		_subFolder = "" -- Explicit empty string disables subfolder
+	end
+end
+
+SaveManager.SetSubfolder = SaveManager.SetSubFolder
 
 -- Override autosave cadence in seconds (default: 30).
 function SaveManager:SetAutoSaveInterval(seconds: number)
@@ -364,6 +442,18 @@ end
 -- skipCallbacks: optional boolean, defaults to false (callbacks DO execute so runtime state updates).
 -- Returns the number of flags successfully restored.
 function SaveManager:Load(profileName: string?, skipCallbacks: boolean?): number
+	-- Install the auto-save hook once per module lifetime.
+	-- Any flag change that happens outside of Load() will automatically
+	-- schedule a debounced save — user scripts no longer need to call
+	-- SaveManager:ScheduleAutoSave() manually inside every callback.
+	if not _autoSaveHook then
+		_autoSaveHook = flags:Subscribe(function(key: string, _value: any)
+			if _loading then return end
+			if _ignored[key] then return end
+			SaveManager:ScheduleAutoSave()
+		end)
+	end
+
 	local path = profilePath(profileName)
 
 	local raw: string? = nil
@@ -427,9 +517,10 @@ end
 -- Never includes .saving temp files.
 function SaveManager:List(): { string }
 	local names: { string } = {}
+	local targetDir = getFolder()
 	pcall(function()
-		filesystem.ensureDir(_folder)
-		for _, path in filesystem.listfiles(_folder) do
+		filesystem.ensureDir(targetDir)
+		for _, path in filesystem.listfiles(targetDir) do
 			local normalized = path:gsub("\\", "/")
 			local filename   = normalized:match("([^/]+)$") or ""
 			if filename:match("%.saving$") then continue end
@@ -460,9 +551,14 @@ end
 
 -- ── Autosave ──────────────────────────────────────────────────────────────────
 
--- Stop the autosave loop. Call in your script's cleanup / Window:Unload handler.
+-- Stop the autosave loop and remove the flags change hook.
+-- Call in your script's cleanup / Window:Unload handler.
 function SaveManager:StopAutoSave()
 	stopAutoSave()
+	if _autoSaveHook then
+		_autoSaveHook()
+		_autoSaveHook = nil
+	end
 end
 
 -- Debounced 0.5 s autosave — call from inside a flag callback to persist the
@@ -478,6 +574,8 @@ function SaveManager:ScheduleAutoSave()
 		end
 	end)
 end
+
+SaveManager._scheduleAutoSave = SaveManager.ScheduleAutoSave
 
 -- ── BuildConfigTab ────────────────────────────────────────────────────────────
 -- Creates a "Config" tab on window with:
@@ -508,7 +606,7 @@ function SaveManager:BuildConfigTab(window: any)
 	col:CreateSection({ name = "Profile" })
 
 	-- The callback drives _activeProfile directly — no reading element internals.
-	col:CreateInput({
+	local profileInput = col:CreateInput({
 		name         = "Profile Name",
 		placeholder  = "flags  (default)",
 		flag         = "__SM_input_profile",
@@ -544,9 +642,8 @@ function SaveManager:BuildConfigTab(window: any)
 			-- Ignore the placeholder entry
 			if pick == "(no profiles)" then return end
 			_activeProfile = pick
-			-- Sync the input field so the user sees what was selected.
-			-- flags:Set writes directly; the Input reads from Flags on next frame.
-			flags:Set("__SM_input_profile", pick)
+			-- Sync the input field visual text and flag value
+			profileInput:Set(pick, true)
 		end,
 	})
 
@@ -561,6 +658,7 @@ function SaveManager:BuildConfigTab(window: any)
 			local ok   = self:Save(name)
 			refreshDropdown()
 			if ok then
+				ddHandle:Set(name, true)
 				window:Notify({
 					title   = "Saved",
 					content = "Profile '" .. name .. "' written to disk.",
@@ -610,6 +708,9 @@ function SaveManager:BuildConfigTab(window: any)
 			local ok   = self:Delete(name)
 			refreshDropdown()
 			if ok then
+				_activeProfile = "flags"
+				profileInput:Set("flags", true)
+				ddHandle:Set("flags", true)
 				window:Notify({
 					title   = "Deleted",
 					content = "Profile '" .. name .. "' removed.",

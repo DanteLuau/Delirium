@@ -123,7 +123,7 @@ function Tab.new(props: TabProps, theme: { [string]: any }, contentParent: Frame
 	local tokens = getTokens(theme)
 
 	-- ── Content panel: Obsidian-style dual-column split view ─────────────
-	local numColumns = props.columns or 2
+	local numColumns = props.columns or 1
 	local isDual = numColumns ~= 1
 
 	-- Root tab panel frame (holds both columns)
@@ -460,7 +460,7 @@ function Tab.new(props: TabProps, theme: { [string]: any }, contentParent: Frame
 			titleLabel.TextColor3            = tokens.colorTextSecondary
 			if iconImg then iconImg.ImageColor3 = tokens.colorTextSecondary end
 		end
-	end)
+	end, tabContainer)
 
 	return self
 end

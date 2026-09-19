@@ -63,7 +63,7 @@ function Descriptor.new(parent: Instance, text: string, theme: { [string]: any }
 	self._themeUnsub = themeUtil.subscribe(function(t)
 		label.TextColor3 = t.PlaceholderColor or Color3.fromHex("#8a8a92")
 		label.FontFace   = t.Font or constants.DEFAULT_FONT
-	end)
+	end, frame)
 
 	return self
 end

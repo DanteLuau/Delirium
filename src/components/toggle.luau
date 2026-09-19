@@ -152,7 +152,7 @@ function Toggle.new(props: ToggleProps, theme: { [string]: any }, parent: Instan
 		glow.BackgroundColor3 = t.AccentColor or Color3.fromHex("#4cc2ff")
 		gradient.Color = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
 		theme = t
-	end)
+	end, frame)
 
 	-- Apply initial visual state without firing callback
 	self:Set(initValue, true)

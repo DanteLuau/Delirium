@@ -43,11 +43,13 @@ export type NotifyProps = {
 }
 
 type ActiveToast = {
-	wrapper:     Frame,
-	card:        CanvasGroup,
-	stroke:      UIStroke,
-	dismissed:   boolean,
-	cancelTimer: () -> (),
+	wrapper:      Frame,
+	card:         CanvasGroup,
+	stroke:       UIStroke,
+	dismissed:    boolean,
+	cancelTimer:  () -> (),
+	timeLabel:    TextLabel,
+	creationTime: number,
 }
 
 -- ── Singleton State ───────────────────────────────────────────────────────────
@@ -58,6 +60,7 @@ local _layout       : UIListLayout?   = nil
 local _active       : { ActiveToast } = {}
 local _orderCounter : number          = 0
 local _scale        : number          = 1
+local _clockThread  : thread?         = nil
 
 -- ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -115,10 +118,7 @@ local function ensureGui()
 	gui.IgnoreGuiInset   = true
 	gui.ZIndexBehavior   = Enum.ZIndexBehavior.Sibling
 
-	local ok = pcall(function() gui.Parent = game:GetService("CoreGui") end)
-	if not ok or not gui.Parent then
-		gui.Parent = variables.guiContainer
-	end
+	gui.Parent           = variables.guiContainer
 
 	local scaledW = math.round(TOAST_W * _scale)
 
@@ -154,6 +154,31 @@ local function ensureGui()
 	_layout    = layout
 end
 
+-- ── Centralized Clock Loop ───────────────────────────────────────────────────
+
+local function stopClock()
+	if #_active == 0 and _clockThread then
+		task.cancel(_clockThread)
+		_clockThread = nil
+	end
+end
+
+local function startClock()
+	if _clockThread then return end
+	_clockThread = task.spawn(function()
+		while #_active > 0 do
+			task.wait(1)
+			local now = tick()
+			for _, toast in ipairs(_active) do
+				if not toast.dismissed and toast.timeLabel then
+					toast.timeLabel.Text = formatElapsed(now - toast.creationTime)
+				end
+			end
+		end
+		_clockThread = nil
+	end)
+end
+
 -- ── Dismiss ───────────────────────────────────────────────────────────────────
 
 local function dismissToast(toast: ActiveToast)
@@ -163,6 +188,7 @@ local function dismissToast(toast: ActiveToast)
 
 	local idx = table.find(_active, toast)
 	if idx then table.remove(_active, idx) end
+	stopClock()
 
 	local s   = _scale
 	tween.fire(toast.card, TWEEN_OUT_POS, {
@@ -457,20 +483,20 @@ function notification.send(props: NotifyProps, theme: { [string]: any }?)
 	-- ── Toast state tracking ──────────────────────────────────────────────────
 	local creationTime = tick()
 	local timerThread  : thread? = nil
-	local updateThread : thread? = nil
 
 	local toast: ActiveToast = {
-		wrapper     = wrapper,
-		card        = card,
-		stroke      = stroke,
-		dismissed   = false,
-		cancelTimer = function() end,
+		wrapper      = wrapper,
+		card         = card,
+		stroke       = stroke,
+		dismissed    = false,
+		cancelTimer  = function() end,
+		timeLabel    = timeLbl,
+		creationTime = creationTime,
 	}
 
 	local function cancelTimer()
 		toast.dismissed = true
-		if timerThread  then pcall(task.cancel, timerThread);  timerThread  = nil end
-		if updateThread then pcall(task.cancel, updateThread); updateThread = nil end
+		if timerThread then pcall(task.cancel, timerThread); timerThread = nil end
 	end
 	toast.cancelTimer = cancelTimer
 
@@ -487,17 +513,12 @@ function notification.send(props: NotifyProps, theme: { [string]: any }?)
 		timerThread = task.delay(duration, function() dismissToast(toast) end)
 	end
 
-	-- ── Live timestamp loop ───────────────────────────────────────────────────
-	updateThread = task.spawn(function()
-		while not toast.dismissed do
-			task.wait(1)
-			if toast.dismissed then break end
-			timeLbl.Text = formatElapsed(tick() - creationTime)
-		end
-	end)
+	-- ── Centralized Clock Pulse ───────────────────────────────────────────────
+	startClock()
 
 	-- ── Close button interactivity ────────────────────────────────────────────
 	closeBtn.MouseButton1Click:Connect(function() dismissToast(toast) end)
+	closeBtn.TouchTap:Connect(function() dismissToast(toast) end)
 	closeBtn.MouseEnter:Connect(function()
 		tween.fire(closeBtn, TweenInfo.new(0.15), {
 			BackgroundTransparency = 0.82,

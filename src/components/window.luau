@@ -51,9 +51,6 @@ export type Window = {
 local Window = {}
 Window.__index = Window
 
--- Reconcile viewport changes no more than once every N seconds (backstop for missed signals).
-local VIEWPORT_RECONCILE_INTERVAL = 2
-
 -- Resolve toggle keybind (default RightShift)
 local function resolveKeybind(v: (EnumItem | string)?): EnumItem
 	if typeof(v) == "EnumItem" then return v :: EnumItem end
@@ -491,6 +488,10 @@ function Window.new(props: WindowProps): Window
 	contentArea.Parent                 = body
 
 	-- ── Settings panel ──────────────────────────────────────────────────────
+	local self: Window = nil :: any
+	local s: any = nil
+	local _preConns: { RBXScriptConnection } = {}
+
 	local SP_W    = 580
 	local SP_H    = 420
 	local SP_TB   = 44
@@ -517,6 +518,7 @@ function Window.new(props: WindowProps): Window
 	spOverlay.Active   = true
 
 	-- Panel frame
+	local openingSettings = false
 	local settingsPanel = Instance.new("Frame")
 	settingsPanel.Name             = "SettingsPanel"
 	settingsPanel.AnchorPoint      = Vector2.new(0.5, 0.5)
@@ -658,12 +660,23 @@ function Window.new(props: WindowProps): Window
 		spClose.BackgroundColor3 = colorSurfaceHover
 		spCloseIcon.ImageColor3  = colorTextSecondary
 	end)
-	spClose.MouseButton1Click:Connect(function()
+	local function closeSettings()
+		openingSettings        = false
 		settingsPanel.Visible  = false
 		spOverlay.Visible      = false
 		bodyBlocker.Visible    = false
 		variables.settingsOpen = false
-	end)
+	end
+
+	table.insert(_preConns, spClose.MouseButton1Click:Connect(closeSettings))
+	table.insert(_preConns, spClose.TouchTap:Connect(closeSettings))
+
+	table.insert(_preConns, spOverlay.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch then
+			closeSettings()
+		end
+	end))
 
 	-- Body: horizontal split (nav sidebar | scrolling content)
 	local spBody = Instance.new("Frame")
@@ -764,15 +777,7 @@ function Window.new(props: WindowProps): Window
 	spContent.ZIndex                  = constants.zIndex.popup
 	spContent.Parent                  = spBody
 
-	local self: Window = nil :: any
-	local s: any = nil
 	local spAccentUpdaters: { (Color3) -> () } = {}
-
-	-- A2 FIX: connections created inside spMakeSlider (InputChanged + InputEnded)
-	-- happen before `s` is assigned, so we can't table.insert into s._connections yet.
-	-- Accumulate them here; after s is initialized, s._connections is seeded with this
-	-- table so Unload() disconnects them correctly.
-	local _preConns: { RBXScriptConnection } = {}
 
 	-- B1 FIX: coalesce accent-drag broadcasts to once per frame.
 	-- ColorPicker.callback fires at drag rate (60-120 Hz); without this every
@@ -1364,8 +1369,8 @@ function Window.new(props: WindowProps): Window
 	end
 
 	local function updateSettingsPanelSize()
-		local winW = if windowFrame.Size.X.Offset > 0 then windowFrame.Size.X.Offset else windowFrame.AbsoluteSize.X
-		local winH = if windowFrame.Size.Y.Offset > 0 then windowFrame.Size.Y.Offset else windowFrame.AbsoluteSize.Y
+		local winW = if s and s._windowSize then s._windowSize.X.Offset else (if windowFrame.Size.X.Offset > 0 then windowFrame.Size.X.Offset else windowFrame.AbsoluteSize.X)
+		local winH = if s and s._windowSize then s._windowSize.Y.Offset else (if windowFrame.Size.Y.Offset > 0 then windowFrame.Size.Y.Offset else windowFrame.AbsoluteSize.Y)
 		local availableW = math.max(200, winW - 24)
 		local availableH = math.max(150, winH - (TITLEBAR_H + 20))
 
@@ -1374,23 +1379,54 @@ function Window.new(props: WindowProps): Window
 		settingsPanel.Size = UDim2.fromOffset(targetW, targetH)
 	end
 
-	-- Wire settingsBtn toggle
-	settingsBtn.MouseButton1Click:Connect(function()
+	local function toggleSettings()
+		if openingSettings then return end
 		local next = not settingsPanel.Visible
 		if next then
-			updateSettingsPanelSize()
-		end
-		settingsPanel.Visible = next
-		spOverlay.Visible     = next
-		bodyBlocker.Visible    = next
-		variables.settingsOpen = next
-	end)
+			local function showSettings()
+				openingSettings = false
+				updateSettingsPanelSize()
+				settingsPanel.Visible = true
+				spOverlay.Visible     = true
+				bodyBlocker.Visible    = true
+				variables.settingsOpen = true
+			end
 
-	windowFrame:GetPropertyChangedSignal("Size"):Connect(function()
+			if s and s._minimized then
+				openingSettings = true
+				self:ToggleMinimise()
+				local tw = s._activeTween
+				if tw then
+					tw.Completed:Once(function()
+						if not s._minimized then
+							showSettings()
+						else
+							openingSettings = false
+						end
+					end)
+				else
+					showSettings()
+				end
+			else
+				showSettings()
+			end
+		else
+			openingSettings       = false
+			settingsPanel.Visible = false
+			spOverlay.Visible     = false
+			bodyBlocker.Visible    = false
+			variables.settingsOpen = false
+		end
+	end
+
+	table.insert(_preConns, settingsBtn.MouseButton1Click:Connect(toggleSettings))
+	table.insert(_preConns, settingsBtn.TouchTap:Connect(toggleSettings))
+
+	table.insert(_preConns, windowFrame:GetPropertyChangedSignal("Size"):Connect(function()
 		if settingsPanel.Visible then
 			updateSettingsPanelSize()
 		end
-	end)
+	end))
 
 	-- ── Self ──────────────────────────────────────────────────────────────
 	self = setmetatable({}, Window) :: Window
@@ -1430,6 +1466,9 @@ function Window.new(props: WindowProps): Window
 	s._titleBarBg     = titleBarBg
 	s._titleBarCorner = titleBarCorner
 	s._cornerCover    = cornerCover
+	s._settingsPanel  = settingsPanel
+	s._spOverlay      = spOverlay
+	s._bodyBlocker    = bodyBlocker
 
 	-- M1 FIX: apply initial scale (0.9 on touch, 1.0 on desktop) now that s exists.
 	if userScale ~= 1.0 then
@@ -1479,7 +1518,7 @@ function Window.new(props: WindowProps): Window
 		for _, fn in spAccentUpdaters do
 			fn(t.AccentColor)
 		end
-	end)
+	end, windowFrame)
 
 	-- ── Drag system (RenderStepped, clamped) ──────────────────────────────
 	do
@@ -1494,18 +1533,20 @@ function Window.new(props: WindowProps): Window
 			return (self :: any)._visible
 		end
 
-		titleBar.InputBegan:Connect(function(input, processed)
+		table.insert(s._connections, titleBar.InputBegan:Connect(function(input, processed)
 			if processed then return end
 			if input.UserInputType ~= Enum.UserInputType.MouseButton1
 				and input.UserInputType ~= Enum.UserInputType.Touch then return end
 			if not interactive() then return end
 
 			-- If clicking within controlsFrame (minimize, close, settings), ignore drag
-			local mouse = uis:GetMouseLocation()
-			local cp    = controlsFrame.AbsolutePosition
-			local cs    = controlsFrame.AbsoluteSize
-			if mouse.X >= cp.X - 4 and mouse.X <= cp.X + cs.X + 4
-				and mouse.Y >= cp.Y - 4 and mouse.Y <= cp.Y + cs.Y + 4 then
+			local inputPos = if input.UserInputType == Enum.UserInputType.Touch
+				then Vector2.new(input.Position.X, input.Position.Y)
+				else uis:GetMouseLocation()
+			local cp = controlsFrame.AbsolutePosition
+			local cs = controlsFrame.AbsoluteSize
+			if inputPos.X >= cp.X - 6 and inputPos.X <= cp.X + cs.X + 6
+				and inputPos.Y >= cp.Y - 6 and inputPos.Y <= cp.Y + cs.Y + 6 then
 				return
 			end
 
@@ -1518,76 +1559,86 @@ function Window.new(props: WindowProps): Window
 			local _ds = (self :: any)
 			_ds._dragging = true
 			_ds._hasBeenDragged = true
-		end)
 
-		local inputChangedConn = uis.InputChanged:Connect(function(input)
-			if not dragging then return end
-			if input.UserInputType ~= Enum.UserInputType.MouseMovement
-				and input.UserInputType ~= Enum.UserInputType.Touch then return end
-			if not interactive() then return end
+			local dragMoveConn: RBXScriptConnection? = nil
+			local dragEndConn: RBXScriptConnection? = nil
+			local wfrConn: RBXScriptConnection? = nil
 
-			local delta = input.Position - dragStart
-			if math.abs(delta.X) < 1 and math.abs(delta.Y) < 1 then return end
+			local function stopDrag()
+				if not dragging then return end
+				dragging = false
+				_ds._dragging = false
 
-			local newX = startPos.X.Offset + delta.X
-			local newY = startPos.Y.Offset + delta.Y
-
-			if (self :: any)._keepOnScreen then
-				local screen = gui.AbsoluteSize
-				local curW   = windowFrame.AbsoluteSize.X
-				local curH   = windowFrame.AbsoluteSize.Y
-				local margin = 8
-
-				if curW >= screen.X - margin * 2 then
-					newX = math.floor(screen.X / 2)
-				else
-					local minX = margin + math.floor(curW / 2)
-					local maxX = screen.X - margin - math.ceil(curW / 2)
-					newX = math.clamp(newX, minX, maxX)
-				end
-
-				if curH >= screen.Y - margin * 2 then
-					newY = math.floor(screen.Y / 2)
-				else
-					local minY = margin + math.floor(curH / 2)
-					local maxY = screen.Y - margin - math.ceil(curH / 2)
-					newY = math.clamp(newY, minY, maxY)
-				end
+				if dragMoveConn then dragMoveConn:Disconnect(); dragMoveConn = nil end
+				if dragEndConn then dragEndConn:Disconnect(); dragEndConn = nil end
+				if wfrConn then wfrConn:Disconnect(); wfrConn = nil end
 			end
 
-			if math.abs(newX - lastX) < 0.5 and math.abs(newY - lastY) < 0.5 then return end
-			lastX, lastY = newX, newY
-			windowFrame.Position = UDim2.fromOffset(newX, newY)
-		end)
-		table.insert((self :: any)._connections, inputChangedConn)
+			dragMoveConn = uis.InputChanged:Connect(function(moveInput)
+				if not dragging then return end
+				if moveInput.UserInputType ~= Enum.UserInputType.MouseMovement
+					and moveInput.UserInputType ~= Enum.UserInputType.Touch then return end
+				if not interactive() then return end
 
-		local function release()
-			if not dragging then return end
-			dragging = false
-			local _ds = (self :: any)
-			_ds._dragging = false
-		end
+				local delta = moveInput.Position - dragStart
+				if math.abs(delta.X) < 1 and math.abs(delta.Y) < 1 then return end
 
-		local inputEndedConn = uis.InputEnded:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1
-				or input.UserInputType == Enum.UserInputType.Touch then
-				release()
-			end
-		end)
-		table.insert((self :: any)._connections, inputEndedConn)
+				local newX = startPos.X.Offset + delta.X
+				local newY = startPos.Y.Offset + delta.Y
 
-		local wfr = uis.WindowFocusReleased:Connect(release)
-		table.insert((self :: any)._connections, wfr)
+				if (self :: any)._keepOnScreen then
+					local screen = gui.AbsoluteSize
+					local curW   = windowFrame.AbsoluteSize.X
+					local curH   = windowFrame.AbsoluteSize.Y
+					local margin = 8
+
+					if curW >= screen.X - margin * 2 then
+						newX = math.floor(screen.X / 2)
+					else
+						local minX = margin + math.floor(curW / 2)
+						local maxX = screen.X - margin - math.ceil(curW / 2)
+						newX = math.clamp(newX, minX, maxX)
+					end
+
+					if curH >= screen.Y - margin * 2 then
+						newY = math.floor(screen.Y / 2)
+					else
+						local minY = margin + math.floor(curH / 2)
+						local maxY = screen.Y - margin - math.ceil(curH / 2)
+						newY = math.clamp(newY, minY, maxY)
+					end
+				end
+
+				if math.abs(newX - lastX) < 0.5 and math.abs(newY - lastY) < 0.5 then return end
+				lastX, lastY = newX, newY
+				windowFrame.Position = UDim2.fromOffset(newX, newY)
+			end)
+
+			dragEndConn = uis.InputEnded:Connect(function(endInput)
+				if endInput.UserInputType == Enum.UserInputType.MouseButton1
+					or endInput.UserInputType == Enum.UserInputType.Touch then
+					stopDrag()
+				end
+			end)
+
+			wfrConn = uis.WindowFocusReleased:Connect(stopDrag)
+		end))
 	end
 
 	-- ── Window controls ───────────────────────────────────────────────────
-	closeBtn.MouseButton1Click:Connect(function()
+	table.insert(s._connections, closeBtn.MouseButton1Click:Connect(function()
 		self:Unload()
-	end)
+	end))
+	table.insert(s._connections, closeBtn.TouchTap:Connect(function()
+		self:Unload()
+	end))
 
-	minBtn.MouseButton1Click:Connect(function()
+	table.insert(s._connections, minBtn.MouseButton1Click:Connect(function()
 		self:ToggleMinimise()
-	end)
+	end))
+	table.insert(s._connections, minBtn.TouchTap:Connect(function()
+		self:ToggleMinimise()
+	end))
 
 	-- ── Toggle keybind ────────────────────────────────────────────────────
 	-- A1 FIX: capture this global InputBegan connection so Unload() disconnects it.
@@ -1605,6 +1656,118 @@ function Window.new(props: WindowProps): Window
 
 	-- Start viewport watcher — keeps the window sized to the screen on resize/rotation.
 	self:_watchViewport()
+
+	-- ── Mobile / Touch iOS-style Gesture Bar ──────────────────────────────
+	-- Strictly mobile-only: PC players use keyboard keybind exclusively.
+	local isMobile = variables.isTouchOnly or (variables.userInputService.TouchEnabled and not variables.userInputService.KeyboardEnabled)
+	local showGestureBar = isMobile and (props.gestureBar ~= false)
+
+	if showGestureBar then
+		local barContainer = Instance.new("Frame")
+		barContainer.Name                   = "Delirium_GestureBar"
+		barContainer.AnchorPoint            = Vector2.new(0, 0.5)
+		barContainer.Position               = UDim2.new(0, 0, 0.5, 0)
+		barContainer.Size                   = UDim2.fromOffset(36, 110)
+		barContainer.BackgroundTransparency = 1
+		barContainer.BorderSizePixel        = 0
+		barContainer.ZIndex                 = constants.zIndex.tooltip + 10
+		barContainer.Parent                 = gui
+
+		local barPill = Instance.new("Frame")
+		barPill.Name             = "Pill"
+		barPill.AnchorPoint      = Vector2.new(0, 0.5)
+		barPill.Position         = UDim2.new(0, 4, 0.5, 0)
+		barPill.Size             = UDim2.fromOffset(5, 76)
+		barPill.BackgroundColor3 = colorAccent
+		barPill.BackgroundTransparency = 0.55
+		barPill.BorderSizePixel  = 0
+		barPill.ZIndex           = constants.zIndex.tooltip + 11
+		barPill.Parent           = barContainer
+
+		local pillCorner = Instance.new("UICorner")
+		pillCorner.CornerRadius = UDim.new(1, 0)
+		pillCorner.Parent       = barPill
+
+		local pillStroke = Instance.new("UIStroke")
+		pillStroke.Color           = Color3.fromRGB(255, 255, 255)
+		pillStroke.Thickness       = 1
+		pillStroke.Transparency    = 0.75
+		pillStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		pillStroke.Parent          = barPill
+
+		table.insert(spAccentUpdaters, function(newAccent)
+			barPill.BackgroundColor3 = newAccent
+		end)
+
+		local isGestureDragging = false
+		local startTouchX = 0
+		local currentDeltaX = 0
+		local dragMoveConn: RBXScriptConnection? = nil
+		local dragEndConn: RBXScriptConnection? = nil
+
+		local function stopGestureDrag()
+			if not isGestureDragging then return end
+			isGestureDragging = false
+			if dragMoveConn then dragMoveConn:Disconnect(); dragMoveConn = nil end
+			if dragEndConn then dragEndConn:Disconnect(); dragEndConn = nil end
+
+			tween.fire(barPill, constants.tweenFast, {
+				Position               = UDim2.new(0, 4, 0.5, 0),
+				Size                   = UDim2.fromOffset(5, 76),
+				BackgroundTransparency = 0.55,
+			})
+			tween.fire(pillStroke, constants.tweenFast, {
+				Transparency = 0.75,
+				Color        = Color3.fromRGB(255, 255, 255),
+			})
+
+			if currentDeltaX >= 25 then
+				self:ToggleHide()
+			end
+			currentDeltaX = 0
+		end
+
+		table.insert(s._connections, barContainer.InputBegan:Connect(function(input)
+			if input.UserInputType ~= Enum.UserInputType.Touch then
+				return
+			end
+			isGestureDragging = true
+			startTouchX = input.Position.X
+			currentDeltaX = 0
+
+			tween.fire(barPill, constants.tweenFast, {
+				Size                   = UDim2.fromOffset(8, 88),
+				BackgroundTransparency = 0.15,
+			})
+			tween.fire(pillStroke, constants.tweenFast, {
+				Transparency = 0.2,
+				Color        = colorAccent,
+			})
+
+			if dragMoveConn then dragMoveConn:Disconnect() end
+			if dragEndConn then dragEndConn:Disconnect() end
+
+			dragMoveConn = variables.userInputService.InputChanged:Connect(function(moveInput)
+				if not isGestureDragging then return end
+				if moveInput.UserInputType ~= Enum.UserInputType.Touch then
+					return
+				end
+
+				local delta = math.max(0, moveInput.Position.X - startTouchX)
+				currentDeltaX = delta
+				local visualX = math.min(delta, 80)
+				barPill.Position = UDim2.new(0, 4 + visualX, 0.5, 0)
+			end)
+
+			dragEndConn = variables.userInputService.InputEnded:Connect(function(endInput)
+				if endInput.UserInputType == Enum.UserInputType.Touch then
+					stopGestureDrag()
+				end
+			end)
+		end))
+
+		s._gestureCleanup = stopGestureDrag
+	end
 
 	return self
 end
@@ -1691,6 +1854,7 @@ function Window:_applyWindowSize()
 	local wf: Frame = (self :: any)._windowFrame
 	wf.Size = newSize
 
+	local vp = if cam then cam.ViewportSize else nil
 	if not s._hasBeenDragged and vp then
 		wf.Position = UDim2.fromOffset(
 			math.max(0, math.floor((vp.X - newSize.X.Offset) / 2)),
@@ -1702,9 +1866,8 @@ function Window:_applyWindowSize()
 end
 
 -- Watch CurrentCamera.ViewportSize. Rebinds when the camera is swapped.
--- A Heartbeat backstop fires every VIEWPORT_RECONCILE_INTERVAL seconds.
 function Window:_watchViewport()
-	local cameraConn: RBXScriptConnection? = nil
+	local s = (self :: any)
 	local pending = false
 
 	local function request()
@@ -1717,30 +1880,20 @@ function Window:_watchViewport()
 	end
 
 	local function bind()
-		if cameraConn then cameraConn:Disconnect(); cameraConn = nil end
+		if s._cameraConn then
+			s._cameraConn:Disconnect()
+			s._cameraConn = nil
+		end
 		local cam = variables.workspace.CurrentCamera
 		if cam then
-			-- Note: cameraConn is managed via the local variable above — not added
-			-- to _connections, since bind() disconnects and replaces it on every
-			-- camera swap. Adding it would accumulate dead entries over time.
-			cameraConn = cam:GetPropertyChangedSignal("ViewportSize"):Connect(request)
+			s._cameraConn = cam:GetPropertyChangedSignal("ViewportSize"):Connect(request)
 		end
 		request()
 	end
 
 	local camSwapConn = variables.workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(bind)
-	table.insert((self :: any)._connections, camSwapConn)
+	table.insert(s._connections, camSwapConn)
 	bind()
-
-	local sinceReconcile = 0
-	local hbConn = variables.runService.Heartbeat:Connect(function(delta: number)
-		if self.unloaded then return end
-		sinceReconcile += delta
-		if sinceReconcile < VIEWPORT_RECONCILE_INTERVAL then return end
-		sinceReconcile = 0
-		self:_applyWindowSize()
-	end)
-	table.insert((self :: any)._connections, hbConn)
 end
 
 -- ── Tab management ────────────────────────────────────────────────────────────
@@ -1976,6 +2129,14 @@ function Window:ToggleMinimise()
 		-- ── MINIMIZE ─────────────────────────────────────────────
 		s._minimized = true
 
+		-- Close settings panel if open so it doesn't get trapped in collapsed titlebar
+		if s._settingsPanel and s._settingsPanel.Visible then
+			s._settingsPanel.Visible = false
+			if s._spOverlay then s._spOverlay.Visible = false end
+			if s._bodyBlocker then s._bodyBlocker.Visible = false end
+			variables.settingsOpen = false
+		end
+
 		local targetCY = topY + titlebarH / 2
 		if keepOnScreen then
 			local halfTH = titlebarH / 2
@@ -2056,6 +2217,16 @@ function Window:Unload()
 		pcall(function() conn:Disconnect() end)
 	end
 	table.clear(s._connections)
+
+	if s._gestureCleanup then
+		pcall(function() s._gestureCleanup() end)
+		s._gestureCleanup = nil
+	end
+
+	if s._cameraConn then
+		pcall(function() s._cameraConn:Disconnect() end)
+		s._cameraConn = nil
+	end
 
 	if s._playerCard then
 		pcall(function() s._playerCard:Destroy() end)

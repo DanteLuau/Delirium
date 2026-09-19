@@ -6,6 +6,7 @@
 -- used by all interactive components. Previously duplicated across 7 files.
 
 local constants = require(script.Parent.constants)
+local runtime   = require(script.Parent.runtime)
 
 local element = {}
 
@@ -69,6 +70,39 @@ function element.makeOverlay(parent: Instance, zIndex: number, transparency: num
 	overlay.Visible                = false
 	overlay.Parent                 = parent
 	return overlay
+end
+
+-- Checks whether a screen coordinate (Vector2 or Vector3) is inside a GuiObject.
+function element.isInside(pos: Vector2 | Vector3, guiObj: GuiObject): boolean
+	local ap = guiObj.AbsolutePosition
+	local as = guiObj.AbsoluteSize
+	return pos.X >= ap.X and pos.X <= (ap.X + as.X) and pos.Y >= ap.Y and pos.Y <= (ap.Y + as.Y)
+end
+
+-- Dynamically listens for clicks or touches outside the given GuiObjects.
+-- Returns an unsubscribe cleanup function.
+function element.onOutsideClick(targets: { GuiObject }, callback: () -> ()): () -> ()
+	local conn: RBXScriptConnection? = nil
+	conn = runtime.userInputService.InputBegan:Connect(function(input: InputObject)
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1
+			and input.UserInputType ~= Enum.UserInputType.Touch then
+			return
+		end
+		local pos = input.Position
+		for _, target in ipairs(targets) do
+			if target.Visible and element.isInside(pos, target) then
+				return
+			end
+		end
+		callback()
+	end)
+
+	return function()
+		if conn then
+			conn:Disconnect()
+			conn = nil
+		end
+	end
 end
 
 return element

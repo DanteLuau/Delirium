@@ -243,7 +243,7 @@ function Button.new(props: ButtonProps, theme: { [string]: any }, parent: Instan
 		end
 		gradient.Color = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
 		theme = t
-	end)
+	end, frame)
 	return self
 end
 
@@ -535,7 +535,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 	popup.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
 	popup.BorderSizePixel  = 0
 	popup.ZIndex           = POP_Z
-	popup.Visible          = windowMode   
+	popup.Visible          = not windowMode   
 	popup.Parent           = popupParent
 	mkCorner(popup, 8)
 	mkStroke(popup, Color3.fromRGB(48, 48, 56), 1)
@@ -955,7 +955,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 	local function closePopup()
 		if not isOpen then return end
 		isOpen       = false
-		dragging     = nil
+		stopColorDrag()
 		stroke.Color = theme.ElementStroke or Color3.fromHex("#2b2b2b")
 		if windowMode then
 			popup.Visible = false
@@ -973,11 +973,14 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 	
 	if not windowMode and backdrop then
 		addConn((backdrop :: TextButton).MouseButton1Click:Connect(closePopup))
+		addConn((backdrop :: TextButton).TouchTap:Connect(closePopup))
 	end
 	if windowMode and dimOverlay then
 		addConn((dimOverlay :: TextButton).MouseButton1Click:Connect(closePopup))
+		addConn((dimOverlay :: TextButton).TouchTap:Connect(closePopup))
 	end
 	addConn(popClose.MouseButton1Click:Connect(closePopup))
+	addConn(popClose.TouchTap:Connect(closePopup))
 
 	
 	addConn(headerBtn.MouseEnter:Connect(function()
@@ -992,19 +995,57 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 	end))
 
 	
+	local dragConnChange: RBXScriptConnection? = nil
+	local dragConnEnd: RBXScriptConnection? = nil
+
+	local function stopColorDrag()
+		dragging = nil
+		if dragConnChange then
+			dragConnChange:Disconnect()
+			dragConnChange = nil
+		end
+		if dragConnEnd then
+			dragConnEnd:Disconnect()
+			dragConnEnd = nil
+		end
+	end
+
+	local function startColorDrag(target: DragTarget, mousePos: Vector2)
+		dragging = target
+		pump(mousePos)
+
+		if not dragConnChange then
+			dragConnChange = runtime.userInputService.InputChanged:Connect(function(input: InputObject)
+				if not dragging then return end
+				if input.UserInputType == Enum.UserInputType.MouseMovement
+					or input.UserInputType == Enum.UserInputType.Touch then
+					pump(Vector2.new(input.Position.X, input.Position.Y))
+				end
+			end)
+		end
+
+		if not dragConnEnd then
+			dragConnEnd = runtime.userInputService.InputEnded:Connect(function(input: InputObject)
+				if input.UserInputType == Enum.UserInputType.MouseButton1
+					or input.UserInputType == Enum.UserInputType.Touch then
+					stopColorDrag()
+				end
+			end)
+		end
+	end
+
+	
 	addConn(canvasBtn.InputBegan:Connect(function(input: InputObject)
 		if input.UserInputType == Enum.UserInputType.MouseButton1
 			or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = "canvas"
-			pump(Vector2.new(input.Position.X, input.Position.Y))
+			startColorDrag("canvas", Vector2.new(input.Position.X, input.Position.Y))
 		end
 	end))
 
 	addConn(hueBtn.InputBegan:Connect(function(input: InputObject)
 		if input.UserInputType == Enum.UserInputType.MouseButton1
 			or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = "hue"
-			pump(Vector2.new(input.Position.X, input.Position.Y))
+			startColorDrag("hue", Vector2.new(input.Position.X, input.Position.Y))
 		end
 	end))
 
@@ -1013,26 +1054,10 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 		addConn(abtn.InputBegan:Connect(function(input: InputObject)
 			if input.UserInputType == Enum.UserInputType.MouseButton1
 				or input.UserInputType == Enum.UserInputType.Touch then
-				dragging = "alpha"
-				pump(Vector2.new(input.Position.X, input.Position.Y))
+				startColorDrag("alpha", Vector2.new(input.Position.X, input.Position.Y))
 			end
 		end))
 	end
-
-	addConn(runtime.userInputService.InputChanged:Connect(function(input: InputObject)
-		if not dragging then return end
-		if input.UserInputType == Enum.UserInputType.MouseMovement
-			or input.UserInputType == Enum.UserInputType.Touch then
-			pump(Vector2.new(input.Position.X, input.Position.Y))
-		end
-	end))
-
-	addConn(runtime.userInputService.InputEnded:Connect(function(input: InputObject)
-		if input.UserInputType == Enum.UserInputType.MouseButton1
-			or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = nil
-		end
-	end))
 
 	
 	addConn(hexInput.FocusLost:Connect(function()
@@ -1083,7 +1108,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 			alphaInput.TextColor3        = t.ContentColor or Color3.fromHex("#ffffff")
 			alphaInput.PlaceholderColor3 = t.PlaceholderColor or Color3.fromHex("#9d9d9d")
 		end
-	end)
+	end, frame)
 
 	
 	local self = setmetatable({}, ColorPicker) :: ColorPicker
@@ -1105,6 +1130,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 	end
 
 	function self:Destroy()
+		stopColorDrag()
 		if themeUnsub then themeUnsub() end
 		for _, c in conns do c:Disconnect() end
 		table.clear(conns)
@@ -1133,14 +1159,16 @@ end)() end,[5]=function()local wax,script,require=ImportGlobals(5)local ImportGl
 
 
 
+local services  = require(script.Parent.Parent.utility.services)
 local tween     = require(script.Parent.Parent.utility.tween)
 local themeUtil = require(script.Parent.Parent.utility.theme)
 local constants = require(script.Parent.Parent.utility.constants)
 local variables = require(script.Parent.Parent.utility.variables)
 
-local Players    = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
+local Players      = services.getService("Players") :: Players
+local TweenService = services.getService("TweenService") :: TweenService
+local RunService   = services.getService("RunService") :: RunService
+local StatsService = services.getService("Stats") :: Stats
 
 local TWEEN_TAB  = TweenInfo.new(0.16, Enum.EasingStyle.Quad,  Enum.EasingDirection.Out)
 local THUMB_TYPE = Enum.ThumbnailType.HeadShot
@@ -1626,40 +1654,50 @@ function Dashboard.new(
 	
 	local sessionStart = os.clock()
 	local pingTimer = 0; local fpsTimer = 0; local fpsCount = 0; local charTimer = 0
+	local liveConn: RBXScriptConnection? = nil
 
-	local liveConn: RBXScriptConnection = RunService.Heartbeat:Connect(function(dt)
-		
-		if not content.Visible then return end
+	local function startLiveUpdates()
+		if liveConn then return end
+		liveConn = RunService.Heartbeat:Connect(function(dt)
+			if not contentVisible then return end
 
-		fpsCount += 1; fpsTimer += dt
-		if fpsTimer >= 0.5 then
-			fpsRow.Text = tostring(math.round(fpsCount / fpsTimer)) .. " fps"
-			fpsCount = 0; fpsTimer = 0
+			fpsCount += 1; fpsTimer += dt
+			if fpsTimer >= 0.5 then
+				fpsRow.Text = tostring(math.round(fpsCount / fpsTimer)) .. " fps"
+				fpsCount = 0; fpsTimer = 0
+			end
+
+			uptimeRow.Text = formatTime(os.clock() - sessionStart)
+
+			pingTimer += dt
+			if pingTimer >= 1.5 then
+				pingTimer = 0
+				local ok, ms = pcall(function()
+					return math.round((StatsService :: any).Network.ServerStatsItem["Data Ping"]:GetValue())
+				end)
+				pingRow.Text = if ok then tostring(ms) .. " ms" else "—"
+			end
+
+			charTimer += dt
+			if charTimer >= 0.5 then
+				charTimer = 0
+				pcall(function()
+					local char = lp.Character; if not char then return end
+					local hum = char:FindFirstChildOfClass("Humanoid"); if not hum then return end
+					healthRow.Text = math.round(hum.Health) .. " / " .. math.round(hum.MaxHealth)
+					wsRow.Text = tostring(hum.WalkSpeed)
+					jpRow.Text = tostring(hum.JumpPower)
+				end)
+			end
+		end)
+	end
+
+	local function stopLiveUpdates()
+		if liveConn then
+			liveConn:Disconnect()
+			liveConn = nil
 		end
-
-		uptimeRow.Text = formatTime(os.clock() - sessionStart)
-
-		pingTimer += dt
-		if pingTimer >= 1.5 then
-			pingTimer = 0
-			local ok, ms = pcall(function()
-				return math.round(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue())
-			end)
-			pingRow.Text = if ok then tostring(ms) .. " ms" else "—"
-		end
-
-		charTimer += dt
-		if charTimer >= 0.5 then
-			charTimer = 0
-			pcall(function()
-				local char = lp.Character; if not char then return end
-				local hum = char:FindFirstChildOfClass("Humanoid"); if not hum then return end
-				healthRow.Text = math.round(hum.Health) .. " / " .. math.round(hum.MaxHealth)
-				wsRow.Text = tostring(hum.WalkSpeed)
-				jpRow.Text = tostring(hum.JumpPower)
-			end)
-		end
-	end)
+	end
 
 	
 	local teamConn = lp:GetPropertyChangedSignal("Team"):Connect(function()
@@ -1688,6 +1726,7 @@ function Dashboard.new(
 		contentVisible = true
 		content.Visible = true
 		selectInnerTab(1) 
+		startLiveUpdates()
 		
 		tween.fire(card, TweenInfo.new(0.14, Enum.EasingStyle.Quad), { BackgroundColor3 = tk.neutralHover })
 		tween.fire(chevron, TweenInfo.new(0.14, Enum.EasingStyle.Quad), { TextColor3 = tk.accent })
@@ -1697,6 +1736,7 @@ function Dashboard.new(
 		if not contentVisible then return end
 		contentVisible = false
 		content.Visible = false
+		stopLiveUpdates()
 		tween.fire(card, TweenInfo.new(0.14, Enum.EasingStyle.Quad), { BackgroundColor3 = tk.surface })
 		tween.fire(chevron, TweenInfo.new(0.14, Enum.EasingStyle.Quad), { TextColor3 = tk.textSecondary })
 	end
@@ -1722,12 +1762,12 @@ function Dashboard.new(
 	local s = self :: any
 	s._cardFrame   = card
 	s._content     = content
-	s._liveConn    = liveConn
-	s._teamConn    = teamConn
-	s._themeUnsub  = themeUnsub
-	s._showContent = showContent
-	s._hideContent = hideContent
-	s._cardHit     = cardHit
+	s._stopLiveUpdates = stopLiveUpdates
+	s._teamConn        = teamConn
+	s._themeUnsub      = themeUnsub
+	s._showContent     = showContent
+	s._hideContent     = hideContent
+	s._cardHit         = cardHit
 
 	return self
 end
@@ -1742,11 +1782,11 @@ end
 
 function Dashboard:Destroy()
 	local s = (self :: any)
-	if s._themeUnsub then s._themeUnsub() end
-	if s._liveConn   then s._liveConn:Disconnect() end
-	if s._teamConn   then s._teamConn:Disconnect() end
-	if s._content    then s._content:Destroy() end
-	if s._cardFrame  then s._cardFrame:Destroy() end
+	if s._stopLiveUpdates then s._stopLiveUpdates() end
+	if s._themeUnsub      then s._themeUnsub() end
+	if s._teamConn        then s._teamConn:Disconnect() end
+	if s._content         then s._content:Destroy() end
+	if s._cardFrame       then s._cardFrame:Destroy() end
 end
 
 return Dashboard
@@ -1816,7 +1856,7 @@ function Descriptor.new(parent: Instance, text: string, theme: { [string]: any }
 	self._themeUnsub = themeUtil.subscribe(function(t)
 		label.TextColor3 = t.PlaceholderColor or Color3.fromHex("#8a8a92")
 		label.FontFace   = t.Font or constants.DEFAULT_FONT
-	end)
+	end, frame)
 
 	return self
 end
@@ -1843,6 +1883,7 @@ local services  = require(script.Parent.Parent.utility.services)
 local signal    = require(script.Parent.Parent.utility.signal)
 local themeUtil = require(script.Parent.Parent.utility.theme)
 local icons     = require(script.Parent.Parent.utility.icons)
+local element   = require(script.Parent.Parent.utility.element)
 
 local UserInputService = runtime.userInputService
 local Players          = services.getService("Players") :: Players
@@ -2368,6 +2409,10 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 		listWrap.BackgroundTransparency = 1
 		listStroke.Transparency = 1
 		frame.Size = UDim2.new(1, 0, 0, HEADER_H)
+		if s._outsideUnsub then
+			s._outsideUnsub()
+			s._outsideUnsub = nil
+		end
 		
 		frame.ZIndex = s._originalZIndex or 1
 		s._originalZIndex = nil
@@ -2451,6 +2496,12 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 			frame.Size = UDim2.new(1, 0, 0, HEADER_H + LIST_GAP + fullH)
 		end
 
+		if s._outsideUnsub then
+			s._outsideUnsub()
+			s._outsideUnsub = nil
+		end
+		s._outsideUnsub = element.onOutsideClick({ frame, listWrap }, closeDropdown)
+
 		if s._searchEnabled and s._searchBox then
 			task.defer(function()
 				if s._open and s._searchBox then
@@ -2467,23 +2518,32 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 	s._closeDropdown = closeDropdown
 
 	
-	local function buildOptions()
-		for _, c in ipairs(s._optConns) do c:Disconnect() end
-		table.clear(s._optConns)
-		for _, child in ipairs(scroll:GetChildren()) do
-			if child:IsA("Frame") then child:Destroy() end
-		end
+	type OptionEntry = {
+		opt: DropdownOption,
+		frame: Frame,
+		label: TextLabel,
+		check: ImageLabel?,
+		sep: Frame?,
+	}
+	local optionEntries: { OptionEntry } = {}
 
+	local function applySearchFilter()
 		local query = s._searchQuery or ""
-		local filtered: { DropdownOption } = {}
-		for _, opt in ipairs(s._options) do
-			if query == "" or string.find(opt.Label:lower(), query, 1, true) then
-				table.insert(filtered, opt)
+		local visibleCount = 0
+
+		for _, entry in ipairs(optionEntries) do
+			local matches = query == "" or string.find(entry.opt.Label:lower(), query, 1, true) ~= nil
+			entry.frame.Visible = matches
+			if matches then
+				visibleCount += 1
+				entry.frame.LayoutOrder = visibleCount
+				if entry.sep then
+					entry.sep.Visible = true
+				end
 			end
 		end
 
-		local optCount = #filtered
-		local fullH = optCount * OPTION_H
+		local fullH = visibleCount * OPTION_H
 		scroll.CanvasSize = UDim2.fromOffset(0, fullH)
 		s._targetH = math.min(fullH, s._maxH)
 
@@ -2492,8 +2552,19 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 			listWrap.Size = UDim2.new(1, 0, 0, panelH)
 			frame.Size = UDim2.new(1, 0, 0, HEADER_H + LIST_GAP + panelH)
 		end
+	end
 
-		for i, opt in ipairs(filtered) do
+	local function createOptionRows()
+		for _, c in ipairs(s._optConns) do c:Disconnect() end
+		table.clear(s._optConns)
+		table.clear(optionEntries)
+
+		for _, child in ipairs(scroll:GetChildren()) do
+			if child:IsA("Frame") then child:Destroy() end
+		end
+
+		local optCount = #s._options
+		for i, opt in ipairs(s._options) do
 			local isSelected = if s._multiSelect
 				then s._selectedSet[opt.Value] == true
 				else s._selectedValue == opt.Value
@@ -2577,15 +2648,17 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 				disabledTag.Parent = optFrame
 			end
 
+			local sep: Frame? = nil
 			if i < optCount then
-				local sep = Instance.new("Frame")
-				sep.Size = UDim2.new(1, -24, 0, 1)
-				sep.Position = UDim2.new(0, 12, 1, -1)
-				sep.BackgroundColor3 = s._theme.ElementStroke or Color3.fromHex("#2b2b2b")
-				sep.BackgroundTransparency = 0.7
-				sep.BorderSizePixel = 0
-				sep.ZIndex = 4
-				sep.Parent = optFrame
+				local sFrame = Instance.new("Frame")
+				sFrame.Size = UDim2.new(1, -24, 0, 1)
+				sFrame.Position = UDim2.new(0, 12, 1, -1)
+				sFrame.BackgroundColor3 = s._theme.ElementStroke or Color3.fromHex("#2b2b2b")
+				sFrame.BackgroundTransparency = 0.7
+				sFrame.BorderSizePixel = 0
+				sFrame.ZIndex = 4
+				sFrame.Parent = optFrame
+				sep = sFrame
 			end
 
 			local optHit = Instance.new("TextButton")
@@ -2625,20 +2698,20 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 
 					if s._multiSelect then
 						if s._selectedSet[opt.Value] then
-						s._selectedSet[opt.Value] = nil
-						optLabel.TextColor3 = s._theme.PlaceholderColor or Color3.fromHex("#9d9d9d")
-						if checkLabel then
-						  (checkLabel :: ImageLabel).Image = icons.Resolve("lucide:square") or "rbxassetid://0"
-						 (checkLabel :: ImageLabel).ImageColor3 = Color3.fromHex("#555555")
-						end
+							s._selectedSet[opt.Value] = nil
+							optLabel.TextColor3 = s._theme.PlaceholderColor or Color3.fromHex("#9d9d9d")
+							if checkLabel then
+								(checkLabel :: ImageLabel).Image = icons.Resolve("lucide:square") or "rbxassetid://0"
+								(checkLabel :: ImageLabel).ImageColor3 = Color3.fromHex("#555555")
+							end
 						else
-						 s._selectedSet[opt.Value] = true
-						optLabel.TextColor3 = s._theme.AccentColor or Color3.fromHex("#4cc2ff")
-						if checkLabel then
-							(checkLabel :: ImageLabel).Image = icons.Resolve("lucide:square-check") or "rbxassetid://0"
-							(checkLabel :: ImageLabel).ImageColor3 = s._theme.AccentColor or Color3.fromHex("#4cc2ff")
+							s._selectedSet[opt.Value] = true
+							optLabel.TextColor3 = s._theme.AccentColor or Color3.fromHex("#4cc2ff")
+							if checkLabel then
+								(checkLabel :: ImageLabel).Image = icons.Resolve("lucide:square-check") or "rbxassetid://0"
+								(checkLabel :: ImageLabel).ImageColor3 = s._theme.AccentColor or Color3.fromHex("#4cc2ff")
+							end
 						end
-					end
 						local arr: { any } = {}
 						for _, o in ipairs(s._options) do
 							if s._selectedSet[o.Value] then
@@ -2658,13 +2731,8 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 						self.Changed:Fire(arr)
 						if callback then task.spawn(callback, arr) end
 					else
-						for _, ch in ipairs(scroll:GetChildren()) do
-							if ch:IsA("Frame") then
-								local lbl = ch:FindFirstChild("OptionLabel")
-								if lbl and lbl:IsA("TextLabel") then
-									lbl.TextColor3 = s._theme.PlaceholderColor or Color3.fromHex("#9d9d9d")
-								end
-							end
+						for _, entry in ipairs(optionEntries) do
+							entry.label.TextColor3 = s._theme.PlaceholderColor or Color3.fromHex("#9d9d9d")
 						end
 						optLabel.TextColor3 = s._theme.AccentColor or Color3.fromHex("#4cc2ff")
 						s._selectedValue = opt.Value
@@ -2687,11 +2755,21 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 			end
 
 			optFrame.Parent = scroll
+			table.insert(optionEntries, {
+				opt = opt,
+				frame = optFrame,
+				label = optLabel,
+				check = checkLabel,
+				sep = sep,
+			})
 		end
+
+		applySearchFilter()
 	end
 
-	s._buildOptions = buildOptions
-	buildOptions()
+	s._buildOptions = createOptionRows
+	s._applySearchFilter = applySearchFilter
+	createOptionRows()
 
 	local initTxt, initHas = getHeaderText(s)
 	valueLabel.Text = initTxt
@@ -2702,7 +2780,7 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 	if searchBox then
 		s._conns.search = searchBox:GetPropertyChangedSignal("Text"):Connect(function()
 			s._searchQuery = searchBox.Text:lower()
-			buildOptions()
+			applySearchFilter()
 		end)
 	end
 
@@ -2734,31 +2812,6 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 		end
 	end)
 
-	
-	s._conns.outsideClick = UserInputService.InputBegan:Connect(function(input: InputObject)
-		if not s._open then return end
-		if input.UserInputType == Enum.UserInputType.MouseButton1
-			or input.UserInputType == Enum.UserInputType.Touch then
-			local mousePos = input.Position
-			local ap = frame.AbsolutePosition
-			local as = frame.AbsoluteSize
-			local inX = mousePos.X >= ap.X and mousePos.X <= (ap.X + as.X)
-			local inY: boolean
-			if s._flipUp then
-				
-				
-				
-				local listH = getListH()
-				local topY = ap.Y - listH - LIST_GAP
-				inY = mousePos.Y >= topY and mousePos.Y <= (ap.Y + HEADER_H)
-			else
-				inY = mousePos.Y >= ap.Y and mousePos.Y <= (ap.Y + as.Y)
-			end
-			if not (inX and inY) then
-				closeDropdown()
-			end
-		end
-	end)
 
 	
 	if special == "Player" then
@@ -2812,7 +2865,7 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 		if s._open then
 			buildOptions()
 		end
-	end)
+	end, frame)
 
 	if flagKey and flagKey ~= "" then
 		flags:Set(flagKey, initVal)
@@ -2945,6 +2998,10 @@ end
 function Dropdown:Destroy()
 	local s = self :: any
 	if s._themeUnsub then s._themeUnsub() end
+	if s._outsideUnsub then
+		s._outsideUnsub()
+		s._outsideUnsub = nil
+	end
 	if s._conns then
 		for _, conn in s._conns do conn:Disconnect() end
 		table.clear(s._conns)
@@ -2987,6 +3044,7 @@ export type InputProps = {
 	placeholder:  string?,
 	numeric:      boolean?,
 	clearOnFocus: boolean?,
+	enterOnly:    boolean?,
 	callback:     ((value: string) -> ())?,
 }
 
@@ -3019,6 +3077,7 @@ function Input.new(props: InputProps, theme: { [string]: any }, parent: Instance
 	local placeholder  = props.placeholder or "Enter text..."
 	local isNumeric    = props.numeric == true
 	local clearOnFocus = props.clearOnFocus == true
+	local enterOnly    = props.enterOnly == true
 	local callback     = props.callback
 	local hasDesc      = desc ~= ""
 
@@ -3221,7 +3280,9 @@ function Input.new(props: InputProps, theme: { [string]: any }, parent: Instance
 			textBox.Text = raw
 		end
 
-		self:Set(raw, not enterPressed)
+		local isMobile = runtime.userInputService.TouchEnabled and not runtime.userInputService.KeyboardEnabled
+		local skipCallback = if enterOnly and not isMobile then not enterPressed else false
+		self:Set(raw, skipCallback)
 
 		tween.fire(pillStroke, constants.tweenFast, {
 			Color = if hovering
@@ -3250,7 +3311,7 @@ function Input.new(props: InputProps, theme: { [string]: any }, parent: Instance
 		textBox.TextColor3          = t.ContentColor or Color3.fromHex("#ffffff")
 		textBox.FontFace            = t.Font or constants.DEFAULT_FONT
 		gradient.Color              = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
-	end)
+	end, frame)
 
 	return self
 end
@@ -3541,6 +3602,9 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 	local function stopRecording()
 		if not (self :: any)._recording then return end
 		;(self :: any)._recording = false
+		if (self :: any)._updateListeners then
+			(self :: any)._updateListeners()
+		end
 		if activeRecordingKeybind == self then
 			activeRecordingKeybind = nil
 		end
@@ -3580,6 +3644,9 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 		activeRecordingKeybind = self
 
 		;(self :: any)._recording = true
+		if (self :: any)._updateListeners then
+			(self :: any)._updateListeners()
+		end
 		pill.Modal = true
 
 		pcall(function()
@@ -3648,7 +3715,21 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 	local isHolding = false
 	local holdStartTime = 0
 
-	local inputConn = runtime.userInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
+	local function matchesInput(input: InputObject, targetKey: EnumItem): boolean
+		if targetKey == Enum.KeyCode.Unknown then
+			return false
+		end
+		if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == targetKey then
+			return true
+		elseif input.UserInputType == targetKey then
+			return true
+		elseif input.UserInputType == Enum.UserInputType.Touch and targetKey == Enum.UserInputType.MouseButton1 then
+			return true
+		end
+		return false
+	end
+
+	local function onInputBegan(input: InputObject, gameProcessed: boolean)
 		if (self :: any)._recording then
 			if input.UserInputType == Enum.UserInputType.Keyboard then
 				if input.KeyCode == Enum.KeyCode.Escape then
@@ -3692,14 +3773,7 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 		if gameProcessed then return end
 
 		
-		local matches = false
-		if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == self.value then
-			matches = true
-		elseif input.UserInputType == self.value then
-			matches = true
-		end
-
-		if matches then
+		if matchesInput(input, self.value) then
 			if hold then
 				isHolding = true
 				holdStartTime = os.clock()
@@ -3712,29 +3786,43 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 				if callback then task.spawn(callback, self.value) end
 			end
 		end
-	end)
-
-	local inputEndedConn: RBXScriptConnection? = nil
-	if hold then
-		inputEndedConn = runtime.userInputService.InputEnded:Connect(function(input: InputObject)
-			if not isHolding then return end
-			local matches = false
-			if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == self.value then
-				matches = true
-			elseif input.UserInputType == self.value then
-				matches = true
-			end
-			if matches then
-				isHolding = false
-				if (os.clock() - holdStartTime) >= holdThreshold then
-					if callback then task.spawn(callback, false) end
-				end
-			end
-		end)
 	end
 
-	;(self :: any)._inputConn      = inputConn
-	;(self :: any)._inputEndedConn = inputEndedConn
+	local function onInputEnded(input: InputObject)
+		if not isHolding then return end
+		if matchesInput(input, self.value) then
+			isHolding = false
+			if (os.clock() - holdStartTime) >= holdThreshold then
+				if callback then task.spawn(callback, false) end
+			end
+		end
+	end
+
+	local function updateListeners()
+		local s = self :: any
+		local needsListener = s._recording or (self.value ~= Enum.KeyCode.Unknown)
+		if needsListener then
+			if not s._inputConn then
+				s._inputConn = runtime.userInputService.InputBegan:Connect(onInputBegan)
+			end
+			if hold then
+				if not s._inputEndedConn then
+					s._inputEndedConn = runtime.userInputService.InputEnded:Connect(onInputEnded)
+				end
+			end
+		else
+			if s._inputConn then
+				s._inputConn:Disconnect()
+				s._inputConn = nil
+			end
+			if s._inputEndedConn then
+				s._inputEndedConn:Disconnect()
+				s._inputEndedConn = nil
+			end
+		end
+	end
+	;(self :: any)._updateListeners = updateListeners
+	updateListeners()
 
 	
 	;(self :: any)._themeUnsub = themeUtil.subscribe(function(t)
@@ -3749,7 +3837,7 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 		pillStroke.Color            = t.ElementStroke or Color3.fromHex("#2b2b2b")
 		stroke.Color                = t.ElementStroke or Color3.fromHex("#2b2b2b")
 		gradient.Color              = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
-	end)
+	end, frame)
 
 	return self
 end
@@ -3767,6 +3855,11 @@ function Keybind:Set(value: EnumItem | string, skipChanged: boolean?)
 	local sizePill = (self :: any)._sizePill
 	if sizePill then
 		sizePill(true)
+	end
+
+	local updateListeners = (self :: any)._updateListeners
+	if updateListeners then
+		updateListeners()
 	end
 
 	if flagKey then
@@ -3862,7 +3955,7 @@ function Label.new(props: LabelProps, theme: { [string]: any }, parent: Instance
 	;(self :: any)._themeUnsub = themeUtil.subscribe(function(t)
 		label.TextColor3 = props.textColor or t.ContentColor or Color3.fromRGB(220, 215, 240)
 		label.FontFace = t.Font or constants.DEFAULT_FONT
-	end)
+	end, container)
 	return self
 end
 
@@ -4273,11 +4366,13 @@ export type NotifyProps = {
 }
 
 type ActiveToast = {
-	wrapper:     Frame,
-	card:        CanvasGroup,
-	stroke:      UIStroke,
-	dismissed:   boolean,
-	cancelTimer: () -> (),
+	wrapper:      Frame,
+	card:         CanvasGroup,
+	stroke:       UIStroke,
+	dismissed:    boolean,
+	cancelTimer:  () -> (),
+	timeLabel:    TextLabel,
+	creationTime: number,
 }
 
 
@@ -4288,6 +4383,7 @@ local _layout       : UIListLayout?   = nil
 local _active       : { ActiveToast } = {}
 local _orderCounter : number          = 0
 local _scale        : number          = 1
+local _clockThread  : thread?         = nil
 
 
 
@@ -4345,10 +4441,7 @@ local function ensureGui()
 	gui.IgnoreGuiInset   = true
 	gui.ZIndexBehavior   = Enum.ZIndexBehavior.Sibling
 
-	local ok = pcall(function() gui.Parent = game:GetService("CoreGui") end)
-	if not ok or not gui.Parent then
-		gui.Parent = variables.guiContainer
-	end
+	gui.Parent           = variables.guiContainer
 
 	local scaledW = math.round(TOAST_W * _scale)
 
@@ -4386,6 +4479,31 @@ end
 
 
 
+local function stopClock()
+	if #_active == 0 and _clockThread then
+		task.cancel(_clockThread)
+		_clockThread = nil
+	end
+end
+
+local function startClock()
+	if _clockThread then return end
+	_clockThread = task.spawn(function()
+		while #_active > 0 do
+			task.wait(1)
+			local now = tick()
+			for _, toast in ipairs(_active) do
+				if not toast.dismissed and toast.timeLabel then
+					toast.timeLabel.Text = formatElapsed(now - toast.creationTime)
+				end
+			end
+		end
+		_clockThread = nil
+	end)
+end
+
+
+
 local function dismissToast(toast: ActiveToast)
 	if toast.dismissed then return end
 	toast.dismissed = true
@@ -4393,6 +4511,7 @@ local function dismissToast(toast: ActiveToast)
 
 	local idx = table.find(_active, toast)
 	if idx then table.remove(_active, idx) end
+	stopClock()
 
 	local s   = _scale
 	tween.fire(toast.card, TWEEN_OUT_POS, {
@@ -4687,20 +4806,20 @@ function notification.send(props: NotifyProps, theme: { [string]: any }?)
 	
 	local creationTime = tick()
 	local timerThread  : thread? = nil
-	local updateThread : thread? = nil
 
 	local toast: ActiveToast = {
-		wrapper     = wrapper,
-		card        = card,
-		stroke      = stroke,
-		dismissed   = false,
-		cancelTimer = function() end,
+		wrapper      = wrapper,
+		card         = card,
+		stroke       = stroke,
+		dismissed    = false,
+		cancelTimer  = function() end,
+		timeLabel    = timeLbl,
+		creationTime = creationTime,
 	}
 
 	local function cancelTimer()
 		toast.dismissed = true
-		if timerThread  then pcall(task.cancel, timerThread);  timerThread  = nil end
-		if updateThread then pcall(task.cancel, updateThread); updateThread = nil end
+		if timerThread then pcall(task.cancel, timerThread); timerThread = nil end
 	end
 	toast.cancelTimer = cancelTimer
 
@@ -4718,16 +4837,11 @@ function notification.send(props: NotifyProps, theme: { [string]: any }?)
 	end
 
 	
-	updateThread = task.spawn(function()
-		while not toast.dismissed do
-			task.wait(1)
-			if toast.dismissed then break end
-			timeLbl.Text = formatElapsed(tick() - creationTime)
-		end
-	end)
+	startClock()
 
 	
 	closeBtn.MouseButton1Click:Connect(function() dismissToast(toast) end)
+	closeBtn.TouchTap:Connect(function() dismissToast(toast) end)
 	closeBtn.MouseEnter:Connect(function()
 		tween.fire(closeBtn, TweenInfo.new(0.15), {
 			BackgroundTransparency = 0.82,
@@ -4850,7 +4964,7 @@ function Section.new(props: SectionProps, theme: { [string]: any }, parent: Inst
 			label.TextColor3 = t.ContentColor or Color3.fromRGB(220, 215, 240)
 			label.FontFace = t.Font or constants.DEFAULT_FONT
 		end
-	end)
+	end, container)
 	return self
 end
 
@@ -5364,6 +5478,21 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		end
 	end)
 
+	local touchDetectorConn: RBXScriptConnection? = nil
+	local touchEndConn: RBXScriptConnection? = nil
+
+	local function clearTouchDetector()
+		if touchDetectorConn then
+			touchDetectorConn:Disconnect()
+			touchDetectorConn = nil
+		end
+		if touchEndConn then
+			touchEndConn:Disconnect()
+			touchEndConn = nil
+		end
+		pendingTouchStart = nil
+	end
+
 	s._conns.hitBegan = hit.InputBegan:Connect(function(input: InputObject)
 		if not s._enabled then return end
 
@@ -5381,45 +5510,48 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		if touchX < (trackLeft - 24) or touchX > (trackRight + KNOB_W / 2 + 24) then return end
 
 		if input.UserInputType == Enum.UserInputType.Touch then
-			pendingTouchStart = Vector2.new(input.Position.X, input.Position.Y)
+			clearTouchDetector()
+			local startPos = Vector2.new(input.Position.X, input.Position.Y)
+			pendingTouchStart = startPos
+
+			touchDetectorConn = variables.userInputService.InputChanged:Connect(function(changeInput: InputObject)
+				if pendingTouchStart and changeInput.UserInputType == Enum.UserInputType.Touch then
+					local dx = math.abs(changeInput.Position.X - pendingTouchStart.X)
+					local dy = math.abs(changeInput.Position.Y - pendingTouchStart.Y)
+					if dx > 5 or dy > 5 then
+						local shouldDrag = dx >= dy
+						clearTouchDetector()
+						if shouldDrag then
+							startDrag()
+							local kw = knob.AbsoluteSize.X > 0 and knob.AbsoluteSize.X or KNOB_W
+							applyT(tFromMouseX(track, changeInput.Position.X, kw))
+						end
+					end
+				end
+			end)
+
+			touchEndConn = variables.userInputService.InputEnded:Connect(function(endInput: InputObject)
+				if endInput.UserInputType == Enum.UserInputType.Touch then
+					if pendingTouchStart then
+						local kw = knob.AbsoluteSize.X > 0 and knob.AbsoluteSize.X or KNOB_W
+						applyT(tFromMouseX(track, endInput.Position.X, kw))
+					end
+					clearTouchDetector()
+				end
+			end)
 			return
 		end
 
 		if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-		dragging = true
 		local kw = knob.AbsoluteSize.X > 0 and knob.AbsoluteSize.X or KNOB_W
 		applyT(tFromMouseX(track, touchX, kw))
-	end)
-
-	s._conns.inputChanged = variables.userInputService.InputChanged:Connect(function(input: InputObject)
-		if pendingTouchStart and input.UserInputType == Enum.UserInputType.Touch then
-			local dx = math.abs(input.Position.X - pendingTouchStart.X)
-			local dy = math.abs(input.Position.Y - pendingTouchStart.Y)
-			if dx > 5 or dy > 5 then
-				if dx >= dy then
-					dragging = true
-				end
-				pendingTouchStart = nil
-			end
-		end
-
-		if not dragging then return end
-		if input.UserInputType ~= Enum.UserInputType.MouseMovement
-			and input.UserInputType ~= Enum.UserInputType.Touch then return end
-		
-		local inputX: number
-		if input.UserInputType == Enum.UserInputType.Touch then
-			inputX = input.Position.X
-		else
-			inputX = variables.userInputService:GetMouseLocation().X
-		end
-		local kw = knob.AbsoluteSize.X > 0 and knob.AbsoluteSize.X or KNOB_W
-		applyT(tFromMouseX(track, inputX, kw))
+		startDrag()
 	end)
 
 	local function onRelease()
+		clearTouchDetector()
 		if not dragging then return end
-		dragging = false
+		stopDrag()
 		if not hovering then
 			stroke.Color = s._theme.ElementStroke or Color3.fromHex("#2b2b2b")
 			flash.BackgroundTransparency = 1
@@ -5428,12 +5560,49 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		end
 	end
 
-	s._conns.inputEnded = variables.userInputService.InputEnded:Connect(function(input: InputObject)
-		if input.UserInputType ~= Enum.UserInputType.MouseButton1
-			and input.UserInputType ~= Enum.UserInputType.Touch then return end
-		pendingTouchStart = nil
-		onRelease()
-	end)
+	function startDrag()
+		if dragging then return end
+		dragging = true
+
+		if not s._conns.dragChanged then
+			s._conns.dragChanged = variables.userInputService.InputChanged:Connect(function(input: InputObject)
+				if not dragging then return end
+				if input.UserInputType ~= Enum.UserInputType.MouseMovement
+					and input.UserInputType ~= Enum.UserInputType.Touch then return end
+				
+				local inputX: number
+				if input.UserInputType == Enum.UserInputType.Touch then
+					inputX = input.Position.X
+				else
+					inputX = variables.userInputService:GetMouseLocation().X
+				end
+				local kw = knob.AbsoluteSize.X > 0 and knob.AbsoluteSize.X or KNOB_W
+				applyT(tFromMouseX(track, inputX, kw))
+			end)
+		end
+
+		if not s._conns.dragEnded then
+			s._conns.dragEnded = variables.userInputService.InputEnded:Connect(function(input: InputObject)
+				if input.UserInputType ~= Enum.UserInputType.MouseButton1
+					and input.UserInputType ~= Enum.UserInputType.Touch then return end
+				clearTouchDetector()
+				onRelease()
+			end)
+		end
+	end
+
+	function stopDrag()
+		dragging = false
+		clearTouchDetector()
+		if s._conns.dragChanged then
+			s._conns.dragChanged:Disconnect()
+			s._conns.dragChanged = nil
+		end
+		if s._conns.dragEnded then
+			s._conns.dragEnded:Disconnect()
+			s._conns.dragEnded = nil
+		end
+	end
 
 	s._conns.hitUp = hit.MouseButton1Up:Connect(function()
 		onRelease()
@@ -5473,11 +5642,14 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		knob.BackgroundColor3 = t.SliderHandle or Color3.fromRGB(255, 255, 255)
 		innerGrad.Color = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
 		stroke.Transparency = if s._enabled then (t.ElementStrokeTransparency or 0) else 0.5
-	end)
+	end, frame)
 
 	if flagKey and flagKey ~= "" then
 		flags:Set(flagKey, initValue)
 	end
+
+	s._stopDrag = stopDrag
+	s._clearTouchDetector = clearTouchDetector
 
 	return self
 end
@@ -5526,6 +5698,8 @@ end
 
 function Slider:Destroy()
 	local s = self :: any
+	if s._stopDrag then s._stopDrag() end
+	if s._clearTouchDetector then s._clearTouchDetector() end
 	if s._themeUnsub then s._themeUnsub() end
 	if s._conns then
 		for _, conn in s._conns do
@@ -5664,7 +5838,7 @@ function Tab.new(props: TabProps, theme: { [string]: any }, contentParent: Frame
 	local tokens = getTokens(theme)
 
 	
-	local numColumns = props.columns or 2
+	local numColumns = props.columns or 1
 	local isDual = numColumns ~= 1
 
 	
@@ -6001,7 +6175,7 @@ function Tab.new(props: TabProps, theme: { [string]: any }, contentParent: Frame
 			titleLabel.TextColor3            = tokens.colorTextSecondary
 			if iconImg then iconImg.ImageColor3 = tokens.colorTextSecondary end
 		end
-	end)
+	end, tabContainer)
 
 	return self
 end
@@ -6403,7 +6577,7 @@ function Toggle.new(props: ToggleProps, theme: { [string]: any }, parent: Instan
 		glow.BackgroundColor3 = t.AccentColor or Color3.fromHex("#4cc2ff")
 		gradient.Color = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
 		theme = t
-	end)
+	end, frame)
 
 	
 	self:Set(initValue, true)
@@ -6540,9 +6714,6 @@ export type Window = {
 
 local Window = {}
 Window.__index = Window
-
-
-local VIEWPORT_RECONCILE_INTERVAL = 2
 
 
 local function resolveKeybind(v: (EnumItem | string)?): EnumItem
@@ -6981,6 +7152,10 @@ function Window.new(props: WindowProps): Window
 	contentArea.Parent                 = body
 
 	
+	local self: Window = nil :: any
+	local s: any = nil
+	local _preConns: { RBXScriptConnection } = {}
+
 	local SP_W    = 580
 	local SP_H    = 420
 	local SP_TB   = 44
@@ -7007,6 +7182,7 @@ function Window.new(props: WindowProps): Window
 	spOverlay.Active   = true
 
 	
+	local openingSettings = false
 	local settingsPanel = Instance.new("Frame")
 	settingsPanel.Name             = "SettingsPanel"
 	settingsPanel.AnchorPoint      = Vector2.new(0.5, 0.5)
@@ -7148,12 +7324,23 @@ function Window.new(props: WindowProps): Window
 		spClose.BackgroundColor3 = colorSurfaceHover
 		spCloseIcon.ImageColor3  = colorTextSecondary
 	end)
-	spClose.MouseButton1Click:Connect(function()
+	local function closeSettings()
+		openingSettings        = false
 		settingsPanel.Visible  = false
 		spOverlay.Visible      = false
 		bodyBlocker.Visible    = false
 		variables.settingsOpen = false
-	end)
+	end
+
+	table.insert(_preConns, spClose.MouseButton1Click:Connect(closeSettings))
+	table.insert(_preConns, spClose.TouchTap:Connect(closeSettings))
+
+	table.insert(_preConns, spOverlay.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch then
+			closeSettings()
+		end
+	end))
 
 	
 	local spBody = Instance.new("Frame")
@@ -7254,15 +7441,7 @@ function Window.new(props: WindowProps): Window
 	spContent.ZIndex                  = constants.zIndex.popup
 	spContent.Parent                  = spBody
 
-	local self: Window = nil :: any
-	local s: any = nil
 	local spAccentUpdaters: { (Color3) -> () } = {}
-
-	
-	
-	
-	
-	local _preConns: { RBXScriptConnection } = {}
 
 	
 	
@@ -7854,8 +8033,8 @@ function Window.new(props: WindowProps): Window
 	end
 
 	local function updateSettingsPanelSize()
-		local winW = if windowFrame.Size.X.Offset > 0 then windowFrame.Size.X.Offset else windowFrame.AbsoluteSize.X
-		local winH = if windowFrame.Size.Y.Offset > 0 then windowFrame.Size.Y.Offset else windowFrame.AbsoluteSize.Y
+		local winW = if s and s._windowSize then s._windowSize.X.Offset else (if windowFrame.Size.X.Offset > 0 then windowFrame.Size.X.Offset else windowFrame.AbsoluteSize.X)
+		local winH = if s and s._windowSize then s._windowSize.Y.Offset else (if windowFrame.Size.Y.Offset > 0 then windowFrame.Size.Y.Offset else windowFrame.AbsoluteSize.Y)
 		local availableW = math.max(200, winW - 24)
 		local availableH = math.max(150, winH - (TITLEBAR_H + 20))
 
@@ -7864,23 +8043,54 @@ function Window.new(props: WindowProps): Window
 		settingsPanel.Size = UDim2.fromOffset(targetW, targetH)
 	end
 
-	
-	settingsBtn.MouseButton1Click:Connect(function()
+	local function toggleSettings()
+		if openingSettings then return end
 		local next = not settingsPanel.Visible
 		if next then
-			updateSettingsPanelSize()
-		end
-		settingsPanel.Visible = next
-		spOverlay.Visible     = next
-		bodyBlocker.Visible    = next
-		variables.settingsOpen = next
-	end)
+			local function showSettings()
+				openingSettings = false
+				updateSettingsPanelSize()
+				settingsPanel.Visible = true
+				spOverlay.Visible     = true
+				bodyBlocker.Visible    = true
+				variables.settingsOpen = true
+			end
 
-	windowFrame:GetPropertyChangedSignal("Size"):Connect(function()
+			if s and s._minimized then
+				openingSettings = true
+				self:ToggleMinimise()
+				local tw = s._activeTween
+				if tw then
+					tw.Completed:Once(function()
+						if not s._minimized then
+							showSettings()
+						else
+							openingSettings = false
+						end
+					end)
+				else
+					showSettings()
+				end
+			else
+				showSettings()
+			end
+		else
+			openingSettings       = false
+			settingsPanel.Visible = false
+			spOverlay.Visible     = false
+			bodyBlocker.Visible    = false
+			variables.settingsOpen = false
+		end
+	end
+
+	table.insert(_preConns, settingsBtn.MouseButton1Click:Connect(toggleSettings))
+	table.insert(_preConns, settingsBtn.TouchTap:Connect(toggleSettings))
+
+	table.insert(_preConns, windowFrame:GetPropertyChangedSignal("Size"):Connect(function()
 		if settingsPanel.Visible then
 			updateSettingsPanelSize()
 		end
-	end)
+	end))
 
 	
 	self = setmetatable({}, Window) :: Window
@@ -7920,6 +8130,9 @@ function Window.new(props: WindowProps): Window
 	s._titleBarBg     = titleBarBg
 	s._titleBarCorner = titleBarCorner
 	s._cornerCover    = cornerCover
+	s._settingsPanel  = settingsPanel
+	s._spOverlay      = spOverlay
+	s._bodyBlocker    = bodyBlocker
 
 	
 	if userScale ~= 1.0 then
@@ -7969,7 +8182,7 @@ function Window.new(props: WindowProps): Window
 		for _, fn in spAccentUpdaters do
 			fn(t.AccentColor)
 		end
-	end)
+	end, windowFrame)
 
 	
 	do
@@ -7984,18 +8197,20 @@ function Window.new(props: WindowProps): Window
 			return (self :: any)._visible
 		end
 
-		titleBar.InputBegan:Connect(function(input, processed)
+		table.insert(s._connections, titleBar.InputBegan:Connect(function(input, processed)
 			if processed then return end
 			if input.UserInputType ~= Enum.UserInputType.MouseButton1
 				and input.UserInputType ~= Enum.UserInputType.Touch then return end
 			if not interactive() then return end
 
 			
-			local mouse = uis:GetMouseLocation()
-			local cp    = controlsFrame.AbsolutePosition
-			local cs    = controlsFrame.AbsoluteSize
-			if mouse.X >= cp.X - 4 and mouse.X <= cp.X + cs.X + 4
-				and mouse.Y >= cp.Y - 4 and mouse.Y <= cp.Y + cs.Y + 4 then
+			local inputPos = if input.UserInputType == Enum.UserInputType.Touch
+				then Vector2.new(input.Position.X, input.Position.Y)
+				else uis:GetMouseLocation()
+			local cp = controlsFrame.AbsolutePosition
+			local cs = controlsFrame.AbsoluteSize
+			if inputPos.X >= cp.X - 6 and inputPos.X <= cp.X + cs.X + 6
+				and inputPos.Y >= cp.Y - 6 and inputPos.Y <= cp.Y + cs.Y + 6 then
 				return
 			end
 
@@ -8008,76 +8223,86 @@ function Window.new(props: WindowProps): Window
 			local _ds = (self :: any)
 			_ds._dragging = true
 			_ds._hasBeenDragged = true
-		end)
 
-		local inputChangedConn = uis.InputChanged:Connect(function(input)
-			if not dragging then return end
-			if input.UserInputType ~= Enum.UserInputType.MouseMovement
-				and input.UserInputType ~= Enum.UserInputType.Touch then return end
-			if not interactive() then return end
+			local dragMoveConn: RBXScriptConnection? = nil
+			local dragEndConn: RBXScriptConnection? = nil
+			local wfrConn: RBXScriptConnection? = nil
 
-			local delta = input.Position - dragStart
-			if math.abs(delta.X) < 1 and math.abs(delta.Y) < 1 then return end
+			local function stopDrag()
+				if not dragging then return end
+				dragging = false
+				_ds._dragging = false
 
-			local newX = startPos.X.Offset + delta.X
-			local newY = startPos.Y.Offset + delta.Y
-
-			if (self :: any)._keepOnScreen then
-				local screen = gui.AbsoluteSize
-				local curW   = windowFrame.AbsoluteSize.X
-				local curH   = windowFrame.AbsoluteSize.Y
-				local margin = 8
-
-				if curW >= screen.X - margin * 2 then
-					newX = math.floor(screen.X / 2)
-				else
-					local minX = margin + math.floor(curW / 2)
-					local maxX = screen.X - margin - math.ceil(curW / 2)
-					newX = math.clamp(newX, minX, maxX)
-				end
-
-				if curH >= screen.Y - margin * 2 then
-					newY = math.floor(screen.Y / 2)
-				else
-					local minY = margin + math.floor(curH / 2)
-					local maxY = screen.Y - margin - math.ceil(curH / 2)
-					newY = math.clamp(newY, minY, maxY)
-				end
+				if dragMoveConn then dragMoveConn:Disconnect(); dragMoveConn = nil end
+				if dragEndConn then dragEndConn:Disconnect(); dragEndConn = nil end
+				if wfrConn then wfrConn:Disconnect(); wfrConn = nil end
 			end
 
-			if math.abs(newX - lastX) < 0.5 and math.abs(newY - lastY) < 0.5 then return end
-			lastX, lastY = newX, newY
-			windowFrame.Position = UDim2.fromOffset(newX, newY)
-		end)
-		table.insert((self :: any)._connections, inputChangedConn)
+			dragMoveConn = uis.InputChanged:Connect(function(moveInput)
+				if not dragging then return end
+				if moveInput.UserInputType ~= Enum.UserInputType.MouseMovement
+					and moveInput.UserInputType ~= Enum.UserInputType.Touch then return end
+				if not interactive() then return end
 
-		local function release()
-			if not dragging then return end
-			dragging = false
-			local _ds = (self :: any)
-			_ds._dragging = false
-		end
+				local delta = moveInput.Position - dragStart
+				if math.abs(delta.X) < 1 and math.abs(delta.Y) < 1 then return end
 
-		local inputEndedConn = uis.InputEnded:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1
-				or input.UserInputType == Enum.UserInputType.Touch then
-				release()
-			end
-		end)
-		table.insert((self :: any)._connections, inputEndedConn)
+				local newX = startPos.X.Offset + delta.X
+				local newY = startPos.Y.Offset + delta.Y
 
-		local wfr = uis.WindowFocusReleased:Connect(release)
-		table.insert((self :: any)._connections, wfr)
+				if (self :: any)._keepOnScreen then
+					local screen = gui.AbsoluteSize
+					local curW   = windowFrame.AbsoluteSize.X
+					local curH   = windowFrame.AbsoluteSize.Y
+					local margin = 8
+
+					if curW >= screen.X - margin * 2 then
+						newX = math.floor(screen.X / 2)
+					else
+						local minX = margin + math.floor(curW / 2)
+						local maxX = screen.X - margin - math.ceil(curW / 2)
+						newX = math.clamp(newX, minX, maxX)
+					end
+
+					if curH >= screen.Y - margin * 2 then
+						newY = math.floor(screen.Y / 2)
+					else
+						local minY = margin + math.floor(curH / 2)
+						local maxY = screen.Y - margin - math.ceil(curH / 2)
+						newY = math.clamp(newY, minY, maxY)
+					end
+				end
+
+				if math.abs(newX - lastX) < 0.5 and math.abs(newY - lastY) < 0.5 then return end
+				lastX, lastY = newX, newY
+				windowFrame.Position = UDim2.fromOffset(newX, newY)
+			end)
+
+			dragEndConn = uis.InputEnded:Connect(function(endInput)
+				if endInput.UserInputType == Enum.UserInputType.MouseButton1
+					or endInput.UserInputType == Enum.UserInputType.Touch then
+					stopDrag()
+				end
+			end)
+
+			wfrConn = uis.WindowFocusReleased:Connect(stopDrag)
+		end))
 	end
 
 	
-	closeBtn.MouseButton1Click:Connect(function()
+	table.insert(s._connections, closeBtn.MouseButton1Click:Connect(function()
 		self:Unload()
-	end)
+	end))
+	table.insert(s._connections, closeBtn.TouchTap:Connect(function()
+		self:Unload()
+	end))
 
-	minBtn.MouseButton1Click:Connect(function()
+	table.insert(s._connections, minBtn.MouseButton1Click:Connect(function()
 		self:ToggleMinimise()
-	end)
+	end))
+	table.insert(s._connections, minBtn.TouchTap:Connect(function()
+		self:ToggleMinimise()
+	end))
 
 	
 	
@@ -8095,6 +8320,118 @@ function Window.new(props: WindowProps): Window
 
 	
 	self:_watchViewport()
+
+	
+	
+	local isMobile = variables.isTouchOnly or (variables.userInputService.TouchEnabled and not variables.userInputService.KeyboardEnabled)
+	local showGestureBar = isMobile and (props.gestureBar ~= false)
+
+	if showGestureBar then
+		local barContainer = Instance.new("Frame")
+		barContainer.Name                   = "Delirium_GestureBar"
+		barContainer.AnchorPoint            = Vector2.new(0, 0.5)
+		barContainer.Position               = UDim2.new(0, 0, 0.5, 0)
+		barContainer.Size                   = UDim2.fromOffset(36, 110)
+		barContainer.BackgroundTransparency = 1
+		barContainer.BorderSizePixel        = 0
+		barContainer.ZIndex                 = constants.zIndex.tooltip + 10
+		barContainer.Parent                 = gui
+
+		local barPill = Instance.new("Frame")
+		barPill.Name             = "Pill"
+		barPill.AnchorPoint      = Vector2.new(0, 0.5)
+		barPill.Position         = UDim2.new(0, 4, 0.5, 0)
+		barPill.Size             = UDim2.fromOffset(5, 76)
+		barPill.BackgroundColor3 = colorAccent
+		barPill.BackgroundTransparency = 0.55
+		barPill.BorderSizePixel  = 0
+		barPill.ZIndex           = constants.zIndex.tooltip + 11
+		barPill.Parent           = barContainer
+
+		local pillCorner = Instance.new("UICorner")
+		pillCorner.CornerRadius = UDim.new(1, 0)
+		pillCorner.Parent       = barPill
+
+		local pillStroke = Instance.new("UIStroke")
+		pillStroke.Color           = Color3.fromRGB(255, 255, 255)
+		pillStroke.Thickness       = 1
+		pillStroke.Transparency    = 0.75
+		pillStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		pillStroke.Parent          = barPill
+
+		table.insert(spAccentUpdaters, function(newAccent)
+			barPill.BackgroundColor3 = newAccent
+		end)
+
+		local isGestureDragging = false
+		local startTouchX = 0
+		local currentDeltaX = 0
+		local dragMoveConn: RBXScriptConnection? = nil
+		local dragEndConn: RBXScriptConnection? = nil
+
+		local function stopGestureDrag()
+			if not isGestureDragging then return end
+			isGestureDragging = false
+			if dragMoveConn then dragMoveConn:Disconnect(); dragMoveConn = nil end
+			if dragEndConn then dragEndConn:Disconnect(); dragEndConn = nil end
+
+			tween.fire(barPill, constants.tweenFast, {
+				Position               = UDim2.new(0, 4, 0.5, 0),
+				Size                   = UDim2.fromOffset(5, 76),
+				BackgroundTransparency = 0.55,
+			})
+			tween.fire(pillStroke, constants.tweenFast, {
+				Transparency = 0.75,
+				Color        = Color3.fromRGB(255, 255, 255),
+			})
+
+			if currentDeltaX >= 25 then
+				self:ToggleHide()
+			end
+			currentDeltaX = 0
+		end
+
+		table.insert(s._connections, barContainer.InputBegan:Connect(function(input)
+			if input.UserInputType ~= Enum.UserInputType.Touch then
+				return
+			end
+			isGestureDragging = true
+			startTouchX = input.Position.X
+			currentDeltaX = 0
+
+			tween.fire(barPill, constants.tweenFast, {
+				Size                   = UDim2.fromOffset(8, 88),
+				BackgroundTransparency = 0.15,
+			})
+			tween.fire(pillStroke, constants.tweenFast, {
+				Transparency = 0.2,
+				Color        = colorAccent,
+			})
+
+			if dragMoveConn then dragMoveConn:Disconnect() end
+			if dragEndConn then dragEndConn:Disconnect() end
+
+			dragMoveConn = variables.userInputService.InputChanged:Connect(function(moveInput)
+				if not isGestureDragging then return end
+				if moveInput.UserInputType ~= Enum.UserInputType.Touch then
+					return
+				end
+
+				local delta = math.max(0, moveInput.Position.X - startTouchX)
+				currentDeltaX = delta
+				local visualX = math.min(delta, 80)
+				barPill.Position = UDim2.new(0, 4 + visualX, 0.5, 0)
+			end)
+
+			dragEndConn = variables.userInputService.InputEnded:Connect(function(endInput)
+				if endInput.UserInputType == Enum.UserInputType.Touch then
+					stopGestureDrag()
+				end
+			end)
+		end))
+
+		s._gestureCleanup = stopGestureDrag
+	end
 
 	return self
 end
@@ -8181,6 +8518,7 @@ function Window:_applyWindowSize()
 	local wf: Frame = (self :: any)._windowFrame
 	wf.Size = newSize
 
+	local vp = if cam then cam.ViewportSize else nil
 	if not s._hasBeenDragged and vp then
 		wf.Position = UDim2.fromOffset(
 			math.max(0, math.floor((vp.X - newSize.X.Offset) / 2)),
@@ -8192,9 +8530,8 @@ function Window:_applyWindowSize()
 end
 
 
-
 function Window:_watchViewport()
-	local cameraConn: RBXScriptConnection? = nil
+	local s = (self :: any)
 	local pending = false
 
 	local function request()
@@ -8207,30 +8544,20 @@ function Window:_watchViewport()
 	end
 
 	local function bind()
-		if cameraConn then cameraConn:Disconnect(); cameraConn = nil end
+		if s._cameraConn then
+			s._cameraConn:Disconnect()
+			s._cameraConn = nil
+		end
 		local cam = variables.workspace.CurrentCamera
 		if cam then
-			
-			
-			
-			cameraConn = cam:GetPropertyChangedSignal("ViewportSize"):Connect(request)
+			s._cameraConn = cam:GetPropertyChangedSignal("ViewportSize"):Connect(request)
 		end
 		request()
 	end
 
 	local camSwapConn = variables.workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(bind)
-	table.insert((self :: any)._connections, camSwapConn)
+	table.insert(s._connections, camSwapConn)
 	bind()
-
-	local sinceReconcile = 0
-	local hbConn = variables.runService.Heartbeat:Connect(function(delta: number)
-		if self.unloaded then return end
-		sinceReconcile += delta
-		if sinceReconcile < VIEWPORT_RECONCILE_INTERVAL then return end
-		sinceReconcile = 0
-		self:_applyWindowSize()
-	end)
-	table.insert((self :: any)._connections, hbConn)
 end
 
 
@@ -8466,6 +8793,14 @@ function Window:ToggleMinimise()
 		
 		s._minimized = true
 
+		
+		if s._settingsPanel and s._settingsPanel.Visible then
+			s._settingsPanel.Visible = false
+			if s._spOverlay then s._spOverlay.Visible = false end
+			if s._bodyBlocker then s._bodyBlocker.Visible = false end
+			variables.settingsOpen = false
+		end
+
 		local targetCY = topY + titlebarH / 2
 		if keepOnScreen then
 			local halfTH = titlebarH / 2
@@ -8546,6 +8881,16 @@ function Window:Unload()
 		pcall(function() conn:Disconnect() end)
 	end
 	table.clear(s._connections)
+
+	if s._gestureCleanup then
+		pcall(function() s._gestureCleanup() end)
+		s._gestureCleanup = nil
+	end
+
+	if s._cameraConn then
+		pcall(function() s._cameraConn:Disconnect() end)
+		s._cameraConn = nil
+	end
 
 	if s._playerCard then
 		pcall(function() s._playerCard:Destroy() end)
@@ -8838,10 +9183,12 @@ end)() end,[22]=function()local wax,script,require=ImportGlobals(22)local Import
 export type Theme = string | { [string]: any }
 
 export type WindowProps = {
-	name:     string?,
-	subtitle: string?,
-	theme:    Theme?,
-	keybind:  (EnumItem | string)?,
+	name:         string?,
+	subtitle:     string?,
+	theme:        Theme?,
+	keybind:      (EnumItem | string)?,
+	keepOnScreen: boolean?,
+	gestureBar:   boolean?,
 }
 
 export type TabProps = {
@@ -8954,6 +9301,7 @@ export type InputProps = {
 	placeholder:  string?,
 	numeric:      boolean?,
 	clearOnFocus: boolean?,
+	enterOnly:    boolean?,
 	callback:     ((value: string) -> ())?,
 }
 
@@ -9102,20 +9450,24 @@ export type Tab = {
 export type Window = {
 	unloaded: boolean,
 
-	CreateTab:   (self: Window, props: TabProps) -> Tab,
-	Notify:      (self: Window, props: NotifyProps) -> (),
-	Show:        (self: Window) -> (),
-	Hide:        (self: Window) -> (),
-	ToggleHide:  (self: Window) -> (),
-	ChangeTheme: (self: Window, theme: Theme) -> (),
-	Unload:      (self: Window) -> (),
+	CreateTab:      (self: Window, props: TabProps) -> Tab,
+	Notify:         (self: Window, props: NotifyProps) -> (),
+	Show:           (self: Window) -> (),
+	Hide:           (self: Window) -> (),
+	ToggleHide:     (self: Window) -> (),
+	ToggleMinimise: (self: Window) -> (),
+	ChangeTheme:    (self: Window, theme: Theme) -> (),
+	Unload:         (self: Window) -> (),
 }
 
 export type Delirium = {
-	Flags:        { [string]: any },
-	Icons:        any,
-	NebulaIcons:  any,
-	CreateWindow: (self: Delirium, props: WindowProps) -> Window,
+	Flags:         { [string]: any },
+	Icons:         any,
+	NebulaIcons:   any,
+	MediaService:  any,
+	SaveManager:   any,
+	LoadingScreen: any,
+	CreateWindow:  (self: Delirium, props: WindowProps) -> Window,
 }
 
 return {}
@@ -9356,6 +9708,7 @@ end)() end,[26]=function()local wax,script,require=ImportGlobals(26)local Import
 
 
 local constants = require(script.Parent.constants)
+local runtime   = require(script.Parent.runtime)
 
 local element = {}
 
@@ -9419,6 +9772,39 @@ function element.makeOverlay(parent: Instance, zIndex: number, transparency: num
 	overlay.Visible                = false
 	overlay.Parent                 = parent
 	return overlay
+end
+
+
+function element.isInside(pos: Vector2 | Vector3, guiObj: GuiObject): boolean
+	local ap = guiObj.AbsolutePosition
+	local as = guiObj.AbsoluteSize
+	return pos.X >= ap.X and pos.X <= (ap.X + as.X) and pos.Y >= ap.Y and pos.Y <= (ap.Y + as.Y)
+end
+
+
+
+function element.onOutsideClick(targets: { GuiObject }, callback: () -> ()): () -> ()
+	local conn: RBXScriptConnection? = nil
+	conn = runtime.userInputService.InputBegan:Connect(function(input: InputObject)
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1
+			and input.UserInputType ~= Enum.UserInputType.Touch then
+			return
+		end
+		local pos = input.Position
+		for _, target in ipairs(targets) do
+			if target.Visible and element.isInside(pos, target) then
+				return
+			end
+		end
+		callback()
+	end)
+
+	return function()
+		if conn then
+			conn:Disconnect()
+			conn = nil
+		end
+	end
 end
 
 return element
@@ -9667,17 +10053,25 @@ end)() end,[28]=function()local wax,script,require=ImportGlobals(28)local Import
 
 
 
+
+
 export type FlagValue = boolean | number | string | { string } | Color3 | EnumItem
+export type FlagListener = (key: string, value: FlagValue) -> ()
 
 export type FlagsRegistry = {
 	[string]: FlagValue,
-	Set:    (self: FlagsRegistry, key: string, value: FlagValue) -> (),
-	Get:    (self: FlagsRegistry, key: string) -> FlagValue?,
-	GetAll: (self: FlagsRegistry) -> { [string]: FlagValue },
-	Clear:  (self: FlagsRegistry) -> (),
+	Set:         (self: FlagsRegistry, key: string, value: FlagValue) -> (),
+	Get:         (self: FlagsRegistry, key: string) -> FlagValue?,
+	GetAll:      (self: FlagsRegistry) -> { [string]: FlagValue },
+	Clear:       (self: FlagsRegistry) -> (),
+	Subscribe:   (self: FlagsRegistry, fn: FlagListener) -> () -> (),
+	Unsubscribe: (self: FlagsRegistry, fn: FlagListener) -> (),
 }
 
 local store: { [string]: FlagValue } = {}
+
+
+local listeners: { [any]: boolean } = {}
 
 local flags = {} :: FlagsRegistry
 
@@ -9687,6 +10081,10 @@ local flags = {} :: FlagsRegistry
 
 function flags:Set(key: string, value: FlagValue)
 	store[key] = value
+	
+	for fn in pairs(listeners) do
+		pcall(fn, key, value)
+	end
 end
 
 function flags:Get(key: string): FlagValue?
@@ -9703,6 +10101,20 @@ end
 
 
 
+function flags:Subscribe(fn: FlagListener): () -> ()
+	listeners[fn] = true
+	return function()
+		listeners[fn] = nil
+	end
+end
+
+
+function flags:Unsubscribe(fn: FlagListener)
+	listeners[fn] = nil
+end
+
+
+
 
 local mt = {
 	__index = function(_, key: string): FlagValue?
@@ -9713,7 +10125,8 @@ local mt = {
 		return store[key]
 	end,
 	__newindex = function(_, key: string, value: FlagValue)
-		store[key] = value
+		
+		flags:Set(key, value)
 	end,
 }
 setmetatable(flags :: any, mt)
@@ -10110,7 +10523,8 @@ end)() end,[30]=function()local wax,script,require=ImportGlobals(30)local Import
 
 
 
-local services       = require(script.Parent.services)
+local services        = require(script.Parent.services)
+local filesystem      = require(script.Parent.filesystem)
 local ContentProvider = services.getService("ContentProvider") :: ContentProvider
 
 export type IconPackName =
@@ -10227,6 +10641,7 @@ local function setGenvTable(packName: string, data: { [string]: number })
 end
 
 
+local ICONS_DIR = "Delirium/assets/icons"
 
 local function loadPack(packName: string): { [string]: number }?
 	if module[packName] and type(module[packName]) == "table" then
@@ -10241,6 +10656,27 @@ local function loadPack(packName: string): { [string]: number }?
 	end
 
 	
+	local diskPath = ICONS_DIR .. "/" .. packName .. ".lua"
+	local diskOk, diskSrc = pcall(function()
+		if filesystem.isfile(diskPath) then
+			return filesystem.readfile(diskPath)
+		end
+		return nil
+	end)
+
+	if diskOk and diskSrc and #diskSrc > 10 then
+		local diskFn = loadstring(diskSrc)
+		if diskFn then
+			local okRun, diskTable = pcall(diskFn)
+			if okRun and type(diskTable) == "table" then
+				module[packName] = diskTable
+				setGenvTable(packName, diskTable)
+				return diskTable
+			end
+		end
+	end
+
+	
 	local url = PACK_URLS[packName]
 	if not url then return nil end
 
@@ -10249,6 +10685,13 @@ local function loadPack(packName: string): { [string]: number }?
 		if not httpGet then return nil end
 		local src = httpGet(game, url)
 		if not src or #src < 10 then return nil end
+
+		
+		pcall(function()
+			filesystem.ensureDir(ICONS_DIR)
+			filesystem.writefile(diskPath, src)
+		end)
+
 		local fn = loadstring(src)
 		if not fn then return nil end
 		return fn()
@@ -11094,6 +11537,7 @@ local flags       = require(script.Parent.flags)
 local services    = require(script.Parent.services)
 
 local HttpService = services.getService("HttpService") :: HttpService
+local MarketplaceService = services.getService("MarketplaceService") :: MarketplaceService
 
 
 
@@ -11103,6 +11547,8 @@ type FlagEntry   = { element: any?, set: Setter }
 export type SaveManager = {
 	
 	SetFolder:           (self: SaveManager, name: string) -> (),
+	SetSubFolder:        (self: SaveManager, name: string?) -> (),
+	SetSubfolder:        (self: SaveManager, name: string?) -> (),
 	SetAutoSaveInterval: (self: SaveManager, seconds: number) -> (),
 	
 	Register:            (self: SaveManager, flag: string, target: any) -> (),
@@ -11141,6 +11587,10 @@ local _ignored   : { [string]: boolean } = {}
 
 local _folder    : string  = "Delirium"
 
+local _subFolder : string? = nil
+
+local _detectedGameName : string? = nil
+
 local _loading   : boolean = false
 
 local _savePending : boolean = false
@@ -11152,7 +11602,39 @@ local _autoThread   : thread? = nil
 
 local _activeProfile : string = "flags"
 
+local _autoSaveHook : (() -> ())? = nil
 
+
+
+
+local function sanitizeName(name: string): string
+	local cleaned = name:gsub('[\\/:*?"<>|]', ""):match("^%s*(.-)%s*$") or ""
+	return cleaned
+end
+
+
+local function getGameName(): string
+	if _detectedGameName then
+		return _detectedGameName
+	end
+
+	local resolvedName: string? = nil
+	local placeId = game.PlaceId
+
+	pcall(function()
+		local productInfo = MarketplaceService:GetProductInfo(placeId)
+		if productInfo and type(productInfo.Name) == "string" and #productInfo.Name > 0 then
+			resolvedName = sanitizeName(productInfo.Name)
+		end
+	end)
+
+	if not resolvedName or #resolvedName == 0 then
+		resolvedName = tostring(placeId)
+	end
+
+	_detectedGameName = resolvedName
+	return resolvedName :: string
+end
 
 
 local function fnv1a(s: string): number
@@ -11171,8 +11653,29 @@ local function resolveProfile(name: string?): string
 	return if #trimmed > 0 then trimmed else "flags"
 end
 
+
+
+
+
+local function getFolder(): string
+	local sub: string? = nil
+	if _subFolder ~= nil then
+		if #_subFolder > 0 then
+			sub = _subFolder
+		end
+	else
+		
+		sub = getGameName()
+	end
+
+	if sub and #sub > 0 then
+		return _folder .. "/configs/" .. sub
+	end
+	return _folder .. "/configs"
+end
+
 local function profilePath(name: string?): string
-	return _folder .. "/" .. resolveProfile(name) .. ".json"
+	return getFolder() .. "/" .. resolveProfile(name) .. ".json"
 end
 
 
@@ -11203,8 +11706,9 @@ end
 
 local function atomicWrite(path: string, content: string): boolean
 	local tempPath = path .. ".saving"
+	local targetDir = getFolder()
 
-	filesystem.ensureDir(_folder)
+	filesystem.ensureDir(targetDir)
 
 	if not pcall(filesystem.writefile, tempPath, content) then return false end
 
@@ -11267,6 +11771,23 @@ function SaveManager:SetFolder(name: string)
 	assert(type(name) == "string" and #name > 0, "SaveManager:SetFolder — name must be a non-empty string")
 	_folder = name
 end
+
+
+
+
+
+
+function SaveManager:SetSubFolder(name: string?)
+	if name == nil then
+		_subFolder = nil 
+	elseif #name > 0 then
+		_subFolder = sanitizeName(name)
+	else
+		_subFolder = "" 
+	end
+end
+
+SaveManager.SetSubfolder = SaveManager.SetSubFolder
 
 
 function SaveManager:SetAutoSaveInterval(seconds: number)
@@ -11372,6 +11893,18 @@ end
 
 
 function SaveManager:Load(profileName: string?, skipCallbacks: boolean?): number
+	
+	
+	
+	
+	if not _autoSaveHook then
+		_autoSaveHook = flags:Subscribe(function(key: string, _value: any)
+			if _loading then return end
+			if _ignored[key] then return end
+			SaveManager:ScheduleAutoSave()
+		end)
+	end
+
 	local path = profilePath(profileName)
 
 	local raw: string? = nil
@@ -11435,9 +11968,10 @@ end
 
 function SaveManager:List(): { string }
 	local names: { string } = {}
+	local targetDir = getFolder()
 	pcall(function()
-		filesystem.ensureDir(_folder)
-		for _, path in filesystem.listfiles(_folder) do
+		filesystem.ensureDir(targetDir)
+		for _, path in filesystem.listfiles(targetDir) do
 			local normalized = path:gsub("\\", "/")
 			local filename   = normalized:match("([^/]+)$") or ""
 			if filename:match("%.saving$") then continue end
@@ -11469,8 +12003,13 @@ end
 
 
 
+
 function SaveManager:StopAutoSave()
 	stopAutoSave()
+	if _autoSaveHook then
+		_autoSaveHook()
+		_autoSaveHook = nil
+	end
 end
 
 
@@ -11486,6 +12025,8 @@ function SaveManager:ScheduleAutoSave()
 		end
 	end)
 end
+
+SaveManager._scheduleAutoSave = SaveManager.ScheduleAutoSave
 
 
 
@@ -11516,7 +12057,7 @@ function SaveManager:BuildConfigTab(window: any)
 	col:CreateSection({ name = "Profile" })
 
 	
-	col:CreateInput({
+	local profileInput = col:CreateInput({
 		name         = "Profile Name",
 		placeholder  = "flags  (default)",
 		flag         = "__SM_input_profile",
@@ -11553,8 +12094,7 @@ function SaveManager:BuildConfigTab(window: any)
 			if pick == "(no profiles)" then return end
 			_activeProfile = pick
 			
-			
-			flags:Set("__SM_input_profile", pick)
+			profileInput:Set(pick, true)
 		end,
 	})
 
@@ -11569,6 +12109,7 @@ function SaveManager:BuildConfigTab(window: any)
 			local ok   = self:Save(name)
 			refreshDropdown()
 			if ok then
+				ddHandle:Set(name, true)
 				window:Notify({
 					title   = "Saved",
 					content = "Profile '" .. name .. "' written to disk.",
@@ -11618,6 +12159,9 @@ function SaveManager:BuildConfigTab(window: any)
 			local ok   = self:Delete(name)
 			refreshDropdown()
 			if ok then
+				_activeProfile = "flags"
+				profileInput:Set("flags", true)
+				ddHandle:Set("flags", true)
 				window:Notify({
 					title   = "Deleted",
 					content = "Profile '" .. name .. "' removed.",
@@ -11940,16 +12484,31 @@ end
 
 
 
-function theme.subscribe(listener: ThemeListener): Unsubscribe
+function theme.subscribe(listener: ThemeListener, boundInstance: Instance?): Unsubscribe
 	_nextId += 1
 	local id = _nextId
 	_subscribers[id] = listener
+
+	local destroyConn: RBXScriptConnection? = nil
+	if boundInstance then
+		destroyConn = boundInstance.Destroying:Connect(function()
+			_subscribers[id] = nil
+			if destroyConn then
+				destroyConn:Disconnect()
+				destroyConn = nil
+			end
+		end)
+	end
 
 	
 	listener(_current)
 
 	return function()
 		_subscribers[id] = nil
+		if destroyConn then
+			destroyConn:Disconnect()
+			destroyConn = nil
+		end
 	end
 end
 
@@ -12332,7 +12891,7 @@ return windowSizing
 end)() end} 
 
 
-local ObjectTree = {{1,2,{"Delirium"},{{23,1,{"utility"},{{37,2,{"services"}},{36,2,{"saveManager"}},{29,2,{"fontLoader"}},{38,2,{"signal"}},{34,2,{"network"}},{35,2,{"runtime"}},{26,2,{"element"}},{40,2,{"tween"}},{28,2,{"flags"}},{27,2,{"filesystem"}},{32,2,{"imageCache"}},{24,2,{"assetFetcher"}},{42,2,{"windowSizing"}},{39,2,{"theme"}},{31,2,{"image"}},{30,2,{"icons"}},{41,2,{"variables"}},{33,2,{"mediaService"}},{25,2,{"constants"}}}},{2,1,{"components"},{{12,2,{"notification"}},{9,2,{"keybind"}},{14,2,{"slider"}},{8,2,{"input"}},{5,2,{"dashboard"}},{3,2,{"button"}},{10,2,{"label"}},{11,2,{"loadingScreen"}},{7,2,{"dropdown"}},{16,2,{"toggle"}},{15,2,{"tab"}},{13,2,{"section"}},{17,2,{"window"}},{6,2,{"descriptor"}},{4,2,{"colorpicker"}}}},{22,2,{"types"}},{18,1,{"themes"},{{20,2,{"dracula"}},{21,2,{"light"}},{19,2,{"default"}}}}}}}
+local ObjectTree = {{1,2,{"Delirium"},{{22,2,{"types"}},{2,1,{"components"},{{6,2,{"descriptor"}},{12,2,{"notification"}},{14,2,{"slider"}},{16,2,{"toggle"}},{15,2,{"tab"}},{17,2,{"window"}},{3,2,{"button"}},{5,2,{"dashboard"}},{7,2,{"dropdown"}},{4,2,{"colorpicker"}},{10,2,{"label"}},{9,2,{"keybind"}},{8,2,{"input"}},{11,2,{"loadingScreen"}},{13,2,{"section"}}}},{23,1,{"utility"},{{41,2,{"variables"}},{26,2,{"element"}},{36,2,{"saveManager"}},{25,2,{"constants"}},{31,2,{"image"}},{29,2,{"fontLoader"}},{38,2,{"signal"}},{40,2,{"tween"}},{33,2,{"mediaService"}},{37,2,{"services"}},{24,2,{"assetFetcher"}},{39,2,{"theme"}},{30,2,{"icons"}},{27,2,{"filesystem"}},{28,2,{"flags"}},{32,2,{"imageCache"}},{42,2,{"windowSizing"}},{35,2,{"runtime"}},{34,2,{"network"}}}},{18,1,{"themes"},{{20,2,{"dracula"}},{21,2,{"light"}},{19,2,{"default"}}}}}}}
 
 
 local LineOffsets = nil

@@ -141,16 +141,31 @@ end
 	  -- later:
 	  unsub()
 ]]
-function theme.subscribe(listener: ThemeListener): Unsubscribe
+function theme.subscribe(listener: ThemeListener, boundInstance: Instance?): Unsubscribe
 	_nextId += 1
 	local id = _nextId
 	_subscribers[id] = listener
+
+	local destroyConn: RBXScriptConnection? = nil
+	if boundInstance then
+		destroyConn = boundInstance.Destroying:Connect(function()
+			_subscribers[id] = nil
+			if destroyConn then
+				destroyConn:Disconnect()
+				destroyConn = nil
+			end
+		end)
+	end
 
 	-- Fire immediately so the component gets the current theme on creation.
 	listener(_current)
 
 	return function()
 		_subscribers[id] = nil
+		if destroyConn then
+			destroyConn:Disconnect()
+			destroyConn = nil
+		end
 	end
 end
 

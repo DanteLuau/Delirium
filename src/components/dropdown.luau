@@ -12,6 +12,7 @@ local services  = require(script.Parent.Parent.utility.services)
 local signal    = require(script.Parent.Parent.utility.signal)
 local themeUtil = require(script.Parent.Parent.utility.theme)
 local icons     = require(script.Parent.Parent.utility.icons)
+local element   = require(script.Parent.Parent.utility.element)
 
 local UserInputService = runtime.userInputService
 local Players          = services.getService("Players") :: Players
@@ -537,6 +538,10 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 		listWrap.BackgroundTransparency = 1
 		listStroke.Transparency = 1
 		frame.Size = UDim2.new(1, 0, 0, HEADER_H)
+		if s._outsideUnsub then
+			s._outsideUnsub()
+			s._outsideUnsub = nil
+		end
 		-- Restore ZIndex that was raised on open.
 		frame.ZIndex = s._originalZIndex or 1
 		s._originalZIndex = nil
@@ -620,6 +625,12 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 			frame.Size = UDim2.new(1, 0, 0, HEADER_H + LIST_GAP + fullH)
 		end
 
+		if s._outsideUnsub then
+			s._outsideUnsub()
+			s._outsideUnsub = nil
+		end
+		s._outsideUnsub = element.onOutsideClick({ frame, listWrap }, closeDropdown)
+
 		if s._searchEnabled and s._searchBox then
 			task.defer(function()
 				if s._open and s._searchBox then
@@ -635,24 +646,33 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 	s._openDropdown = openDropdown
 	s._closeDropdown = closeDropdown
 
-	-- ── Build Option Rows ─────────────────────────────────────────────────────
-	local function buildOptions()
-		for _, c in ipairs(s._optConns) do c:Disconnect() end
-		table.clear(s._optConns)
-		for _, child in ipairs(scroll:GetChildren()) do
-			if child:IsA("Frame") then child:Destroy() end
-		end
+	-- ── Build & Filter Option Rows ────────────────────────────────────────────
+	type OptionEntry = {
+		opt: DropdownOption,
+		frame: Frame,
+		label: TextLabel,
+		check: ImageLabel?,
+		sep: Frame?,
+	}
+	local optionEntries: { OptionEntry } = {}
 
+	local function applySearchFilter()
 		local query = s._searchQuery or ""
-		local filtered: { DropdownOption } = {}
-		for _, opt in ipairs(s._options) do
-			if query == "" or string.find(opt.Label:lower(), query, 1, true) then
-				table.insert(filtered, opt)
+		local visibleCount = 0
+
+		for _, entry in ipairs(optionEntries) do
+			local matches = query == "" or string.find(entry.opt.Label:lower(), query, 1, true) ~= nil
+			entry.frame.Visible = matches
+			if matches then
+				visibleCount += 1
+				entry.frame.LayoutOrder = visibleCount
+				if entry.sep then
+					entry.sep.Visible = true
+				end
 			end
 		end
 
-		local optCount = #filtered
-		local fullH = optCount * OPTION_H
+		local fullH = visibleCount * OPTION_H
 		scroll.CanvasSize = UDim2.fromOffset(0, fullH)
 		s._targetH = math.min(fullH, s._maxH)
 
@@ -661,8 +681,19 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 			listWrap.Size = UDim2.new(1, 0, 0, panelH)
 			frame.Size = UDim2.new(1, 0, 0, HEADER_H + LIST_GAP + panelH)
 		end
+	end
 
-		for i, opt in ipairs(filtered) do
+	local function createOptionRows()
+		for _, c in ipairs(s._optConns) do c:Disconnect() end
+		table.clear(s._optConns)
+		table.clear(optionEntries)
+
+		for _, child in ipairs(scroll:GetChildren()) do
+			if child:IsA("Frame") then child:Destroy() end
+		end
+
+		local optCount = #s._options
+		for i, opt in ipairs(s._options) do
 			local isSelected = if s._multiSelect
 				then s._selectedSet[opt.Value] == true
 				else s._selectedValue == opt.Value
@@ -746,15 +777,17 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 				disabledTag.Parent = optFrame
 			end
 
+			local sep: Frame? = nil
 			if i < optCount then
-				local sep = Instance.new("Frame")
-				sep.Size = UDim2.new(1, -24, 0, 1)
-				sep.Position = UDim2.new(0, 12, 1, -1)
-				sep.BackgroundColor3 = s._theme.ElementStroke or Color3.fromHex("#2b2b2b")
-				sep.BackgroundTransparency = 0.7
-				sep.BorderSizePixel = 0
-				sep.ZIndex = 4
-				sep.Parent = optFrame
+				local sFrame = Instance.new("Frame")
+				sFrame.Size = UDim2.new(1, -24, 0, 1)
+				sFrame.Position = UDim2.new(0, 12, 1, -1)
+				sFrame.BackgroundColor3 = s._theme.ElementStroke or Color3.fromHex("#2b2b2b")
+				sFrame.BackgroundTransparency = 0.7
+				sFrame.BorderSizePixel = 0
+				sFrame.ZIndex = 4
+				sFrame.Parent = optFrame
+				sep = sFrame
 			end
 
 			local optHit = Instance.new("TextButton")
@@ -794,20 +827,20 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 
 					if s._multiSelect then
 						if s._selectedSet[opt.Value] then
-						s._selectedSet[opt.Value] = nil
-						optLabel.TextColor3 = s._theme.PlaceholderColor or Color3.fromHex("#9d9d9d")
-						if checkLabel then
-						  (checkLabel :: ImageLabel).Image = icons.Resolve("lucide:square") or "rbxassetid://0"
-						 (checkLabel :: ImageLabel).ImageColor3 = Color3.fromHex("#555555")
-						end
+							s._selectedSet[opt.Value] = nil
+							optLabel.TextColor3 = s._theme.PlaceholderColor or Color3.fromHex("#9d9d9d")
+							if checkLabel then
+								(checkLabel :: ImageLabel).Image = icons.Resolve("lucide:square") or "rbxassetid://0"
+								(checkLabel :: ImageLabel).ImageColor3 = Color3.fromHex("#555555")
+							end
 						else
-						 s._selectedSet[opt.Value] = true
-						optLabel.TextColor3 = s._theme.AccentColor or Color3.fromHex("#4cc2ff")
-						if checkLabel then
-							(checkLabel :: ImageLabel).Image = icons.Resolve("lucide:square-check") or "rbxassetid://0"
-							(checkLabel :: ImageLabel).ImageColor3 = s._theme.AccentColor or Color3.fromHex("#4cc2ff")
+							s._selectedSet[opt.Value] = true
+							optLabel.TextColor3 = s._theme.AccentColor or Color3.fromHex("#4cc2ff")
+							if checkLabel then
+								(checkLabel :: ImageLabel).Image = icons.Resolve("lucide:square-check") or "rbxassetid://0"
+								(checkLabel :: ImageLabel).ImageColor3 = s._theme.AccentColor or Color3.fromHex("#4cc2ff")
+							end
 						end
-					end
 						local arr: { any } = {}
 						for _, o in ipairs(s._options) do
 							if s._selectedSet[o.Value] then
@@ -827,13 +860,8 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 						self.Changed:Fire(arr)
 						if callback then task.spawn(callback, arr) end
 					else
-						for _, ch in ipairs(scroll:GetChildren()) do
-							if ch:IsA("Frame") then
-								local lbl = ch:FindFirstChild("OptionLabel")
-								if lbl and lbl:IsA("TextLabel") then
-									lbl.TextColor3 = s._theme.PlaceholderColor or Color3.fromHex("#9d9d9d")
-								end
-							end
+						for _, entry in ipairs(optionEntries) do
+							entry.label.TextColor3 = s._theme.PlaceholderColor or Color3.fromHex("#9d9d9d")
 						end
 						optLabel.TextColor3 = s._theme.AccentColor or Color3.fromHex("#4cc2ff")
 						s._selectedValue = opt.Value
@@ -856,11 +884,21 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 			end
 
 			optFrame.Parent = scroll
+			table.insert(optionEntries, {
+				opt = opt,
+				frame = optFrame,
+				label = optLabel,
+				check = checkLabel,
+				sep = sep,
+			})
 		end
+
+		applySearchFilter()
 	end
 
-	s._buildOptions = buildOptions
-	buildOptions()
+	s._buildOptions = createOptionRows
+	s._applySearchFilter = applySearchFilter
+	createOptionRows()
 
 	local initTxt, initHas = getHeaderText(s)
 	valueLabel.Text = initTxt
@@ -871,7 +909,7 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 	if searchBox then
 		s._conns.search = searchBox:GetPropertyChangedSignal("Text"):Connect(function()
 			s._searchQuery = searchBox.Text:lower()
-			buildOptions()
+			applySearchFilter()
 		end)
 	end
 
@@ -903,31 +941,6 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 		end
 	end)
 
-	-- Close when clicking outside dropdown
-	s._conns.outsideClick = UserInputService.InputBegan:Connect(function(input: InputObject)
-		if not s._open then return end
-		if input.UserInputType == Enum.UserInputType.MouseButton1
-			or input.UserInputType == Enum.UserInputType.Touch then
-			local mousePos = input.Position
-			local ap = frame.AbsolutePosition
-			local as = frame.AbsoluteSize
-			local inX = mousePos.X >= ap.X and mousePos.X <= (ap.X + as.X)
-			local inY: boolean
-			if s._flipUp then
-				-- List renders above the header frame — bounds check must include that region.
-				-- frame.Size stays HEADER_H when flipped, so as.Y only covers the header;
-				-- clicks on list items appear above ap.Y and get wrongly treated as outside.
-				local listH = getListH()
-				local topY = ap.Y - listH - LIST_GAP
-				inY = mousePos.Y >= topY and mousePos.Y <= (ap.Y + HEADER_H)
-			else
-				inY = mousePos.Y >= ap.Y and mousePos.Y <= (ap.Y + as.Y)
-			end
-			if not (inX and inY) then
-				closeDropdown()
-			end
-		end
-	end)
 
 	-- Special types wiring
 	if special == "Player" then
@@ -981,7 +994,7 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 		if s._open then
 			buildOptions()
 		end
-	end)
+	end, frame)
 
 	if flagKey and flagKey ~= "" then
 		flags:Set(flagKey, initVal)
@@ -1114,6 +1127,10 @@ end
 function Dropdown:Destroy()
 	local s = self :: any
 	if s._themeUnsub then s._themeUnsub() end
+	if s._outsideUnsub then
+		s._outsideUnsub()
+		s._outsideUnsub = nil
+	end
 	if s._conns then
 		for _, conn in s._conns do conn:Disconnect() end
 		table.clear(s._conns)

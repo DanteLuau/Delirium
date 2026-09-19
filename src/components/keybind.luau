@@ -252,6 +252,9 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 	local function stopRecording()
 		if not (self :: any)._recording then return end
 		;(self :: any)._recording = false
+		if (self :: any)._updateListeners then
+			(self :: any)._updateListeners()
+		end
 		if activeRecordingKeybind == self then
 			activeRecordingKeybind = nil
 		end
@@ -291,6 +294,9 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 		activeRecordingKeybind = self
 
 		;(self :: any)._recording = true
+		if (self :: any)._updateListeners then
+			(self :: any)._updateListeners()
+		end
 		pill.Modal = true
 
 		pcall(function()
@@ -359,7 +365,21 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 	local isHolding = false
 	local holdStartTime = 0
 
-	local inputConn = runtime.userInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
+	local function matchesInput(input: InputObject, targetKey: EnumItem): boolean
+		if targetKey == Enum.KeyCode.Unknown then
+			return false
+		end
+		if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == targetKey then
+			return true
+		elseif input.UserInputType == targetKey then
+			return true
+		elseif input.UserInputType == Enum.UserInputType.Touch and targetKey == Enum.UserInputType.MouseButton1 then
+			return true
+		end
+		return false
+	end
+
+	local function onInputBegan(input: InputObject, gameProcessed: boolean)
 		if (self :: any)._recording then
 			if input.UserInputType == Enum.UserInputType.Keyboard then
 				if input.KeyCode == Enum.KeyCode.Escape then
@@ -403,14 +423,7 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 		if gameProcessed then return end
 
 		-- Check if input matches bound key
-		local matches = false
-		if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == self.value then
-			matches = true
-		elseif input.UserInputType == self.value then
-			matches = true
-		end
-
-		if matches then
+		if matchesInput(input, self.value) then
 			if hold then
 				isHolding = true
 				holdStartTime = os.clock()
@@ -423,29 +436,43 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 				if callback then task.spawn(callback, self.value) end
 			end
 		end
-	end)
-
-	local inputEndedConn: RBXScriptConnection? = nil
-	if hold then
-		inputEndedConn = runtime.userInputService.InputEnded:Connect(function(input: InputObject)
-			if not isHolding then return end
-			local matches = false
-			if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == self.value then
-				matches = true
-			elseif input.UserInputType == self.value then
-				matches = true
-			end
-			if matches then
-				isHolding = false
-				if (os.clock() - holdStartTime) >= holdThreshold then
-					if callback then task.spawn(callback, false) end
-				end
-			end
-		end)
 	end
 
-	;(self :: any)._inputConn      = inputConn
-	;(self :: any)._inputEndedConn = inputEndedConn
+	local function onInputEnded(input: InputObject)
+		if not isHolding then return end
+		if matchesInput(input, self.value) then
+			isHolding = false
+			if (os.clock() - holdStartTime) >= holdThreshold then
+				if callback then task.spawn(callback, false) end
+			end
+		end
+	end
+
+	local function updateListeners()
+		local s = self :: any
+		local needsListener = s._recording or (self.value ~= Enum.KeyCode.Unknown)
+		if needsListener then
+			if not s._inputConn then
+				s._inputConn = runtime.userInputService.InputBegan:Connect(onInputBegan)
+			end
+			if hold then
+				if not s._inputEndedConn then
+					s._inputEndedConn = runtime.userInputService.InputEnded:Connect(onInputEnded)
+				end
+			end
+		else
+			if s._inputConn then
+				s._inputConn:Disconnect()
+				s._inputConn = nil
+			end
+			if s._inputEndedConn then
+				s._inputEndedConn:Disconnect()
+				s._inputEndedConn = nil
+			end
+		end
+	end
+	;(self :: any)._updateListeners = updateListeners
+	updateListeners()
 
 	-- ── Theme Subscription ────────────────────────────────────────────────
 	;(self :: any)._themeUnsub = themeUtil.subscribe(function(t)
@@ -460,7 +487,7 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 		pillStroke.Color            = t.ElementStroke or Color3.fromHex("#2b2b2b")
 		stroke.Color                = t.ElementStroke or Color3.fromHex("#2b2b2b")
 		gradient.Color              = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
-	end)
+	end, frame)
 
 	return self
 end
@@ -478,6 +505,11 @@ function Keybind:Set(value: EnumItem | string, skipChanged: boolean?)
 	local sizePill = (self :: any)._sizePill
 	if sizePill then
 		sizePill(true)
+	end
+
+	local updateListeners = (self :: any)._updateListeners
+	if updateListeners then
+		updateListeners()
 	end
 
 	if flagKey then

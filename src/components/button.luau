@@ -133,7 +133,7 @@ function Button.new(props: ButtonProps, theme: { [string]: any }, parent: Instan
 		end
 		gradient.Color = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
 		theme = t
-	end)
+	end, frame)
 	return self
 end
 

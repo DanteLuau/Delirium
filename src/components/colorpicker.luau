@@ -278,7 +278,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 	popup.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
 	popup.BorderSizePixel  = 0
 	popup.ZIndex           = POP_Z
-	popup.Visible          = windowMode   -- window mode: hidden by default but already parented
+	popup.Visible          = not windowMode   -- window mode: hidden by default until opened
 	popup.Parent           = popupParent
 	mkCorner(popup, 8)
 	mkStroke(popup, Color3.fromRGB(48, 48, 56), 1)
@@ -698,7 +698,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 	local function closePopup()
 		if not isOpen then return end
 		isOpen       = false
-		dragging     = nil
+		stopColorDrag()
 		stroke.Color = theme.ElementStroke or Color3.fromHex("#2b2b2b")
 		if windowMode then
 			popup.Visible = false
@@ -716,11 +716,14 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 	-- Backdrop / dim click → close
 	if not windowMode and backdrop then
 		addConn((backdrop :: TextButton).MouseButton1Click:Connect(closePopup))
+		addConn((backdrop :: TextButton).TouchTap:Connect(closePopup))
 	end
 	if windowMode and dimOverlay then
 		addConn((dimOverlay :: TextButton).MouseButton1Click:Connect(closePopup))
+		addConn((dimOverlay :: TextButton).TouchTap:Connect(closePopup))
 	end
 	addConn(popClose.MouseButton1Click:Connect(closePopup))
+	addConn(popClose.TouchTap:Connect(closePopup))
 
 	-- Header hover (stroke color hint only)
 	addConn(headerBtn.MouseEnter:Connect(function()
@@ -734,20 +737,58 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 		end
 	end))
 
+	-- ── Dynamic Drag Input Management ────────────────────────────────────
+	local dragConnChange: RBXScriptConnection? = nil
+	local dragConnEnd: RBXScriptConnection? = nil
+
+	local function stopColorDrag()
+		dragging = nil
+		if dragConnChange then
+			dragConnChange:Disconnect()
+			dragConnChange = nil
+		end
+		if dragConnEnd then
+			dragConnEnd:Disconnect()
+			dragConnEnd = nil
+		end
+	end
+
+	local function startColorDrag(target: DragTarget, mousePos: Vector2)
+		dragging = target
+		pump(mousePos)
+
+		if not dragConnChange then
+			dragConnChange = runtime.userInputService.InputChanged:Connect(function(input: InputObject)
+				if not dragging then return end
+				if input.UserInputType == Enum.UserInputType.MouseMovement
+					or input.UserInputType == Enum.UserInputType.Touch then
+					pump(Vector2.new(input.Position.X, input.Position.Y))
+				end
+			end)
+		end
+
+		if not dragConnEnd then
+			dragConnEnd = runtime.userInputService.InputEnded:Connect(function(input: InputObject)
+				if input.UserInputType == Enum.UserInputType.MouseButton1
+					or input.UserInputType == Enum.UserInputType.Touch then
+					stopColorDrag()
+				end
+			end)
+		end
+	end
+
 	-- ── Drag input bindings ───────────────────────────────────────────────
 	addConn(canvasBtn.InputBegan:Connect(function(input: InputObject)
 		if input.UserInputType == Enum.UserInputType.MouseButton1
 			or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = "canvas"
-			pump(Vector2.new(input.Position.X, input.Position.Y))
+			startColorDrag("canvas", Vector2.new(input.Position.X, input.Position.Y))
 		end
 	end))
 
 	addConn(hueBtn.InputBegan:Connect(function(input: InputObject)
 		if input.UserInputType == Enum.UserInputType.MouseButton1
 			or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = "hue"
-			pump(Vector2.new(input.Position.X, input.Position.Y))
+			startColorDrag("hue", Vector2.new(input.Position.X, input.Position.Y))
 		end
 	end))
 
@@ -756,26 +797,10 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 		addConn(abtn.InputBegan:Connect(function(input: InputObject)
 			if input.UserInputType == Enum.UserInputType.MouseButton1
 				or input.UserInputType == Enum.UserInputType.Touch then
-				dragging = "alpha"
-				pump(Vector2.new(input.Position.X, input.Position.Y))
+				startColorDrag("alpha", Vector2.new(input.Position.X, input.Position.Y))
 			end
 		end))
 	end
-
-	addConn(runtime.userInputService.InputChanged:Connect(function(input: InputObject)
-		if not dragging then return end
-		if input.UserInputType == Enum.UserInputType.MouseMovement
-			or input.UserInputType == Enum.UserInputType.Touch then
-			pump(Vector2.new(input.Position.X, input.Position.Y))
-		end
-	end))
-
-	addConn(runtime.userInputService.InputEnded:Connect(function(input: InputObject)
-		if input.UserInputType == Enum.UserInputType.MouseButton1
-			or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = nil
-		end
-	end))
 
 	-- ── Hex / Alpha% text inputs ──────────────────────────────────────────
 	addConn(hexInput.FocusLost:Connect(function()
@@ -826,7 +851,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 			alphaInput.TextColor3        = t.ContentColor or Color3.fromHex("#ffffff")
 			alphaInput.PlaceholderColor3 = t.PlaceholderColor or Color3.fromHex("#9d9d9d")
 		end
-	end)
+	end, frame)
 
 	-- ── Public API ────────────────────────────────────────────────────────
 	local self = setmetatable({}, ColorPicker) :: ColorPicker
@@ -848,6 +873,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 	end
 
 	function self:Destroy()
+		stopColorDrag()
 		if themeUnsub then themeUnsub() end
 		for _, c in conns do c:Disconnect() end
 		table.clear(conns)

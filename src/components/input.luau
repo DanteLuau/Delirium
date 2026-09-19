@@ -22,6 +22,7 @@ export type InputProps = {
 	placeholder:  string?,
 	numeric:      boolean?,
 	clearOnFocus: boolean?,
+	enterOnly:    boolean?,
 	callback:     ((value: string) -> ())?,
 }
 
@@ -54,6 +55,7 @@ function Input.new(props: InputProps, theme: { [string]: any }, parent: Instance
 	local placeholder  = props.placeholder or "Enter text..."
 	local isNumeric    = props.numeric == true
 	local clearOnFocus = props.clearOnFocus == true
+	local enterOnly    = props.enterOnly == true
 	local callback     = props.callback
 	local hasDesc      = desc ~= ""
 
@@ -256,7 +258,9 @@ function Input.new(props: InputProps, theme: { [string]: any }, parent: Instance
 			textBox.Text = raw
 		end
 
-		self:Set(raw, not enterPressed)
+		local isMobile = runtime.userInputService.TouchEnabled and not runtime.userInputService.KeyboardEnabled
+		local skipCallback = if enterOnly and not isMobile then not enterPressed else false
+		self:Set(raw, skipCallback)
 
 		tween.fire(pillStroke, constants.tweenFast, {
 			Color = if hovering
@@ -285,7 +289,7 @@ function Input.new(props: InputProps, theme: { [string]: any }, parent: Instance
 		textBox.TextColor3          = t.ContentColor or Color3.fromHex("#ffffff")
 		textBox.FontFace            = t.Font or constants.DEFAULT_FONT
 		gradient.Color              = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
-	end)
+	end, frame)
 
 	return self
 end

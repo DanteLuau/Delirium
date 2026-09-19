@@ -95,7 +95,7 @@ function Section.new(props: SectionProps, theme: { [string]: any }, parent: Inst
 			label.TextColor3 = t.ContentColor or Color3.fromRGB(220, 215, 240)
 			label.FontFace = t.Font or constants.DEFAULT_FONT
 		end
-	end)
+	end, container)
 	return self
 end
 

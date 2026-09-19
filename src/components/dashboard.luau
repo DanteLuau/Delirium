@@ -6,14 +6,16 @@
 -- in the main contentArea — identical to how a regular Tab.Show() behaves.
 -- Wiring is done externally by Window:CreatePlayerCard().
 
+local services  = require(script.Parent.Parent.utility.services)
 local tween     = require(script.Parent.Parent.utility.tween)
 local themeUtil = require(script.Parent.Parent.utility.theme)
 local constants = require(script.Parent.Parent.utility.constants)
 local variables = require(script.Parent.Parent.utility.variables)
 
-local Players    = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
+local Players      = services.getService("Players") :: Players
+local TweenService = services.getService("TweenService") :: TweenService
+local RunService   = services.getService("RunService") :: RunService
+local StatsService = services.getService("Stats") :: Stats
 
 local TWEEN_TAB  = TweenInfo.new(0.16, Enum.EasingStyle.Quad,  Enum.EasingDirection.Out)
 local THUMB_TYPE = Enum.ThumbnailType.HeadShot
@@ -496,43 +498,53 @@ function Dashboard.new(
 	makeStatCard(sessScroll, "Place ID", tostring(game.PlaceId),  21)
 	makeStatCard(sessScroll, "Job ID",   if #jobIdFull > 14 then jobIdFull:sub(1,12) .. "…" else jobIdFull, 22)
 
-	-- ── Live update heartbeat ─────────────────────────────────────────────
+	-- ── Live update heartbeat (dynamic: active only when dashboard is visible) ──
 	local sessionStart = os.clock()
 	local pingTimer = 0; local fpsTimer = 0; local fpsCount = 0; local charTimer = 0
+	local liveConn: RBXScriptConnection? = nil
 
-	local liveConn: RBXScriptConnection = RunService.Heartbeat:Connect(function(dt)
-		-- only run heavy updates when dashboard content is visible
-		if not content.Visible then return end
+	local function startLiveUpdates()
+		if liveConn then return end
+		liveConn = RunService.Heartbeat:Connect(function(dt)
+			if not contentVisible then return end
 
-		fpsCount += 1; fpsTimer += dt
-		if fpsTimer >= 0.5 then
-			fpsRow.Text = tostring(math.round(fpsCount / fpsTimer)) .. " fps"
-			fpsCount = 0; fpsTimer = 0
+			fpsCount += 1; fpsTimer += dt
+			if fpsTimer >= 0.5 then
+				fpsRow.Text = tostring(math.round(fpsCount / fpsTimer)) .. " fps"
+				fpsCount = 0; fpsTimer = 0
+			end
+
+			uptimeRow.Text = formatTime(os.clock() - sessionStart)
+
+			pingTimer += dt
+			if pingTimer >= 1.5 then
+				pingTimer = 0
+				local ok, ms = pcall(function()
+					return math.round((StatsService :: any).Network.ServerStatsItem["Data Ping"]:GetValue())
+				end)
+				pingRow.Text = if ok then tostring(ms) .. " ms" else "—"
+			end
+
+			charTimer += dt
+			if charTimer >= 0.5 then
+				charTimer = 0
+				pcall(function()
+					local char = lp.Character; if not char then return end
+					local hum = char:FindFirstChildOfClass("Humanoid"); if not hum then return end
+					healthRow.Text = math.round(hum.Health) .. " / " .. math.round(hum.MaxHealth)
+					wsRow.Text = tostring(hum.WalkSpeed)
+					jpRow.Text = tostring(hum.JumpPower)
+				end)
+			end
+		end)
+	end
+
+	local function stopLiveUpdates()
+		if liveConn then
+			liveConn:Disconnect()
+			liveConn = nil
 		end
-
-		uptimeRow.Text = formatTime(os.clock() - sessionStart)
-
-		pingTimer += dt
-		if pingTimer >= 1.5 then
-			pingTimer = 0
-			local ok, ms = pcall(function()
-				return math.round(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue())
-			end)
-			pingRow.Text = if ok then tostring(ms) .. " ms" else "—"
-		end
-
-		charTimer += dt
-		if charTimer >= 0.5 then
-			charTimer = 0
-			pcall(function()
-				local char = lp.Character; if not char then return end
-				local hum = char:FindFirstChildOfClass("Humanoid"); if not hum then return end
-				healthRow.Text = math.round(hum.Health) .. " / " .. math.round(hum.MaxHealth)
-				wsRow.Text = tostring(hum.WalkSpeed)
-				jpRow.Text = tostring(hum.JumpPower)
-			end)
-		end
-	end)
+	end
 
 	-- Team watcher
 	local teamConn = lp:GetPropertyChangedSignal("Team"):Connect(function()
@@ -561,6 +573,7 @@ function Dashboard.new(
 		contentVisible = true
 		content.Visible = true
 		selectInnerTab(1) -- always reset to Profile tab on open
+		startLiveUpdates()
 		-- Make card look "active" (like a selected tab button)
 		tween.fire(card, TweenInfo.new(0.14, Enum.EasingStyle.Quad), { BackgroundColor3 = tk.neutralHover })
 		tween.fire(chevron, TweenInfo.new(0.14, Enum.EasingStyle.Quad), { TextColor3 = tk.accent })
@@ -570,6 +583,7 @@ function Dashboard.new(
 		if not contentVisible then return end
 		contentVisible = false
 		content.Visible = false
+		stopLiveUpdates()
 		tween.fire(card, TweenInfo.new(0.14, Enum.EasingStyle.Quad), { BackgroundColor3 = tk.surface })
 		tween.fire(chevron, TweenInfo.new(0.14, Enum.EasingStyle.Quad), { TextColor3 = tk.textSecondary })
 	end
@@ -595,12 +609,12 @@ function Dashboard.new(
 	local s = self :: any
 	s._cardFrame   = card
 	s._content     = content
-	s._liveConn    = liveConn
-	s._teamConn    = teamConn
-	s._themeUnsub  = themeUnsub
-	s._showContent = showContent
-	s._hideContent = hideContent
-	s._cardHit     = cardHit
+	s._stopLiveUpdates = stopLiveUpdates
+	s._teamConn        = teamConn
+	s._themeUnsub      = themeUnsub
+	s._showContent     = showContent
+	s._hideContent     = hideContent
+	s._cardHit         = cardHit
 
 	return self
 end
@@ -615,11 +629,11 @@ end
 
 function Dashboard:Destroy()
 	local s = (self :: any)
-	if s._themeUnsub then s._themeUnsub() end
-	if s._liveConn   then s._liveConn:Disconnect() end
-	if s._teamConn   then s._teamConn:Disconnect() end
-	if s._content    then s._content:Destroy() end
-	if s._cardFrame  then s._cardFrame:Destroy() end
+	if s._stopLiveUpdates then s._stopLiveUpdates() end
+	if s._themeUnsub      then s._themeUnsub() end
+	if s._teamConn        then s._teamConn:Disconnect() end
+	if s._content         then s._content:Destroy() end
+	if s._cardFrame       then s._cardFrame:Destroy() end
 end
 
 return Dashboard
