@@ -235,16 +235,21 @@ function Input.new(props: InputProps, theme: { [string]: any }, parent: Instance
 
 	s._themeUnsub = themeUtil.subscribe(function(t)
 		theme = t
+		frame.BackgroundTransparency = t.ElementTransparency or 0
 		titleLabel.TextColor3       = t.ContentColor or Color3.fromHex("#ffffff")
 		titleLabel.FontFace         = t.Font or constants.DEFAULT_FONT_MEDIUM
 		pill.BackgroundColor3       = t.FieldBackground or Color3.fromRGB(255, 255, 255)
 		pill.BackgroundTransparency = t.FieldTransparency or 0.90
 		pillStroke.Color            = t.ElementStroke or Color3.fromHex("#2b2b2b")
 		stroke.Color                = t.ElementStroke or Color3.fromHex("#2b2b2b")
+		stroke.Transparency         = t.ElementStrokeTransparency or 0
 		textBox.PlaceholderColor3   = t.PlaceholderColor or Color3.fromHex("#9d9d9d")
 		textBox.TextColor3          = t.ContentColor or Color3.fromHex("#ffffff")
 		textBox.FontFace            = t.Font or constants.DEFAULT_FONT
-		gradient.Color              = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
+		gradient.Color              = t.ElementGradient or ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromHex("#2e2e2e")),
+			ColorSequenceKeypoint.new(1, Color3.fromHex("#181818")),
+		})
 	end, frame)
 
 	return self

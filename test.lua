@@ -1043,7 +1043,10 @@ local ClosureBindings = {
                     local fGrad = frame:FindFirstChildOfClass('UIGradient')
 
                     if fGrad then
-                        fGrad.Color = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
+                        fGrad.Color = t.ElementGradient or ColorSequence.new({
+                            ColorSequenceKeypoint.new(0, Color3.fromHex('#2e2e2e')),
+                            ColorSequenceKeypoint.new(1, Color3.fromHex('#181818')),
+                        })
                     end
 
                     stroke.Transparency = t.ElementStrokeTransparency or 0
@@ -1058,6 +1061,43 @@ local ClosureBindings = {
                     if alphaInput then
                         alphaInput.TextColor3 = t.ContentColor or Color3.fromHex('#ffffff')
                         alphaInput.PlaceholderColor3 = t.PlaceholderColor or Color3.fromHex('#9d9d9d')
+                    end
+
+                    popup.BackgroundColor3 = if t.WindowColor then t.WindowColor.Keypoints[1].Value else Color3.fromRGB(24, 24, 28)
+
+                    local popupStroke = popup:FindFirstChildOfClass('UIStroke')
+
+                    if popupStroke then
+                        popupStroke.Color = t.SurfaceStroke or Color3.fromHex('#303038')
+                    end
+
+                    popClose.BackgroundColor3 = t.NeutralButton or Color3.fromHex('#242428')
+                    popClose.TextColor3 = t.PlaceholderColor or Color3.fromHex('#a0a0a0')
+                    hexFrame.BackgroundColor3 = t.NeutralButton or Color3.fromRGB(32, 32, 36)
+
+                    local hexStroke = hexFrame:FindFirstChildOfClass('UIStroke')
+
+                    if hexStroke then
+                        hexStroke.Color = t.SurfaceStroke or Color3.fromHex('#303038')
+                    end
+
+                    local swatchStroke = swatch:FindFirstChildOfClass('UIStroke')
+
+                    if swatchStroke then
+                        swatchStroke.Color = t.SurfaceStroke or Color3.fromHex('#303038')
+                    end
+                    if showAlpha then
+                        local af = if alphaInput then(alphaInput::TextBox).Parent else nil
+
+                        if af and af:IsA('Frame') then
+                            (af::Frame).BackgroundColor3 = t.NeutralButton or Color3.fromRGB(32, 32, 36)
+
+                            local afStroke = (af::Frame):FindFirstChildOfClass('UIStroke')
+
+                            if afStroke then
+                                afStroke.Color = t.SurfaceStroke or Color3.fromHex('#303038')
+                            end
+                        end
                     end
                 end, frame)
 
@@ -3160,6 +3200,13 @@ local ClosureBindings = {
                     end
 
                     valueLabel.FontFace = t.Font or DEFAULT_FONT
+
+                    do
+                        local _, has = getHeaderText(s)
+
+                        valueLabel.TextColor3 = if has then(t.ContentColor or Color3.fromHex('#ffffff'))else Color3.fromHex('#555555')
+                    end
+
                     arrow.ImageColor3 = t.PlaceholderColor or Color3.fromHex('#9d9d9d')
 
                     if multiIcon then
@@ -3167,10 +3214,14 @@ local ClosureBindings = {
                     end
 
                     listStroke.Color = t.ElementStroke or Color3.fromHex('#2b2b2b')
-                    innerGrad.Color = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
+                    scroll.ScrollBarImageColor3 = t.ElementStroke or Color3.fromHex('#2b2b2b')
+                    innerGrad.Color = t.ElementGradient or ColorSequence.new({
+                        ColorSequenceKeypoint.new(0, Color3.fromHex('#2e2e2e')),
+                        ColorSequenceKeypoint.new(1, Color3.fromHex('#181818')),
+                    })
 
                     if s._open then
-                        buildOptions()
+                        createOptionRows()
                     end
                 end, frame)
 
@@ -3602,16 +3653,21 @@ local ClosureBindings = {
 
                 s._themeUnsub = themeUtil.subscribe(function(t)
                     theme = t
+                    frame.BackgroundTransparency = t.ElementTransparency or 0
                     titleLabel.TextColor3 = t.ContentColor or Color3.fromHex('#ffffff')
                     titleLabel.FontFace = t.Font or constants.DEFAULT_FONT_MEDIUM
                     pill.BackgroundColor3 = t.FieldBackground or Color3.fromRGB(255, 255, 255)
                     pill.BackgroundTransparency = t.FieldTransparency or 0.9
                     pillStroke.Color = t.ElementStroke or Color3.fromHex('#2b2b2b')
                     stroke.Color = t.ElementStroke or Color3.fromHex('#2b2b2b')
+                    stroke.Transparency = t.ElementStrokeTransparency or 0
                     textBox.PlaceholderColor3 = t.PlaceholderColor or Color3.fromHex('#9d9d9d')
                     textBox.TextColor3 = t.ContentColor or Color3.fromHex('#ffffff')
                     textBox.FontFace = t.Font or constants.DEFAULT_FONT
-                    gradient.Color = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
+                    gradient.Color = t.ElementGradient or ColorSequence.new({
+                        ColorSequenceKeypoint.new(0, Color3.fromHex('#2e2e2e')),
+                        ColorSequenceKeypoint.new(1, Color3.fromHex('#181818')),
+                    })
                 end, frame)
 
                 return self
@@ -4139,13 +4195,18 @@ local ClosureBindings = {
                     theme = t
                     titleLabel.TextColor3 = t.ContentColor or Color3.fromHex('#ffffff')
                     titleLabel.FontFace = t.Font or constants.DEFAULT_FONT_MEDIUM
+                    frame.BackgroundTransparency = t.ElementTransparency or 0
                     pill.BackgroundColor3 = t.FieldBackground or Color3.fromRGB(255, 255, 255)
                     pill.BackgroundTransparency = t.FieldTransparency or 0.9
                     pill.TextColor3 = t.ContentColor or Color3.fromHex('#ffffff')
                     pill.FontFace = t.Font or constants.DEFAULT_FONT_MEDIUM
                     pillStroke.Color = t.ElementStroke or Color3.fromHex('#2b2b2b')
                     stroke.Color = t.ElementStroke or Color3.fromHex('#2b2b2b')
-                    gradient.Color = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
+                    stroke.Transparency = t.ElementStrokeTransparency or 0
+                    gradient.Color = t.ElementGradient or ColorSequence.new({
+                        ColorSequenceKeypoint.new(0, Color3.fromHex('#2e2e2e')),
+                        ColorSequenceKeypoint.new(1, Color3.fromHex('#181818')),
+                    })
                 end, frame)
 
                 return self
@@ -5865,7 +5926,10 @@ local ClosureBindings = {
                     fill.BackgroundColor3 = t.AccentColor or Color3.fromHex('#4cc2ff')
                     fillGrad.Color = t.SliderProgress or ColorSequence.new(Color3.fromHex('#4cc2ff'), Color3.fromHex('#0093fb'))
                     knob.BackgroundColor3 = t.SliderHandle or Color3.fromRGB(255, 255, 255)
-                    innerGrad.Color = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
+                    innerGrad.Color = t.ElementGradient or ColorSequence.new({
+                        ColorSequenceKeypoint.new(0, Color3.fromHex('#2e2e2e')),
+                        ColorSequenceKeypoint.new(1, Color3.fromHex('#181818')),
+                    })
                     stroke.Transparency = if s._enabled then(t.ElementStrokeTransparency or 0)else 0.5
                 end, frame)
 
@@ -6829,7 +6893,10 @@ local ClosureBindings = {
                     end
 
                     glow.BackgroundColor3 = t.AccentColor or Color3.fromHex('#4cc2ff')
-                    gradient.Color = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
+                    gradient.Color = t.ElementGradient or ColorSequence.new({
+                        ColorSequenceKeypoint.new(0, Color3.fromHex('#2e2e2e')),
+                        ColorSequenceKeypoint.new(1, Color3.fromHex('#181818')),
+                    })
                 end, frame)
 
                 self:Set(initValue, true)
@@ -12731,148 +12798,6 @@ local ObjectTree = {
         },
         {
             {
-                23,
-                1,
-                {
-                    'utility',
-                },
-                {
-                    {
-                        31,
-                        2,
-                        {
-                            'image',
-                        },
-                    },
-                    {
-                        24,
-                        2,
-                        {
-                            'assetFetcher',
-                        },
-                    },
-                    {
-                        37,
-                        2,
-                        {
-                            'services',
-                        },
-                    },
-                    {
-                        30,
-                        2,
-                        {
-                            'icons',
-                        },
-                    },
-                    {
-                        40,
-                        2,
-                        {
-                            'tween',
-                        },
-                    },
-                    {
-                        36,
-                        2,
-                        {
-                            'saveManager',
-                        },
-                    },
-                    {
-                        25,
-                        2,
-                        {
-                            'constants',
-                        },
-                    },
-                    {
-                        26,
-                        2,
-                        {
-                            'element',
-                        },
-                    },
-                    {
-                        39,
-                        2,
-                        {
-                            'theme',
-                        },
-                    },
-                    {
-                        34,
-                        2,
-                        {
-                            'network',
-                        },
-                    },
-                    {
-                        28,
-                        2,
-                        {
-                            'flags',
-                        },
-                    },
-                    {
-                        42,
-                        2,
-                        {
-                            'windowSizing',
-                        },
-                    },
-                    {
-                        41,
-                        2,
-                        {
-                            'variables',
-                        },
-                    },
-                    {
-                        29,
-                        2,
-                        {
-                            'fontLoader',
-                        },
-                    },
-                    {
-                        38,
-                        2,
-                        {
-                            'signal',
-                        },
-                    },
-                    {
-                        35,
-                        2,
-                        {
-                            'runtime',
-                        },
-                    },
-                    {
-                        27,
-                        2,
-                        {
-                            'filesystem',
-                        },
-                    },
-                    {
-                        32,
-                        2,
-                        {
-                            'imageCache',
-                        },
-                    },
-                    {
-                        33,
-                        2,
-                        {
-                            'mediaService',
-                        },
-                    },
-                },
-            },
-            {
                 18,
                 1,
                 {
@@ -12880,10 +12805,10 @@ local ObjectTree = {
                 },
                 {
                     {
-                        21,
+                        20,
                         2,
                         {
-                            'light',
+                            'dracula',
                         },
                     },
                     {
@@ -12894,10 +12819,10 @@ local ObjectTree = {
                         },
                     },
                     {
-                        20,
+                        21,
                         2,
                         {
-                            'dracula',
+                            'light',
                         },
                     },
                 },
@@ -12910,10 +12835,66 @@ local ObjectTree = {
                 },
                 {
                     {
+                        15,
+                        2,
+                        {
+                            'tab',
+                        },
+                    },
+                    {
+                        3,
+                        2,
+                        {
+                            'button',
+                        },
+                    },
+                    {
+                        4,
+                        2,
+                        {
+                            'colorpicker',
+                        },
+                    },
+                    {
                         17,
                         2,
                         {
                             'window',
+                        },
+                    },
+                    {
+                        14,
+                        2,
+                        {
+                            'slider',
+                        },
+                    },
+                    {
+                        8,
+                        2,
+                        {
+                            'input',
+                        },
+                    },
+                    {
+                        16,
+                        2,
+                        {
+                            'toggle',
+                        },
+                    },
+                    {
+                        5,
+                        2,
+                        {
+                            'dashboard',
+                        },
+                    },
+                    {
+                        9,
+                        2,
+                        {
+                            'keybind',
                         },
                     },
                     {
@@ -12931,17 +12912,10 @@ local ObjectTree = {
                         },
                     },
                     {
-                        8,
+                        10,
                         2,
                         {
-                            'input',
-                        },
-                    },
-                    {
-                        5,
-                        2,
-                        {
-                            'dashboard',
+                            'label',
                         },
                     },
                     {
@@ -12952,55 +12926,6 @@ local ObjectTree = {
                         },
                     },
                     {
-                        12,
-                        2,
-                        {
-                            'notification',
-                        },
-                    },
-                    {
-                        15,
-                        2,
-                        {
-                            'tab',
-                        },
-                    },
-                    {
-                        14,
-                        2,
-                        {
-                            'slider',
-                        },
-                    },
-                    {
-                        10,
-                        2,
-                        {
-                            'label',
-                        },
-                    },
-                    {
-                        3,
-                        2,
-                        {
-                            'button',
-                        },
-                    },
-                    {
-                        16,
-                        2,
-                        {
-                            'toggle',
-                        },
-                    },
-                    {
-                        9,
-                        2,
-                        {
-                            'keybind',
-                        },
-                    },
-                    {
                         11,
                         2,
                         {
@@ -13008,10 +12933,10 @@ local ObjectTree = {
                         },
                     },
                     {
-                        4,
+                        12,
                         2,
                         {
-                            'colorpicker',
+                            'notification',
                         },
                     },
                 },
@@ -13021,6 +12946,148 @@ local ObjectTree = {
                 2,
                 {
                     'types',
+                },
+            },
+            {
+                23,
+                1,
+                {
+                    'utility',
+                },
+                {
+                    {
+                        34,
+                        2,
+                        {
+                            'network',
+                        },
+                    },
+                    {
+                        25,
+                        2,
+                        {
+                            'constants',
+                        },
+                    },
+                    {
+                        26,
+                        2,
+                        {
+                            'element',
+                        },
+                    },
+                    {
+                        31,
+                        2,
+                        {
+                            'image',
+                        },
+                    },
+                    {
+                        38,
+                        2,
+                        {
+                            'signal',
+                        },
+                    },
+                    {
+                        33,
+                        2,
+                        {
+                            'mediaService',
+                        },
+                    },
+                    {
+                        28,
+                        2,
+                        {
+                            'flags',
+                        },
+                    },
+                    {
+                        36,
+                        2,
+                        {
+                            'saveManager',
+                        },
+                    },
+                    {
+                        42,
+                        2,
+                        {
+                            'windowSizing',
+                        },
+                    },
+                    {
+                        41,
+                        2,
+                        {
+                            'variables',
+                        },
+                    },
+                    {
+                        37,
+                        2,
+                        {
+                            'services',
+                        },
+                    },
+                    {
+                        32,
+                        2,
+                        {
+                            'imageCache',
+                        },
+                    },
+                    {
+                        30,
+                        2,
+                        {
+                            'icons',
+                        },
+                    },
+                    {
+                        40,
+                        2,
+                        {
+                            'tween',
+                        },
+                    },
+                    {
+                        29,
+                        2,
+                        {
+                            'fontLoader',
+                        },
+                    },
+                    {
+                        27,
+                        2,
+                        {
+                            'filesystem',
+                        },
+                    },
+                    {
+                        35,
+                        2,
+                        {
+                            'runtime',
+                        },
+                    },
+                    {
+                        24,
+                        2,
+                        {
+                            'assetFetcher',
+                        },
+                    },
+                    {
+                        39,
+                        2,
+                        {
+                            'theme',
+                        },
+                    },
                 },
             },
         },

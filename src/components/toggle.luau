@@ -116,7 +116,10 @@ function Toggle.new(props: ToggleProps, theme: { [string]: any }, parent: Instan
 			knob.BackgroundTransparency = t.ToggleKnobOffTransparency or 0.5
 		end
 		glow.BackgroundColor3 = t.AccentColor or Color3.fromHex("#4cc2ff")
-		gradient.Color = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
+		gradient.Color = t.ElementGradient or ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromHex("#2e2e2e")),
+			ColorSequenceKeypoint.new(1, Color3.fromHex("#181818")),
+		})
 	end, frame)
 
 	self:Set(initValue, true)

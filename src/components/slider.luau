@@ -611,7 +611,10 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		fill.BackgroundColor3 = t.AccentColor or Color3.fromHex("#4cc2ff")
 		fillGrad.Color = t.SliderProgress or ColorSequence.new(Color3.fromHex("#4cc2ff"), Color3.fromHex("#0093fb"))
 		knob.BackgroundColor3 = t.SliderHandle or Color3.fromRGB(255, 255, 255)
-		innerGrad.Color = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
+		innerGrad.Color = t.ElementGradient or ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromHex("#2e2e2e")),
+			ColorSequenceKeypoint.new(1, Color3.fromHex("#181818")),
+		})
 		stroke.Transparency = if s._enabled then (t.ElementStrokeTransparency or 0) else 0.5
 	end, frame)
 

@@ -976,23 +976,33 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 			outerLabel.TextColor3 = if s._enabled
 				then (t.ContentColor or Color3.fromHex("#ffffff"))
 				else Color3.fromHex("#555555")
-			-- B3 FIX: use cached constant instead of allocating a new Font
 			outerLabel.FontFace = t.Font or DEFAULT_FONT
 		end
 		-- B3 FIX: cached constant
 		valueLabel.FontFace = t.Font or DEFAULT_FONT
+		-- update value text colour based on whether something is selected
+		do
+			local _, has = getHeaderText(s)
+			valueLabel.TextColor3 = if has
+				then (t.ContentColor or Color3.fromHex("#ffffff"))
+				else Color3.fromHex("#555555")
+		end
 		arrow.ImageColor3 = t.PlaceholderColor or Color3.fromHex("#9d9d9d")
 		if multiIcon then
 			multiIcon.ImageColor3 = t.PlaceholderColor or Color3.fromHex("#9d9d9d")
 		end
-		listStroke.Color = t.ElementStroke or Color3.fromHex("#2b2b2b")
-		innerGrad.Color = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
+		listStroke.Color  = t.ElementStroke or Color3.fromHex("#2b2b2b")
+		scroll.ScrollBarImageColor3 = t.ElementStroke or Color3.fromHex("#2b2b2b")
+		innerGrad.Color = t.ElementGradient or ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromHex("#2e2e2e")),
+			ColorSequenceKeypoint.new(1, Color3.fromHex("#181818")),
+		})
 		-- B1 FIX: only rebuild option rows when the list is open.
 		-- When closed, options are invisible; re-coloring happens on next open().
 		-- This prevents dozens of instance destroy/recreate cycles per mouse-move
 		-- during accent-color drag (which triggers a broadcast per frame).
 		if s._open then
-			buildOptions()
+			createOptionRows()  -- was: buildOptions() — typo; that name never existed as a local
 		end
 	end, frame)
 

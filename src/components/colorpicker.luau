@@ -834,7 +834,10 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 		frame.BackgroundTransparency = t.ElementTransparency or 0
 		local fGrad = frame:FindFirstChildOfClass("UIGradient")
 		if fGrad then
-			fGrad.Color = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
+			fGrad.Color = t.ElementGradient or ColorSequence.new({
+				ColorSequenceKeypoint.new(0, Color3.fromHex("#2e2e2e")),
+				ColorSequenceKeypoint.new(1, Color3.fromHex("#181818")),
+			})
 		end
 		stroke.Transparency = t.ElementStrokeTransparency or 0
 		stroke.Color = if isOpen
@@ -850,6 +853,37 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 		if alphaInput then
 			alphaInput.TextColor3        = t.ContentColor or Color3.fromHex("#ffffff")
 			alphaInput.PlaceholderColor3 = t.PlaceholderColor or Color3.fromHex("#9d9d9d")
+		end
+
+		-- B4 FIX: popup chrome wasn't wired into the subscriber — background,
+		-- border, close button, and input frames all stayed hardcoded across
+		-- theme switches (e.g. dark popup persisting in light theme).
+		popup.BackgroundColor3 = if t.WindowColor
+			then t.WindowColor.Keypoints[1].Value
+			else Color3.fromRGB(24, 24, 28)
+		local popupStroke = popup:FindFirstChildOfClass("UIStroke")
+		if popupStroke then
+			popupStroke.Color = t.SurfaceStroke or Color3.fromHex("#303038")
+		end
+		popClose.BackgroundColor3 = t.NeutralButton or Color3.fromHex("#242428")
+		popClose.TextColor3       = t.PlaceholderColor or Color3.fromHex("#a0a0a0")
+		hexFrame.BackgroundColor3 = t.NeutralButton or Color3.fromRGB(32, 32, 36)
+		local hexStroke = hexFrame:FindFirstChildOfClass("UIStroke")
+		if hexStroke then
+			hexStroke.Color = t.SurfaceStroke or Color3.fromHex("#303038")
+		end
+		local swatchStroke = swatch:FindFirstChildOfClass("UIStroke")
+		if swatchStroke then
+			swatchStroke.Color = t.SurfaceStroke or Color3.fromHex("#303038")
+		end
+		if showAlpha then
+			-- locate the alpha input frame (sibling of alphaInput inside popup)
+			local af = if alphaInput then (alphaInput :: TextBox).Parent else nil
+			if af and af:IsA("Frame") then
+				(af :: Frame).BackgroundColor3 = t.NeutralButton or Color3.fromRGB(32, 32, 36)
+				local afStroke = (af :: Frame):FindFirstChildOfClass("UIStroke")
+				if afStroke then afStroke.Color = t.SurfaceStroke or Color3.fromHex("#303038") end
+			end
 		end
 	end, frame)
 
