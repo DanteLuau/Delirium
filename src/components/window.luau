@@ -97,7 +97,8 @@ function Window.new(props: WindowProps): Window
 	gui.ResetOnSpawn           = false
 	gui.ZIndexBehavior         = Enum.ZIndexBehavior.Sibling
 	gui.ClipToDeviceSafeArea   = false
-	gui.Parent                 = variables.guiContainer
+	-- BLINK FIX: gui is parented LAST, after windowFrame.Visible = false is set.
+	-- Parenting here caused child frames to render for several frames during setup.
 
 	-- ── Initial window size (viewport-fitted) ─────────────────────────────
 	local initialSize = fitWindowSize()
@@ -181,13 +182,13 @@ function Window.new(props: WindowProps): Window
 	cornerCover.Parent           = titleBarBg
 
 
-	-- Separator: garis tipis 1px di bawah titlebar
+	-- Separator: garis tipis 1px di bawah titlebar (hidden — accentStrip sudah cukup)
 	local titleSep = Instance.new("Frame")
 	titleSep.Name                   = "Separator"
 	titleSep.Size                   = UDim2.new(1, 0, 0, 1)
 	titleSep.Position               = UDim2.new(0, 0, 1, -1)
 	titleSep.BackgroundColor3       = colorBorder
-	titleSep.BackgroundTransparency = 0.5
+	titleSep.BackgroundTransparency = 1
 	titleSep.BorderSizePixel        = 0
 	titleSep.ZIndex                 = constants.zIndex.windowChrome + 1
 	titleSep.Parent                 = titleBar
@@ -1673,6 +1674,11 @@ function Window.new(props: WindowProps): Window
 	end))
 
 	windowFrame.Visible = false
+
+	-- BLINK FIX part 2: now that the frame tree is fully built and hidden,
+	-- drop the ScreenGui into the DataModel. First render sees Visible=false;
+	-- no child frames flash on screen during setup.
+	gui.Parent = variables.guiContainer
 
 	-- Start viewport watcher — keeps the window sized to the screen on resize/rotation.
 	self:_watchViewport()
