@@ -105,4 +105,110 @@ function element.onOutsideClick(targets: { GuiObject }, callback: () -> ()): () 
 	end
 end
 
+-- Creates standard left-aligned title (+ optional description inside same row)
+function element.createTitle(
+	parent: Instance,
+	name: string,
+	desc: string?,
+	theme: { [string]: any },
+	rightOffset: number?
+): (TextLabel, TextLabel?)
+	local offset = rightOffset or 12
+	local inner = Instance.new("Frame")
+	inner.Name                   = "Inner"
+	inner.Size                   = UDim2.new(1, -offset, 1, 0)
+	inner.BackgroundTransparency = 1
+	inner.Parent                 = parent
+
+	local padding = Instance.new("UIPadding")
+	padding.PaddingLeft  = UDim.new(0, 12)
+	padding.PaddingRight = UDim.new(0, 4)
+	padding.Parent       = inner
+
+	local hasDesc = desc ~= nil and desc ~= ""
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.Name                   = "Title"
+	titleLabel.Size                   = if hasDesc then UDim2.new(1, 0, 0, 18) else UDim2.fromScale(1, 1)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Text                   = name
+	titleLabel.TextColor3             = theme.ContentColor or Color3.fromRGB(220, 215, 240)
+	titleLabel.TextSize               = 13
+	titleLabel.FontFace               = theme.Font or constants.DEFAULT_FONT
+	titleLabel.TextXAlignment         = Enum.TextXAlignment.Left
+	titleLabel.TextYAlignment         = Enum.TextYAlignment.Center
+	titleLabel.TextTruncate           = Enum.TextTruncate.AtEnd
+	titleLabel.Parent                 = inner
+
+	local descLabel: TextLabel? = nil
+	if hasDesc then
+		local layout = Instance.new("UIListLayout")
+		layout.FillDirection     = Enum.FillDirection.Vertical
+		layout.VerticalAlignment = Enum.VerticalAlignment.Center
+		layout.Padding           = UDim.new(0, 1)
+		layout.Parent            = inner
+
+		descLabel = Instance.new("TextLabel")
+		descLabel.Name                   = "Description"
+		descLabel.Size                   = UDim2.new(1, 0, 0, 14)
+		descLabel.BackgroundTransparency = 1
+		descLabel.Text                   = desc :: string
+		descLabel.TextColor3             = theme.PlaceholderColor or Color3.fromRGB(140, 130, 175)
+		descLabel.TextSize               = 11
+		descLabel.FontFace               = theme.Font or constants.DEFAULT_FONT
+		descLabel.TextXAlignment         = Enum.TextXAlignment.Left
+		descLabel.TextTruncate           = Enum.TextTruncate.AtEnd
+		descLabel.Parent                 = inner
+	end
+
+	return titleLabel, descLabel
+end
+
+-- Standard interaction overlay with hover/leave tweening
+function element.wireHover(
+	frame: Frame,
+	stroke: UIStroke,
+	themeRef: () -> { [string]: any },
+	onClick: (() -> ())?
+): TextButton
+	local btn = Instance.new("TextButton")
+	btn.Name                   = "Interact"
+	btn.Size                   = UDim2.fromScale(1, 1)
+	btn.BackgroundTransparency = 1
+	btn.Text                   = ""
+	btn.AutoButtonColor        = false
+	btn.Parent                 = frame
+
+	btn.MouseEnter:Connect(function()
+		local variables = require(script.Parent.variables)
+		local tween = require(script.Parent.tween)
+		if variables.settingsOpen then return end
+		local t = themeRef()
+		tween.fire(frame, constants.tweenFast, {
+			BackgroundTransparency = math.max(0, (t.ElementTransparency or 0) - 0.06),
+		})
+		tween.fire(stroke, constants.tweenFast, {
+			Color        = t.ElementStrokeHover or t.AccentColor or Color3.fromHex("#4cc2ff"),
+			Transparency = t.ElementStrokeHoverTransparency or 0,
+		})
+	end)
+
+	btn.MouseLeave:Connect(function()
+		local tween = require(script.Parent.tween)
+		local t = themeRef()
+		tween.fire(frame, constants.tweenFast, {
+			BackgroundTransparency = t.ElementTransparency or 0,
+		})
+		tween.fire(stroke, constants.tweenFast, {
+			Color        = t.ElementStroke or Color3.fromHex("#2b2b2b"),
+			Transparency = t.ElementStrokeTransparency or 0,
+		})
+	end)
+
+	if onClick then
+		btn.MouseButton1Click:Connect(onClick)
+	end
+
+	return btn
+end
+
 return element

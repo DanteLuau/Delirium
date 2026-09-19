@@ -36,9 +36,10 @@ constants.zIndex = {
 -- ── DisplayOrder for top-level ScreenGuis ────────────────────────────────────
 
 constants.displayOrder = {
-	window      = 99990,
+	window       = 99990,
 	notification = 99995,
-	popup       = 100000,
+	popup        = 100000,
+	loading      = 100010,
 }
 
 -- ── Layout ───────────────────────────────────────────────────────────────────

@@ -46,6 +46,11 @@ return {
 	TitlingColor     = Color3.fromRGB(20,  10,  50),
 	PlaceholderColor = Color3.fromRGB(150, 140, 180),
 
+	-- ── Accent (Electric violet) ──────────────────────────────────────────────
+	AccentColor  = Color3.fromRGB(124, 58, 237),
+	AccentStroke = Color3.fromRGB(167, 139, 250),
+	AccentGlow   = 0.35,
+
 	-- ── Toggle ────────────────────────────────────────────────────────────────
 	ToggleTrack               = Color3.fromRGB(180, 170, 215),
 	ToggleTrackTransparency   = 0.5,

@@ -89,15 +89,50 @@ function delirium:CreateWindow(props: types.WindowProps): types.Window
 
 	local window = result :: types.Window
 
-	-- Show the window after a brief settle delay
-	-- (gives the executor environment time to finish rendering initial frames)
-	task.delay(0.4, function()
-		if not window.unloaded then
-			window:Show()
+	return window
+end
+
+-- Boot — creates loading pill + window, auto-cycles status text while callback runs,
+-- then pill fades out and window fades in automatically.
+-- messages is optional — defaults to a generic cycling set.
+function delirium:Boot(
+	title:    string,
+	callback: (window: types.Window) -> (),
+	messages: { string }?
+)
+	local ls      = delirium.LoadingScreen.new({ title = title })
+	local window  = delirium:CreateWindow({ name = title })
+
+	local msgs: { string } = messages or {
+		"Starting up...",
+		"Loading modules...",
+		"Building interface...",
+		"Almost ready...",
+	}
+
+	-- Cycle messages in background while callback runs
+	local cycling = true
+	local idx     = 1
+	task.spawn(function()
+		while cycling do
+			ls:update(msgs[idx])
+			idx = (idx % #msgs) + 1
+			task.wait(0.85)
 		end
 	end)
 
-	return window
+	-- Run user's setup callback (blocks until it returns)
+	local ok, err = pcall(callback, window)
+
+	-- Stop cycling regardless of pcall result
+	cycling = false
+
+	if not ok then
+		warn("[Delirium] Boot callback error: " .. tostring(err))
+	end
+
+	-- Pill out → window in
+	ls:dismiss(window)
 end
 
 return delirium
