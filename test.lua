@@ -7026,22 +7026,7 @@ local ClosureBindings = {
                 titleBarBg.ZIndex = constants.zIndex.windowChrome - 1
                 titleBarBg.Parent = titleBar
 
-                local titleBarCorner = Instance.new('UICorner')
-
-                titleBarCorner.CornerRadius = resolvedTheme.CornerRoundness or UDim.new(0, 8)
-                titleBarCorner.Parent = titleBarBg
-
-                local cornerRadiusPx = (resolvedTheme.CornerRoundness or UDim.new(0, 8)).Offset
-                local cornerCover = Instance.new('Frame')
-
-                cornerCover.Name = 'CornerCover'
-                cornerCover.Size = UDim2.new(1, 0, 0, cornerRadiusPx)
-                cornerCover.Position = UDim2.new(0, 0, 1, -cornerRadiusPx)
-                cornerCover.BackgroundColor3 = colorTitleBar
-                cornerCover.BorderSizePixel = 0
-                cornerCover.ZIndex = constants.zIndex.windowChrome - 1
-                cornerCover.Parent = titleBarBg
-
+                local cornerCover: Frame? = nil
                 local titleSep = Instance.new('Frame')
 
                 titleSep.Name = 'Separator'
@@ -8163,9 +8148,6 @@ local ClosureBindings = {
                     local cr = UDim.new(0, r)
 
                     winCorner.CornerRadius = cr
-                    titleBarCorner.CornerRadius = cr
-                    cornerCover.Size = UDim.new(1, 0, 0, r)
-                    cornerCover.Position = UDim.new(0, 0, 1, -r)
                     resolvedTheme.CornerRoundness = cr
                 end)
 
@@ -8480,8 +8462,7 @@ local ClosureBindings = {
                 s._activeAnimConn = nil
                 s._minimizeAnimId = nil
                 s._titleBarBg = titleBarBg
-                s._titleBarCorner = titleBarCorner
-                s._cornerCover = cornerCover
+                s._cornerCover = nil
                 s._settingsPanel = settingsPanel
                 s._spOverlay = spOverlay
                 s._bodyBlocker = bodyBlocker
@@ -9345,9 +9326,6 @@ local ClosureBindings = {
                     end
                     if s._titleBarBg and resolved.TitleBarColor then
                         s._titleBarBg.BackgroundColor3 = resolved.TitleBarColor
-                    end
-                    if s._cornerCover and resolved.TitleBarColor then
-                        s._cornerCover.BackgroundColor3 = resolved.TitleBarColor
                     end
                     if s._sidebarFrame and resolved.TitleBarColor then
                         s._sidebarFrame.BackgroundColor3 = resolved.TitleBarColor
@@ -12753,120 +12731,6 @@ local ObjectTree = {
         },
         {
             {
-                2,
-                1,
-                {
-                    'components',
-                },
-                {
-                    {
-                        10,
-                        2,
-                        {
-                            'label',
-                        },
-                    },
-                    {
-                        8,
-                        2,
-                        {
-                            'input',
-                        },
-                    },
-                    {
-                        13,
-                        2,
-                        {
-                            'section',
-                        },
-                    },
-                    {
-                        7,
-                        2,
-                        {
-                            'dropdown',
-                        },
-                    },
-                    {
-                        9,
-                        2,
-                        {
-                            'keybind',
-                        },
-                    },
-                    {
-                        14,
-                        2,
-                        {
-                            'slider',
-                        },
-                    },
-                    {
-                        16,
-                        2,
-                        {
-                            'toggle',
-                        },
-                    },
-                    {
-                        6,
-                        2,
-                        {
-                            'descriptor',
-                        },
-                    },
-                    {
-                        4,
-                        2,
-                        {
-                            'colorpicker',
-                        },
-                    },
-                    {
-                        5,
-                        2,
-                        {
-                            'dashboard',
-                        },
-                    },
-                    {
-                        15,
-                        2,
-                        {
-                            'tab',
-                        },
-                    },
-                    {
-                        17,
-                        2,
-                        {
-                            'window',
-                        },
-                    },
-                    {
-                        12,
-                        2,
-                        {
-                            'notification',
-                        },
-                    },
-                    {
-                        11,
-                        2,
-                        {
-                            'loadingScreen',
-                        },
-                    },
-                    {
-                        3,
-                        2,
-                        {
-                            'button',
-                        },
-                    },
-                },
-            },
-            {
                 23,
                 1,
                 {
@@ -12874,24 +12738,17 @@ local ObjectTree = {
                 },
                 {
                     {
-                        29,
+                        31,
                         2,
                         {
-                            'fontLoader',
+                            'image',
                         },
                     },
                     {
-                        26,
+                        24,
                         2,
                         {
-                            'element',
-                        },
-                    },
-                    {
-                        38,
-                        2,
-                        {
-                            'signal',
+                            'assetFetcher',
                         },
                     },
                     {
@@ -12902,10 +12759,24 @@ local ObjectTree = {
                         },
                     },
                     {
-                        33,
+                        30,
                         2,
                         {
-                            'mediaService',
+                            'icons',
+                        },
+                    },
+                    {
+                        40,
+                        2,
+                        {
+                            'tween',
+                        },
+                    },
+                    {
+                        36,
+                        2,
+                        {
+                            'saveManager',
                         },
                     },
                     {
@@ -12913,6 +12784,20 @@ local ObjectTree = {
                         2,
                         {
                             'constants',
+                        },
+                    },
+                    {
+                        26,
+                        2,
+                        {
+                            'element',
+                        },
+                    },
+                    {
+                        39,
+                        2,
+                        {
+                            'theme',
                         },
                     },
                     {
@@ -12930,66 +12815,10 @@ local ObjectTree = {
                         },
                     },
                     {
-                        36,
-                        2,
-                        {
-                            'saveManager',
-                        },
-                    },
-                    {
-                        35,
-                        2,
-                        {
-                            'runtime',
-                        },
-                    },
-                    {
-                        32,
-                        2,
-                        {
-                            'imageCache',
-                        },
-                    },
-                    {
-                        27,
-                        2,
-                        {
-                            'filesystem',
-                        },
-                    },
-                    {
-                        31,
-                        2,
-                        {
-                            'image',
-                        },
-                    },
-                    {
                         42,
                         2,
                         {
                             'windowSizing',
-                        },
-                    },
-                    {
-                        40,
-                        2,
-                        {
-                            'tween',
-                        },
-                    },
-                    {
-                        30,
-                        2,
-                        {
-                            'icons',
-                        },
-                    },
-                    {
-                        39,
-                        2,
-                        {
-                            'theme',
                         },
                     },
                     {
@@ -13000,10 +12829,45 @@ local ObjectTree = {
                         },
                     },
                     {
-                        24,
+                        29,
                         2,
                         {
-                            'assetFetcher',
+                            'fontLoader',
+                        },
+                    },
+                    {
+                        38,
+                        2,
+                        {
+                            'signal',
+                        },
+                    },
+                    {
+                        35,
+                        2,
+                        {
+                            'runtime',
+                        },
+                    },
+                    {
+                        27,
+                        2,
+                        {
+                            'filesystem',
+                        },
+                    },
+                    {
+                        32,
+                        2,
+                        {
+                            'imageCache',
+                        },
+                    },
+                    {
+                        33,
+                        2,
+                        {
+                            'mediaService',
                         },
                     },
                 },
@@ -13015,6 +12879,13 @@ local ObjectTree = {
                     'themes',
                 },
                 {
+                    {
+                        21,
+                        2,
+                        {
+                            'light',
+                        },
+                    },
                     {
                         19,
                         2,
@@ -13029,11 +12900,118 @@ local ObjectTree = {
                             'dracula',
                         },
                     },
+                },
+            },
+            {
+                2,
+                1,
+                {
+                    'components',
+                },
+                {
                     {
-                        21,
+                        17,
                         2,
                         {
-                            'light',
+                            'window',
+                        },
+                    },
+                    {
+                        13,
+                        2,
+                        {
+                            'section',
+                        },
+                    },
+                    {
+                        7,
+                        2,
+                        {
+                            'dropdown',
+                        },
+                    },
+                    {
+                        8,
+                        2,
+                        {
+                            'input',
+                        },
+                    },
+                    {
+                        5,
+                        2,
+                        {
+                            'dashboard',
+                        },
+                    },
+                    {
+                        6,
+                        2,
+                        {
+                            'descriptor',
+                        },
+                    },
+                    {
+                        12,
+                        2,
+                        {
+                            'notification',
+                        },
+                    },
+                    {
+                        15,
+                        2,
+                        {
+                            'tab',
+                        },
+                    },
+                    {
+                        14,
+                        2,
+                        {
+                            'slider',
+                        },
+                    },
+                    {
+                        10,
+                        2,
+                        {
+                            'label',
+                        },
+                    },
+                    {
+                        3,
+                        2,
+                        {
+                            'button',
+                        },
+                    },
+                    {
+                        16,
+                        2,
+                        {
+                            'toggle',
+                        },
+                    },
+                    {
+                        9,
+                        2,
+                        {
+                            'keybind',
+                        },
+                    },
+                    {
+                        11,
+                        2,
+                        {
+                            'loadingScreen',
+                        },
+                    },
+                    {
+                        4,
+                        2,
+                        {
+                            'colorpicker',
                         },
                     },
                 },

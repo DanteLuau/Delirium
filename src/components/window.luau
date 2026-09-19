@@ -167,19 +167,12 @@ function Window.new(props: WindowProps): Window
 	titleBarBg.ZIndex           = constants.zIndex.windowChrome - 1
 	titleBarBg.Parent           = titleBar
 
-	local titleBarCorner = Instance.new("UICorner")
-	titleBarCorner.CornerRadius = resolvedTheme.CornerRoundness or UDim.new(0, 8)
-	titleBarCorner.Parent       = titleBarBg
-
-	local cornerRadiusPx = (resolvedTheme.CornerRoundness or UDim.new(0, 8)).Offset
-	local cornerCover = Instance.new("Frame")
-	cornerCover.Name             = "CornerCover"
-	cornerCover.Size             = UDim2.new(1, 0, 0, cornerRadiusPx)
-	cornerCover.Position         = UDim2.new(0, 0, 1, -cornerRadiusPx)
-	cornerCover.BackgroundColor3 = colorTitleBar
-	cornerCover.BorderSizePixel  = 0
-	cornerCover.ZIndex           = constants.zIndex.windowChrome - 1
-	cornerCover.Parent           = titleBarBg
+	-- GARIS FIX: no UICorner on titleBarBg and no cornerCover.
+	-- windowFrame already has UICorner + ClipsDescendants=true so it clips
+	-- titleBarBg at the top-left/top-right corners naturally.
+	-- The old titleBarCorner+cornerCover combo left an anti-aliased seam
+	-- at y = TITLEBAR_H - cornerRadius that rendered as a visible thick line.
+	local cornerCover: Frame? = nil  -- kept as nil so existing nil-checks pass
 
 
 	-- Separator: garis tipis 1px di bawah titlebar (hidden — accentStrip sudah cukup)
@@ -1225,9 +1218,7 @@ function Window.new(props: WindowProps): Window
 	spMakeSlider(pageAppearance, "Corner Roundness", 0, 16, 1, currentCornerRadius, "px", 1, function(r)
 		local cr = UDim.new(0, r)
 		winCorner.CornerRadius = cr
-		titleBarCorner.CornerRadius = cr
-		cornerCover.Size = UDim.new(1, 0, 0, r)
-		cornerCover.Position = UDim.new(0, 0, 1, -r)
+		-- titleBarCorner and cornerCover removed (GARIS FIX); windowFrame clips top corners natively
 		resolvedTheme.CornerRoundness = cr
 	end)
 
@@ -1484,8 +1475,7 @@ function Window.new(props: WindowProps): Window
 	s._activeAnimConn = nil           -- RenderStepped position-tracker connection
 	s._minimizeAnimId = nil           -- guard token for body-hide task.delay
 	s._titleBarBg     = titleBarBg
-	s._titleBarCorner = titleBarCorner
-	s._cornerCover    = cornerCover
+	s._cornerCover    = nil  -- removed; windowFrame UICorner handles top-corner clipping
 	s._settingsPanel  = settingsPanel
 	s._spOverlay      = spOverlay
 	s._bodyBlocker    = bodyBlocker
@@ -2218,9 +2208,6 @@ function Window:ChangeTheme(newTheme: string | { [string]: any })
 		end
 		if s._titleBarBg and resolved.TitleBarColor then
 			s._titleBarBg.BackgroundColor3 = resolved.TitleBarColor
-		end
-		if s._cornerCover and resolved.TitleBarColor then
-			s._cornerCover.BackgroundColor3 = resolved.TitleBarColor
 		end
 		if s._sidebarFrame and resolved.TitleBarColor then
 			s._sidebarFrame.BackgroundColor3 = resolved.TitleBarColor
