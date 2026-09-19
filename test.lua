@@ -12891,7 +12891,7 @@ return windowSizing
 end)() end} 
 
 
-local ObjectTree = {{1,2,{"Delirium"},{{22,2,{"types"}},{2,1,{"components"},{{6,2,{"descriptor"}},{12,2,{"notification"}},{14,2,{"slider"}},{16,2,{"toggle"}},{15,2,{"tab"}},{17,2,{"window"}},{3,2,{"button"}},{5,2,{"dashboard"}},{7,2,{"dropdown"}},{4,2,{"colorpicker"}},{10,2,{"label"}},{9,2,{"keybind"}},{8,2,{"input"}},{11,2,{"loadingScreen"}},{13,2,{"section"}}}},{23,1,{"utility"},{{41,2,{"variables"}},{26,2,{"element"}},{36,2,{"saveManager"}},{25,2,{"constants"}},{31,2,{"image"}},{29,2,{"fontLoader"}},{38,2,{"signal"}},{40,2,{"tween"}},{33,2,{"mediaService"}},{37,2,{"services"}},{24,2,{"assetFetcher"}},{39,2,{"theme"}},{30,2,{"icons"}},{27,2,{"filesystem"}},{28,2,{"flags"}},{32,2,{"imageCache"}},{42,2,{"windowSizing"}},{35,2,{"runtime"}},{34,2,{"network"}}}},{18,1,{"themes"},{{20,2,{"dracula"}},{21,2,{"light"}},{19,2,{"default"}}}}}}}
+local ObjectTree = {{1,2,{"Delirium"},{{23,1,{"utility"},{{30,2,{"icons"}},{35,2,{"runtime"}},{37,2,{"services"}},{38,2,{"signal"}},{31,2,{"image"}},{40,2,{"tween"}},{25,2,{"constants"}},{27,2,{"filesystem"}},{29,2,{"fontLoader"}},{24,2,{"assetFetcher"}},{42,2,{"windowSizing"}},{41,2,{"variables"}},{28,2,{"flags"}},{34,2,{"network"}},{32,2,{"imageCache"}},{36,2,{"saveManager"}},{26,2,{"element"}},{39,2,{"theme"}},{33,2,{"mediaService"}}}},{18,1,{"themes"},{{19,2,{"default"}},{21,2,{"light"}},{20,2,{"dracula"}}}},{2,1,{"components"},{{17,2,{"window"}},{10,2,{"label"}},{13,2,{"section"}},{15,2,{"tab"}},{9,2,{"keybind"}},{16,2,{"toggle"}},{14,2,{"slider"}},{12,2,{"notification"}},{8,2,{"input"}},{4,2,{"colorpicker"}},{11,2,{"loadingScreen"}},{7,2,{"dropdown"}},{6,2,{"descriptor"}},{3,2,{"button"}},{5,2,{"dashboard"}}}},{22,2,{"types"}}}}}
 
 
 local LineOffsets = nil
