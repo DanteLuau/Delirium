@@ -2030,6 +2030,10 @@ local ClosureBindings = {
                     bigName.TextColor3 = tk.textPrimary
                     chevron.TextColor3 = if contentVisible then tk.accent else tk.textSecondary
                     tabBar.BackgroundColor3 = tk.surface
+                    avatarImg.BackgroundColor3 = tk.surface
+                    bigAvatar.BackgroundColor3 = tk.surface
+                    topSep.BackgroundColor3 = tk.border
+                    tabBarSep.BackgroundColor3 = tk.border
 
                     for i, entry in ipairs(tabEntries)do
                         entry.underline.BackgroundColor3 = tk.accent
@@ -7000,6 +7004,7 @@ local ClosureBindings = {
             local ColorPicker = require(script.Parent.colorpicker)
             local Dropdown = require(script.Parent.dropdown)
             local Keybind = require(script.Parent.keybind)
+            local Slider = require(script.Parent.slider)
             local ICON_SETTINGS = 'rbxassetid://129180860773723'
             local ICON_MINIMIZE = 'rbxassetid://108115485663409'
             local ICON_RESTORE = 'rbxassetid://88738500661569'
@@ -8049,6 +8054,7 @@ local ClosureBindings = {
                     return pg
                 end
 
+                local spNavItemUpdaters: {({[string]: any}) -> ()} = {}
                 local spActiveNavItem: Frame? = nil
                 local spNavPages: {[Frame]: Frame} = {}
 
@@ -8212,6 +8218,23 @@ local ClosureBindings = {
                             spContent.CanvasPosition = Vector2.zero
                         end
                     end)
+                    table.insert(spNavItemUpdaters, function(t: {[string]: any})
+                        local isActive = (spActiveNavItem == item)
+                        local newAccent = t.AccentColor or Color3.fromHex('#4cc2ff')
+                        local newSecondary = t.PlaceholderColor or Color3.fromHex('#9d9d9d')
+
+                        if isActive then
+                            item.BackgroundColor3 = newAccent
+                            activeBar.BackgroundColor3 = newAccent
+                            iconBadge.BackgroundColor3 = newAccent
+                            iconLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+                            lbl.TextColor3 = newAccent
+                        else
+                            iconBadge.BackgroundColor3 = t.NeutralButton or Color3.fromHex('#242424')
+                            iconLbl.TextColor3 = newSecondary
+                            lbl.TextColor3 = newSecondary
+                        end
+                    end)
 
                     return item
                 end
@@ -8236,16 +8259,28 @@ local ClosureBindings = {
                 spNavPages[navItemControls] = pageControls
                 spNavPages[navItemFont] = pageFont
 
+                local spSliders: {any} = {}
                 local currentCornerRadius = (resolvedTheme.CornerRoundness or UDim.new(0, 10)).Offset
 
-                spMakeSlider(pageAppearance, 'Corner Roundness', 0, 16, 1, currentCornerRadius, 'px', 1, function(
-                    r
-                )
-                    local cr = UDim.new(0, r)
+                do
+                    local sl = Slider.new({
+                        name = 'Corner Roundness',
+                        min = 0,
+                        max = 16,
+                        step = 1,
+                        value = currentCornerRadius,
+                        suffix = 'px',
+                        layoutOrder = 1,
+                        callback = function(r: number)
+                            local cr = UDim.new(0, r)
 
-                    winCorner.CornerRadius = cr
-                    resolvedTheme.CornerRoundness = cr
-                end)
+                            winCorner.CornerRadius = cr
+                            resolvedTheme.CornerRoundness = cr
+                        end,
+                    }, resolvedTheme, pageAppearance)
+
+                    table.insert(spSliders, sl)
+                end
 
                 local function smoothSetScale(factor: number)
                     userScale = factor
@@ -8320,12 +8355,22 @@ local ClosureBindings = {
                     tw:Play()
                 end
 
-                spMakeSlider(pageAppearance, 'UI Scale / DPI', 80, 125, 5, 100, '%', 2, function(
-                    pct
-                )
-                    smoothSetScale(pct / 100)
-                end)
+                do
+                    local sl = Slider.new({
+                        name = 'UI Scale / DPI',
+                        min = 80,
+                        max = 125,
+                        step = 5,
+                        value = 100,
+                        suffix = '%',
+                        layoutOrder = 2,
+                        callback = function(pct: number)
+                            smoothSetScale(pct / 100)
+                        end,
+                    }, resolvedTheme, pageAppearance)
 
+                    table.insert(spSliders, sl)
+                end
                 do
                     local cp = ColorPicker.new({
                         name = 'Accent Color',
@@ -8337,26 +8382,35 @@ local ClosureBindings = {
 
                     cp._frame.LayoutOrder = 3
                 end
+                do
+                    local sl = Slider.new({
+                        name = 'Background Transparency',
+                        min = 0,
+                        max = 80,
+                        step = 5,
+                        value = 0,
+                        suffix = '%',
+                        layoutOrder = 4,
+                        callback = function(pct: number)
+                            local t = pct / 100
 
-                spMakeSlider(pageAppearance, 'Background Transparency', 0, 80, 5, 0, '%', 4, function(
-                    pct
-                )
-                    local t = pct / 100
+                            windowFrame.BackgroundTransparency = t
+                            titleBarBg.BackgroundTransparency = math.clamp(t * 0.85, 0, 0.9)
+                            sidebar.BackgroundTransparency = math.clamp(t * 0.9, 0, 0.92)
 
-                    windowFrame.BackgroundTransparency = t
-                    titleBarBg.BackgroundTransparency = math.clamp(t * 0.85, 0, 0.9)
-                    sidebar.BackgroundTransparency = math.clamp(t * 0.9, 0, 0.92)
+                            local elemTrans = math.clamp(t * 0.65, 0, 0.6)
+                            local elemStrokeTrans = math.clamp(0.25 - (t * 0.25), 0, 0.45)
 
-                    local elemTrans = math.clamp(t * 0.65, 0, 0.6)
-                    local elemStrokeTrans = math.clamp(0.25 - (t * 0.25), 0, 0.45)
+                            resolvedTheme.ElementTransparency = elemTrans
+                            resolvedTheme.ElementStrokeTransparency = elemStrokeTrans
+                            resolvedTheme.FieldTransparency = math.clamp(0.85 + (t * 0.1), 0.8, 0.95)
 
-                    resolvedTheme.ElementTransparency = elemTrans
-                    resolvedTheme.ElementStrokeTransparency = elemStrokeTrans
-                    resolvedTheme.FieldTransparency = math.clamp(0.85 + (t * 0.1), 0.8, 0.95)
+                            themeUtil.broadcast(resolvedTheme)
+                        end,
+                    }, resolvedTheme, pageAppearance)
 
-                    themeUtil.broadcast(resolvedTheme)
-                end)
-
+                    table.insert(spSliders, sl)
+                end
                 do
                     local kb = Keybind.new({
                         name = 'Menu Keybind',
@@ -8563,6 +8617,7 @@ local ClosureBindings = {
                 s._spOverlay = spOverlay
                 s._bodyBlocker = bodyBlocker
                 s._updateAccent = updateAccent
+                s._spSliders = spSliders
 
                 if userScale ~= 1 then
                     winScale.Scale = userScale
@@ -8611,6 +8666,9 @@ local ClosureBindings = {
 
                     for _, fn in spAccentUpdaters do
                         fn(t.AccentColor)
+                    end
+                    for _, fn in spNavItemUpdaters do
+                        fn(t)
                     end
 
                     settingsPanel.BackgroundColor3 = t.WindowColor.Keypoints[1].Value
@@ -9549,6 +9607,14 @@ local ClosureBindings = {
                 end
 
                 self._gui:Destroy()
+
+                local spSlidersRef: {any} = s._spSliders or {}
+
+                for _, sl in spSlidersRef do
+                    pcall(function()
+                        sl:Destroy()
+                    end)
+                end
 
                 local tabs: {Tab.Tab} = s._tabs
 
@@ -12869,42 +12935,33 @@ local ObjectTree = {
         },
         {
             {
-                18,
-                1,
-                {
-                    'themes',
-                },
-                {
-                    {
-                        21,
-                        2,
-                        {
-                            'light',
-                        },
-                    },
-                    {
-                        20,
-                        2,
-                        {
-                            'dracula',
-                        },
-                    },
-                    {
-                        19,
-                        2,
-                        {
-                            'default',
-                        },
-                    },
-                },
-            },
-            {
                 23,
                 1,
                 {
                     'utility',
                 },
                 {
+                    {
+                        41,
+                        2,
+                        {
+                            'variables',
+                        },
+                    },
+                    {
+                        32,
+                        2,
+                        {
+                            'imageCache',
+                        },
+                    },
+                    {
+                        26,
+                        2,
+                        {
+                            'element',
+                        },
+                    },
                     {
                         25,
                         2,
@@ -12913,31 +12970,10 @@ local ObjectTree = {
                         },
                     },
                     {
-                        28,
+                        29,
                         2,
                         {
-                            'flags',
-                        },
-                    },
-                    {
-                        37,
-                        2,
-                        {
-                            'services',
-                        },
-                    },
-                    {
-                        30,
-                        2,
-                        {
-                            'icons',
-                        },
-                    },
-                    {
-                        34,
-                        2,
-                        {
-                            'network',
+                            'fontLoader',
                         },
                     },
                     {
@@ -12955,31 +12991,24 @@ local ObjectTree = {
                         },
                     },
                     {
-                        29,
+                        39,
                         2,
                         {
-                            'fontLoader',
+                            'theme',
                         },
                     },
                     {
-                        24,
+                        34,
                         2,
                         {
-                            'assetFetcher',
+                            'network',
                         },
                     },
                     {
-                        36,
+                        38,
                         2,
                         {
-                            'saveManager',
-                        },
-                    },
-                    {
-                        35,
-                        2,
-                        {
-                            'runtime',
+                            'signal',
                         },
                     },
                     {
@@ -12997,13 +13026,6 @@ local ObjectTree = {
                         },
                     },
                     {
-                        38,
-                        2,
-                        {
-                            'signal',
-                        },
-                    },
-                    {
                         40,
                         2,
                         {
@@ -13011,40 +13033,77 @@ local ObjectTree = {
                         },
                     },
                     {
-                        26,
+                        30,
                         2,
                         {
-                            'element',
+                            'icons',
                         },
                     },
                     {
-                        39,
+                        24,
                         2,
                         {
-                            'theme',
+                            'assetFetcher',
                         },
                     },
                     {
-                        41,
+                        28,
                         2,
                         {
-                            'variables',
+                            'flags',
                         },
                     },
                     {
-                        32,
+                        35,
                         2,
                         {
-                            'imageCache',
+                            'runtime',
+                        },
+                    },
+                    {
+                        37,
+                        2,
+                        {
+                            'services',
+                        },
+                    },
+                    {
+                        36,
+                        2,
+                        {
+                            'saveManager',
                         },
                     },
                 },
             },
             {
-                22,
-                2,
+                18,
+                1,
                 {
-                    'types',
+                    'themes',
+                },
+                {
+                    {
+                        20,
+                        2,
+                        {
+                            'dracula',
+                        },
+                    },
+                    {
+                        19,
+                        2,
+                        {
+                            'default',
+                        },
+                    },
+                    {
+                        21,
+                        2,
+                        {
+                            'light',
+                        },
+                    },
                 },
             },
             {
@@ -13055,31 +13114,17 @@ local ObjectTree = {
                 },
                 {
                     {
-                        6,
-                        2,
-                        {
-                            'descriptor',
-                        },
-                    },
-                    {
-                        8,
-                        2,
-                        {
-                            'input',
-                        },
-                    },
-                    {
-                        9,
-                        2,
-                        {
-                            'keybind',
-                        },
-                    },
-                    {
                         17,
                         2,
                         {
                             'window',
+                        },
+                    },
+                    {
+                        12,
+                        2,
+                        {
+                            'notification',
                         },
                     },
                     {
@@ -13090,31 +13135,17 @@ local ObjectTree = {
                         },
                     },
                     {
-                        4,
+                        5,
                         2,
                         {
-                            'colorpicker',
+                            'dashboard',
                         },
                     },
                     {
-                        16,
+                        10,
                         2,
                         {
-                            'toggle',
-                        },
-                    },
-                    {
-                        11,
-                        2,
-                        {
-                            'loadingScreen',
-                        },
-                    },
-                    {
-                        13,
-                        2,
-                        {
-                            'section',
+                            'label',
                         },
                     },
                     {
@@ -13132,24 +13163,10 @@ local ObjectTree = {
                         },
                     },
                     {
-                        12,
+                        16,
                         2,
                         {
-                            'notification',
-                        },
-                    },
-                    {
-                        10,
-                        2,
-                        {
-                            'label',
-                        },
-                    },
-                    {
-                        5,
-                        2,
-                        {
-                            'dashboard',
+                            'toggle',
                         },
                     },
                     {
@@ -13159,6 +13176,55 @@ local ObjectTree = {
                             'button',
                         },
                     },
+                    {
+                        6,
+                        2,
+                        {
+                            'descriptor',
+                        },
+                    },
+                    {
+                        13,
+                        2,
+                        {
+                            'section',
+                        },
+                    },
+                    {
+                        11,
+                        2,
+                        {
+                            'loadingScreen',
+                        },
+                    },
+                    {
+                        9,
+                        2,
+                        {
+                            'keybind',
+                        },
+                    },
+                    {
+                        8,
+                        2,
+                        {
+                            'input',
+                        },
+                    },
+                    {
+                        4,
+                        2,
+                        {
+                            'colorpicker',
+                        },
+                    },
+                },
+            },
+            {
+                22,
+                2,
+                {
+                    'types',
                 },
             },
         },

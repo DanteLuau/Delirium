@@ -598,6 +598,12 @@ function Dashboard.new(
 		bigName.TextColor3          = tk.textPrimary
 		chevron.TextColor3          = if contentVisible then tk.accent else tk.textSecondary
 		tabBar.BackgroundColor3     = tk.surface
+		-- B5 FIX: avatar image background was hardcoded #1c1c1f — visible in light theme
+		-- when the image hasn't loaded yet or fails to load.
+		avatarImg.BackgroundColor3 = tk.surface
+		bigAvatar.BackgroundColor3 = tk.surface
+		topSep.BackgroundColor3    = tk.border
+		tabBarSep.BackgroundColor3 = tk.border
 		for i, entry in ipairs(tabEntries) do
 			entry.underline.BackgroundColor3 = tk.accent
 			entry.btn.TextColor3 = if i == activeTabIdx then tk.accent else tk.textSecondary

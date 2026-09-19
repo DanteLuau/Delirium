@@ -20,6 +20,7 @@ local icons        = require(script.Parent.Parent.utility.icons)
 local ColorPicker  = require(script.Parent.colorpicker)
 local Dropdown     = require(script.Parent.dropdown)
 local Keybind      = require(script.Parent.keybind)
+local Slider       = require(script.Parent.slider)
 
 local ICON_SETTINGS = "rbxassetid://129180860773723" -- Unified vector settings
 local ICON_MINIMIZE = "rbxassetid://108115485663409" -- Unified vector minimize
@@ -1057,6 +1058,10 @@ function Window.new(props: WindowProps): Window
 	end
 
 	-- ── Nav item builder ──────────────────────────────────────────────────
+	-- SP-NAV: per-nav-item colour updaters, called from the theme subscriber.
+	-- Each push captures the item's label/iconBadge/iconLbl/activeBar locals.
+	local spNavItemUpdaters: { ({ [string]: any }) -> () } = {}
+
 	local spActiveNavItem: Frame? = nil
 	local spNavPages: { [Frame]: Frame } = {}
 
@@ -1191,6 +1196,25 @@ function Window.new(props: WindowProps): Window
 			end
 		end)
 
+		-- Register a theme updater for this nav item so the subscriber can
+		-- recolour badges and labels when the palette changes.
+		table.insert(spNavItemUpdaters, function(t: { [string]: any })
+			local isActive = (spActiveNavItem == item)
+			local newAccent    = t.AccentColor    or Color3.fromHex("#4cc2ff")
+			local newSecondary = t.PlaceholderColor or Color3.fromHex("#9d9d9d")
+			if isActive then
+				item.BackgroundColor3      = newAccent
+				activeBar.BackgroundColor3 = newAccent
+				iconBadge.BackgroundColor3 = newAccent
+				iconLbl.TextColor3         = Color3.fromRGB(255, 255, 255)
+				lbl.TextColor3             = newAccent
+			else
+				iconBadge.BackgroundColor3 = t.NeutralButton or Color3.fromHex("#242424")
+				iconLbl.TextColor3         = newSecondary
+				lbl.TextColor3             = newSecondary
+			end
+		end)
+
 		return item
 	end
 
@@ -1214,13 +1238,27 @@ function Window.new(props: WindowProps): Window
 	spNavPages[navItemFont]       = pageFont
 
 	-- ── Populate: Appearance ─────────────────────────────────────────────
+	-- Real Slider instances for the settings panel — tracked for Unload() cleanup.
+	local spSliders: { any } = {}
 	local currentCornerRadius = (resolvedTheme.CornerRoundness or UDim.new(0, 10)).Offset
-	spMakeSlider(pageAppearance, "Corner Roundness", 0, 16, 1, currentCornerRadius, "px", 1, function(r)
-		local cr = UDim.new(0, r)
-		winCorner.CornerRadius = cr
-		-- titleBarCorner and cornerCover removed (GARIS FIX); windowFrame clips top corners natively
-		resolvedTheme.CornerRoundness = cr
-	end)
+	do
+		local sl = Slider.new({
+			name        = "Corner Roundness",
+			min         = 0,
+			max         = 16,
+			step        = 1,
+			value       = currentCornerRadius,
+			suffix      = "px",
+			layoutOrder = 1,
+			callback    = function(r: number)
+				local cr = UDim.new(0, r)
+				winCorner.CornerRadius = cr
+				-- titleBarCorner and cornerCover removed (GARIS FIX); windowFrame clips top corners natively
+				resolvedTheme.CornerRoundness = cr
+			end,
+		}, resolvedTheme, pageAppearance)
+		table.insert(spSliders, sl)
+	end
 
 	local function smoothSetScale(factor: number)
 		userScale = factor
@@ -1273,9 +1311,21 @@ function Window.new(props: WindowProps): Window
 		tw:Play()
 	end
 
-	spMakeSlider(pageAppearance, "UI Scale / DPI", 80, 125, 5, 100, "%", 2, function(pct)
-		smoothSetScale(pct / 100)
-	end)
+	do
+		local sl = Slider.new({
+			name        = "UI Scale / DPI",
+			min         = 80,
+			max         = 125,
+			step        = 5,
+			value       = 100,
+			suffix      = "%",
+			layoutOrder = 2,
+			callback    = function(pct: number)
+				smoothSetScale(pct / 100)
+			end,
+		}, resolvedTheme, pageAppearance)
+		table.insert(spSliders, sl)
+	end
 
 	do
 		local cp = ColorPicker.new({
@@ -1288,23 +1338,32 @@ function Window.new(props: WindowProps): Window
 		cp._frame.LayoutOrder = 3
 	end
 
-	spMakeSlider(pageAppearance, "Background Transparency", 0, 80, 5, 0, "%", 4, function(pct)
-		local t = pct / 100
-		-- Window frame background & chrome
-		windowFrame.BackgroundTransparency = t
-		titleBarBg.BackgroundTransparency  = math.clamp(t * 0.85, 0, 0.90)
-		sidebar.BackgroundTransparency     = math.clamp(t * 0.90, 0, 0.92)
-
-		-- Components transparency with visual separation (always more opaque than window background)
-		local elemTrans = math.clamp(t * 0.65, 0, 0.60)
-		local elemStrokeTrans = math.clamp(0.25 - (t * 0.25), 0, 0.45) -- Stroke strengthens as background gets transparent
-
-		resolvedTheme.ElementTransparency = elemTrans
-		resolvedTheme.ElementStrokeTransparency = elemStrokeTrans
-		resolvedTheme.FieldTransparency = math.clamp(0.85 + (t * 0.10), 0.80, 0.95)
-
-		themeUtil.broadcast(resolvedTheme)
-	end)
+	do
+		local sl = Slider.new({
+			name        = "Background Transparency",
+			min         = 0,
+			max         = 80,
+			step        = 5,
+			value       = 0,
+			suffix      = "%",
+			layoutOrder = 4,
+			callback    = function(pct: number)
+				local t = pct / 100
+				-- Window frame background & chrome
+				windowFrame.BackgroundTransparency = t
+				titleBarBg.BackgroundTransparency  = math.clamp(t * 0.85, 0, 0.90)
+				sidebar.BackgroundTransparency     = math.clamp(t * 0.90, 0, 0.92)
+				-- Components transparency with visual separation
+				local elemTrans = math.clamp(t * 0.65, 0, 0.60)
+				local elemStrokeTrans = math.clamp(0.25 - (t * 0.25), 0, 0.45)
+				resolvedTheme.ElementTransparency = elemTrans
+				resolvedTheme.ElementStrokeTransparency = elemStrokeTrans
+				resolvedTheme.FieldTransparency = math.clamp(0.85 + (t * 0.10), 0.80, 0.95)
+				themeUtil.broadcast(resolvedTheme)
+			end,
+		}, resolvedTheme, pageAppearance)
+		table.insert(spSliders, sl)
+	end
 
 	-- ── Populate: Controls ───────────────────────────────────────────────
 	do
@@ -1480,6 +1539,7 @@ function Window.new(props: WindowProps): Window
 	s._spOverlay      = spOverlay
 	s._bodyBlocker    = bodyBlocker
 	s._updateAccent   = updateAccent
+	s._spSliders      = spSliders
 
 	-- M1 FIX: apply initial scale (0.9 on touch, 1.0 on desktop) now that s exists.
 	if userScale ~= 1.0 then
@@ -1528,6 +1588,10 @@ function Window.new(props: WindowProps): Window
 		colorTextSecondary = t.PlaceholderColor
 		for _, fn in spAccentUpdaters do
 			fn(t.AccentColor)
+		end
+		-- B5 FIX (NAV ICONS): update nav item badge / label colours on theme change.
+		for _, fn in spNavItemUpdaters do
+			fn(t)
 		end
 		-- B5 FIX: settings panel chrome and nav weren't wired into subscriber.
 		-- BackgroundColor3 / UIGradient / UIStroke on settingsPanel, spNav,
@@ -2309,6 +2373,11 @@ function Window:Unload()
 	end
 
 	self._gui:Destroy()
+
+	local spSlidersRef: { any } = s._spSliders or {}
+	for _, sl in spSlidersRef do
+		pcall(function() sl:Destroy() end)
+	end
 
 	local tabs: { Tab.Tab } = s._tabs
 	for _, tab in tabs do
