@@ -500,21 +500,6 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		end
 	end)
 
-	local touchDetectorConn: RBXScriptConnection? = nil
-	local touchEndConn: RBXScriptConnection? = nil
-
-	local function clearTouchDetector()
-		if touchDetectorConn then
-			touchDetectorConn:Disconnect()
-			touchDetectorConn = nil
-		end
-		if touchEndConn then
-			touchEndConn:Disconnect()
-			touchEndConn = nil
-		end
-		pendingTouchStart = nil
-	end
-
 	s._conns.hitBegan = hit.InputBegan:Connect(function(input: InputObject)
 		if not s._enabled then return end
 
@@ -532,48 +517,46 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		if touchX < (trackLeft - 24) or touchX > (trackRight + KNOB_W / 2 + 24) then return end
 
 		if input.UserInputType == Enum.UserInputType.Touch then
-			clearTouchDetector()
-			local startPos = Vector2.new(input.Position.X, input.Position.Y)
-			pendingTouchStart = startPos
-
-			touchDetectorConn = variables.userInputService.InputChanged:Connect(function(changeInput: InputObject)
-				if pendingTouchStart and changeInput.UserInputType == Enum.UserInputType.Touch then
-					local dx = math.abs(changeInput.Position.X - pendingTouchStart.X)
-					local dy = math.abs(changeInput.Position.Y - pendingTouchStart.Y)
-					if dx > 5 or dy > 5 then
-						local shouldDrag = dx >= dy
-						clearTouchDetector()
-						if shouldDrag then
-							startDrag()
-							local kw = knob.AbsoluteSize.X > 0 and knob.AbsoluteSize.X or KNOB_W
-							applyT(tFromMouseX(track, changeInput.Position.X, kw))
-						end
-					end
-				end
-			end)
-
-			touchEndConn = variables.userInputService.InputEnded:Connect(function(endInput: InputObject)
-				if endInput.UserInputType == Enum.UserInputType.Touch then
-					if pendingTouchStart then
-						local kw = knob.AbsoluteSize.X > 0 and knob.AbsoluteSize.X or KNOB_W
-						applyT(tFromMouseX(track, endInput.Position.X, kw))
-					end
-					clearTouchDetector()
-				end
-			end)
+			pendingTouchStart = Vector2.new(input.Position.X, input.Position.Y)
 			return
 		end
 
 		if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+		dragging = true
 		local kw = knob.AbsoluteSize.X > 0 and knob.AbsoluteSize.X or KNOB_W
 		applyT(tFromMouseX(track, touchX, kw))
-		startDrag()
+	end)
+
+	s._conns.inputChanged = variables.userInputService.InputChanged:Connect(function(input: InputObject)
+		if pendingTouchStart and input.UserInputType == Enum.UserInputType.Touch then
+			local dx = math.abs(input.Position.X - pendingTouchStart.X)
+			local dy = math.abs(input.Position.Y - pendingTouchStart.Y)
+			if dx > 5 or dy > 5 then
+				if dx >= dy then
+					dragging = true
+				end
+				pendingTouchStart = nil
+			end
+		end
+
+		if not dragging then return end
+		if input.UserInputType ~= Enum.UserInputType.MouseMovement
+			and input.UserInputType ~= Enum.UserInputType.Touch then return end
+		-- DPI fix: use GUI-space coordinates for mouse; Touch is already viewport-scaled.
+		local inputX: number
+		if input.UserInputType == Enum.UserInputType.Touch then
+			inputX = input.Position.X
+		else
+			inputX = variables.userInputService:GetMouseLocation().X
+		end
+		local kw = knob.AbsoluteSize.X > 0 and knob.AbsoluteSize.X or KNOB_W
+		applyT(tFromMouseX(track, inputX, kw))
 	end)
 
 	local function onRelease()
-		clearTouchDetector()
-		if not dragging then return end
-		stopDrag()
+		if not dragging and not pendingTouchStart then return end
+		dragging = false
+		pendingTouchStart = nil
 		if not hovering then
 			stroke.Color = s._theme.ElementStroke or Color3.fromHex("#2b2b2b")
 			flash.BackgroundTransparency = 1
@@ -582,49 +565,15 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		end
 	end
 
-	function startDrag()
-		if dragging then return end
-		dragging = true
-
-		if not s._conns.dragChanged then
-			s._conns.dragChanged = variables.userInputService.InputChanged:Connect(function(input: InputObject)
-				if not dragging then return end
-				if input.UserInputType ~= Enum.UserInputType.MouseMovement
-					and input.UserInputType ~= Enum.UserInputType.Touch then return end
-				-- DPI fix: use GUI-space coordinates for mouse; Touch is already viewport-scaled.
-				local inputX: number
-				if input.UserInputType == Enum.UserInputType.Touch then
-					inputX = input.Position.X
-				else
-					inputX = variables.userInputService:GetMouseLocation().X
-				end
-				local kw = knob.AbsoluteSize.X > 0 and knob.AbsoluteSize.X or KNOB_W
-				applyT(tFromMouseX(track, inputX, kw))
-			end)
+	s._conns.inputEnded = variables.userInputService.InputEnded:Connect(function(input: InputObject)
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1
+			and input.UserInputType ~= Enum.UserInputType.Touch then return end
+		if pendingTouchStart and input.UserInputType == Enum.UserInputType.Touch then
+			local kw = knob.AbsoluteSize.X > 0 and knob.AbsoluteSize.X or KNOB_W
+			applyT(tFromMouseX(track, input.Position.X, kw))
 		end
-
-		if not s._conns.dragEnded then
-			s._conns.dragEnded = variables.userInputService.InputEnded:Connect(function(input: InputObject)
-				if input.UserInputType ~= Enum.UserInputType.MouseButton1
-					and input.UserInputType ~= Enum.UserInputType.Touch then return end
-				clearTouchDetector()
-				onRelease()
-			end)
-		end
-	end
-
-	function stopDrag()
-		dragging = false
-		clearTouchDetector()
-		if s._conns.dragChanged then
-			s._conns.dragChanged:Disconnect()
-			s._conns.dragChanged = nil
-		end
-		if s._conns.dragEnded then
-			s._conns.dragEnded:Disconnect()
-			s._conns.dragEnded = nil
-		end
-	end
+		onRelease()
+	end)
 
 	s._conns.hitUp = hit.MouseButton1Up:Connect(function()
 		onRelease()
@@ -670,8 +619,7 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		flags:Set(flagKey, initValue)
 	end
 
-	s._stopDrag = stopDrag
-	s._clearTouchDetector = clearTouchDetector
+	s._stopDrag = onRelease
 
 	return self
 end
@@ -721,7 +669,6 @@ end
 function Slider:Destroy()
 	local s = self :: any
 	if s._stopDrag then s._stopDrag() end
-	if s._clearTouchDetector then s._clearTouchDetector() end
 	if s._themeUnsub then s._themeUnsub() end
 	if s._conns then
 		for _, conn in s._conns do

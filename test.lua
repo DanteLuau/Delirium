@@ -952,6 +952,46 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 		end
 	end
 
+	
+	local dragConnChange: RBXScriptConnection? = nil
+	local dragConnEnd: RBXScriptConnection? = nil
+
+	local function stopColorDrag()
+		dragging = nil
+		if dragConnChange then
+			dragConnChange:Disconnect()
+			dragConnChange = nil
+		end
+		if dragConnEnd then
+			dragConnEnd:Disconnect()
+			dragConnEnd = nil
+		end
+	end
+
+	local function startColorDrag(target: DragTarget, mousePos: Vector2)
+		dragging = target
+		pump(mousePos)
+
+		if not dragConnChange then
+			dragConnChange = runtime.userInputService.InputChanged:Connect(function(input: InputObject)
+				if not dragging then return end
+				if input.UserInputType == Enum.UserInputType.MouseMovement
+					or input.UserInputType == Enum.UserInputType.Touch then
+					pump(Vector2.new(input.Position.X, input.Position.Y))
+				end
+			end)
+		end
+
+		if not dragConnEnd then
+			dragConnEnd = runtime.userInputService.InputEnded:Connect(function(input: InputObject)
+				if input.UserInputType == Enum.UserInputType.MouseButton1
+					or input.UserInputType == Enum.UserInputType.Touch then
+					stopColorDrag()
+				end
+			end)
+		end
+	end
+
 	local function closePopup()
 		if not isOpen then return end
 		isOpen       = false
@@ -993,46 +1033,6 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 			stroke.Color = theme.ElementStroke or Color3.fromHex("#2b2b2b")
 		end
 	end))
-
-	
-	local dragConnChange: RBXScriptConnection? = nil
-	local dragConnEnd: RBXScriptConnection? = nil
-
-	local function stopColorDrag()
-		dragging = nil
-		if dragConnChange then
-			dragConnChange:Disconnect()
-			dragConnChange = nil
-		end
-		if dragConnEnd then
-			dragConnEnd:Disconnect()
-			dragConnEnd = nil
-		end
-	end
-
-	local function startColorDrag(target: DragTarget, mousePos: Vector2)
-		dragging = target
-		pump(mousePos)
-
-		if not dragConnChange then
-			dragConnChange = runtime.userInputService.InputChanged:Connect(function(input: InputObject)
-				if not dragging then return end
-				if input.UserInputType == Enum.UserInputType.MouseMovement
-					or input.UserInputType == Enum.UserInputType.Touch then
-					pump(Vector2.new(input.Position.X, input.Position.Y))
-				end
-			end)
-		end
-
-		if not dragConnEnd then
-			dragConnEnd = runtime.userInputService.InputEnded:Connect(function(input: InputObject)
-				if input.UserInputType == Enum.UserInputType.MouseButton1
-					or input.UserInputType == Enum.UserInputType.Touch then
-					stopColorDrag()
-				end
-			end)
-		end
-	end
 
 	
 	addConn(canvasBtn.InputBegan:Connect(function(input: InputObject)
@@ -5478,21 +5478,6 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		end
 	end)
 
-	local touchDetectorConn: RBXScriptConnection? = nil
-	local touchEndConn: RBXScriptConnection? = nil
-
-	local function clearTouchDetector()
-		if touchDetectorConn then
-			touchDetectorConn:Disconnect()
-			touchDetectorConn = nil
-		end
-		if touchEndConn then
-			touchEndConn:Disconnect()
-			touchEndConn = nil
-		end
-		pendingTouchStart = nil
-	end
-
 	s._conns.hitBegan = hit.InputBegan:Connect(function(input: InputObject)
 		if not s._enabled then return end
 
@@ -5510,48 +5495,46 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		if touchX < (trackLeft - 24) or touchX > (trackRight + KNOB_W / 2 + 24) then return end
 
 		if input.UserInputType == Enum.UserInputType.Touch then
-			clearTouchDetector()
-			local startPos = Vector2.new(input.Position.X, input.Position.Y)
-			pendingTouchStart = startPos
-
-			touchDetectorConn = variables.userInputService.InputChanged:Connect(function(changeInput: InputObject)
-				if pendingTouchStart and changeInput.UserInputType == Enum.UserInputType.Touch then
-					local dx = math.abs(changeInput.Position.X - pendingTouchStart.X)
-					local dy = math.abs(changeInput.Position.Y - pendingTouchStart.Y)
-					if dx > 5 or dy > 5 then
-						local shouldDrag = dx >= dy
-						clearTouchDetector()
-						if shouldDrag then
-							startDrag()
-							local kw = knob.AbsoluteSize.X > 0 and knob.AbsoluteSize.X or KNOB_W
-							applyT(tFromMouseX(track, changeInput.Position.X, kw))
-						end
-					end
-				end
-			end)
-
-			touchEndConn = variables.userInputService.InputEnded:Connect(function(endInput: InputObject)
-				if endInput.UserInputType == Enum.UserInputType.Touch then
-					if pendingTouchStart then
-						local kw = knob.AbsoluteSize.X > 0 and knob.AbsoluteSize.X or KNOB_W
-						applyT(tFromMouseX(track, endInput.Position.X, kw))
-					end
-					clearTouchDetector()
-				end
-			end)
+			pendingTouchStart = Vector2.new(input.Position.X, input.Position.Y)
 			return
 		end
 
 		if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+		dragging = true
 		local kw = knob.AbsoluteSize.X > 0 and knob.AbsoluteSize.X or KNOB_W
 		applyT(tFromMouseX(track, touchX, kw))
-		startDrag()
+	end)
+
+	s._conns.inputChanged = variables.userInputService.InputChanged:Connect(function(input: InputObject)
+		if pendingTouchStart and input.UserInputType == Enum.UserInputType.Touch then
+			local dx = math.abs(input.Position.X - pendingTouchStart.X)
+			local dy = math.abs(input.Position.Y - pendingTouchStart.Y)
+			if dx > 5 or dy > 5 then
+				if dx >= dy then
+					dragging = true
+				end
+				pendingTouchStart = nil
+			end
+		end
+
+		if not dragging then return end
+		if input.UserInputType ~= Enum.UserInputType.MouseMovement
+			and input.UserInputType ~= Enum.UserInputType.Touch then return end
+		
+		local inputX: number
+		if input.UserInputType == Enum.UserInputType.Touch then
+			inputX = input.Position.X
+		else
+			inputX = variables.userInputService:GetMouseLocation().X
+		end
+		local kw = knob.AbsoluteSize.X > 0 and knob.AbsoluteSize.X or KNOB_W
+		applyT(tFromMouseX(track, inputX, kw))
 	end)
 
 	local function onRelease()
-		clearTouchDetector()
-		if not dragging then return end
-		stopDrag()
+		if not dragging and not pendingTouchStart then return end
+		dragging = false
+		pendingTouchStart = nil
 		if not hovering then
 			stroke.Color = s._theme.ElementStroke or Color3.fromHex("#2b2b2b")
 			flash.BackgroundTransparency = 1
@@ -5560,49 +5543,15 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		end
 	end
 
-	function startDrag()
-		if dragging then return end
-		dragging = true
-
-		if not s._conns.dragChanged then
-			s._conns.dragChanged = variables.userInputService.InputChanged:Connect(function(input: InputObject)
-				if not dragging then return end
-				if input.UserInputType ~= Enum.UserInputType.MouseMovement
-					and input.UserInputType ~= Enum.UserInputType.Touch then return end
-				
-				local inputX: number
-				if input.UserInputType == Enum.UserInputType.Touch then
-					inputX = input.Position.X
-				else
-					inputX = variables.userInputService:GetMouseLocation().X
-				end
-				local kw = knob.AbsoluteSize.X > 0 and knob.AbsoluteSize.X or KNOB_W
-				applyT(tFromMouseX(track, inputX, kw))
-			end)
+	s._conns.inputEnded = variables.userInputService.InputEnded:Connect(function(input: InputObject)
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1
+			and input.UserInputType ~= Enum.UserInputType.Touch then return end
+		if pendingTouchStart and input.UserInputType == Enum.UserInputType.Touch then
+			local kw = knob.AbsoluteSize.X > 0 and knob.AbsoluteSize.X or KNOB_W
+			applyT(tFromMouseX(track, input.Position.X, kw))
 		end
-
-		if not s._conns.dragEnded then
-			s._conns.dragEnded = variables.userInputService.InputEnded:Connect(function(input: InputObject)
-				if input.UserInputType ~= Enum.UserInputType.MouseButton1
-					and input.UserInputType ~= Enum.UserInputType.Touch then return end
-				clearTouchDetector()
-				onRelease()
-			end)
-		end
-	end
-
-	function stopDrag()
-		dragging = false
-		clearTouchDetector()
-		if s._conns.dragChanged then
-			s._conns.dragChanged:Disconnect()
-			s._conns.dragChanged = nil
-		end
-		if s._conns.dragEnded then
-			s._conns.dragEnded:Disconnect()
-			s._conns.dragEnded = nil
-		end
-	end
+		onRelease()
+	end)
 
 	s._conns.hitUp = hit.MouseButton1Up:Connect(function()
 		onRelease()
@@ -5648,8 +5597,7 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		flags:Set(flagKey, initValue)
 	end
 
-	s._stopDrag = stopDrag
-	s._clearTouchDetector = clearTouchDetector
+	s._stopDrag = onRelease
 
 	return self
 end
@@ -5699,7 +5647,6 @@ end
 function Slider:Destroy()
 	local s = self :: any
 	if s._stopDrag then s._stopDrag() end
-	if s._clearTouchDetector then s._clearTouchDetector() end
 	if s._themeUnsub then s._themeUnsub() end
 	if s._conns then
 		for _, conn in s._conns do
@@ -8732,20 +8679,13 @@ function Window:ToggleMinimise()
 	local screen                = self._gui.AbsoluteSize
 	local margin                = 8
 
-	
-	local absPos  = windowFrame.AbsolutePosition
-	local absSize = windowFrame.AbsoluteSize
-	local centerX = absPos.X + absSize.X / 2
-	local centerY = absPos.Y + absSize.Y / 2
-	local topY    = absPos.Y
+	local posX = windowFrame.Position.X.Offset
+	local posY = windowFrame.Position.Y.Offset
 
 	if keepOnScreen then
-		local halfW = width / 2
-		centerX = math.clamp(centerX, halfW + margin, math.max(halfW + margin, screen.X - halfW - margin))
+		local halfW = math.floor(width / 2)
+		posX = math.clamp(posX, halfW + margin, math.max(halfW + margin, screen.X - halfW - margin))
 	end
-
-	
-	windowFrame.Position = UDim2.fromOffset(centerX, centerY)
 
 	local TWEEN_INFO = TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
 
@@ -8754,9 +8694,10 @@ function Window:ToggleMinimise()
 		s._minimized     = false
 		s._pendingResize = false
 
-		local targetCY = topY + fullH / 2
+		local topY = posY - math.floor(titlebarH / 2)
+		local targetCY = topY + math.floor(fullH / 2)
 		if keepOnScreen then
-			local halfH = fullH / 2
+			local halfH = math.floor(fullH / 2)
 			targetCY = math.clamp(targetCY, halfH + margin, math.max(halfH + margin, screen.Y - halfH - margin))
 		end
 
@@ -8766,7 +8707,7 @@ function Window:ToggleMinimise()
 
 		local tw = tween.play(windowFrame, TWEEN_INFO, {
 			Size     = UDim2.fromOffset(width, fullH),
-			Position = UDim2.fromOffset(centerX, targetCY),
+			Position = UDim2.fromOffset(posX, targetCY),
 		})
 		s._activeTween = tw
 		tw.Completed:Once(function()
@@ -8801,9 +8742,10 @@ function Window:ToggleMinimise()
 			variables.settingsOpen = false
 		end
 
-		local targetCY = topY + titlebarH / 2
+		local topY = posY - math.floor(fullH / 2)
+		local targetCY = topY + math.floor(titlebarH / 2)
 		if keepOnScreen then
-			local halfTH = titlebarH / 2
+			local halfTH = math.floor(titlebarH / 2)
 			targetCY = math.clamp(targetCY, halfTH + margin, math.max(halfTH + margin, screen.Y - halfTH - margin))
 		end
 
@@ -8817,7 +8759,7 @@ function Window:ToggleMinimise()
 
 		local tw = tween.play(windowFrame, TWEEN_INFO, {
 			Size     = UDim2.fromOffset(width, titlebarH),
-			Position = UDim2.fromOffset(centerX, targetCY),
+			Position = UDim2.fromOffset(posX, targetCY),
 		})
 		s._activeTween = tw
 		tw.Completed:Once(function()
@@ -12891,7 +12833,7 @@ return windowSizing
 end)() end} 
 
 
-local ObjectTree = {{1,2,{"Delirium"},{{23,1,{"utility"},{{30,2,{"icons"}},{35,2,{"runtime"}},{37,2,{"services"}},{38,2,{"signal"}},{31,2,{"image"}},{40,2,{"tween"}},{25,2,{"constants"}},{27,2,{"filesystem"}},{29,2,{"fontLoader"}},{24,2,{"assetFetcher"}},{42,2,{"windowSizing"}},{41,2,{"variables"}},{28,2,{"flags"}},{34,2,{"network"}},{32,2,{"imageCache"}},{36,2,{"saveManager"}},{26,2,{"element"}},{39,2,{"theme"}},{33,2,{"mediaService"}}}},{18,1,{"themes"},{{19,2,{"default"}},{21,2,{"light"}},{20,2,{"dracula"}}}},{2,1,{"components"},{{17,2,{"window"}},{10,2,{"label"}},{13,2,{"section"}},{15,2,{"tab"}},{9,2,{"keybind"}},{16,2,{"toggle"}},{14,2,{"slider"}},{12,2,{"notification"}},{8,2,{"input"}},{4,2,{"colorpicker"}},{11,2,{"loadingScreen"}},{7,2,{"dropdown"}},{6,2,{"descriptor"}},{3,2,{"button"}},{5,2,{"dashboard"}}}},{22,2,{"types"}}}}}
+local ObjectTree = {{1,2,{"Delirium"},{{22,2,{"types"}},{23,1,{"utility"},{{30,2,{"icons"}},{38,2,{"signal"}},{35,2,{"runtime"}},{40,2,{"tween"}},{41,2,{"variables"}},{33,2,{"mediaService"}},{36,2,{"saveManager"}},{26,2,{"element"}},{39,2,{"theme"}},{29,2,{"fontLoader"}},{37,2,{"services"}},{24,2,{"assetFetcher"}},{32,2,{"imageCache"}},{25,2,{"constants"}},{31,2,{"image"}},{42,2,{"windowSizing"}},{34,2,{"network"}},{27,2,{"filesystem"}},{28,2,{"flags"}}}},{2,1,{"components"},{{12,2,{"notification"}},{3,2,{"button"}},{16,2,{"toggle"}},{17,2,{"window"}},{4,2,{"colorpicker"}},{14,2,{"slider"}},{13,2,{"section"}},{15,2,{"tab"}},{7,2,{"dropdown"}},{6,2,{"descriptor"}},{8,2,{"input"}},{9,2,{"keybind"}},{5,2,{"dashboard"}},{10,2,{"label"}},{11,2,{"loadingScreen"}}}},{18,1,{"themes"},{{21,2,{"light"}},{20,2,{"dracula"}},{19,2,{"default"}}}}}}}
 
 
 local LineOffsets = nil

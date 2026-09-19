@@ -2068,20 +2068,13 @@ function Window:ToggleMinimise()
 	local screen                = self._gui.AbsoluteSize
 	local margin                = 8
 
-	-- Snapshot actual rendered geometry to avoid floating-point / subpixel rounding jitter.
-	local absPos  = windowFrame.AbsolutePosition
-	local absSize = windowFrame.AbsoluteSize
-	local centerX = absPos.X + absSize.X / 2
-	local centerY = absPos.Y + absSize.Y / 2
-	local topY    = absPos.Y
+	local posX = windowFrame.Position.X.Offset
+	local posY = windowFrame.Position.Y.Offset
 
 	if keepOnScreen then
-		local halfW = width / 2
-		centerX = math.clamp(centerX, halfW + margin, math.max(halfW + margin, screen.X - halfW - margin))
+		local halfW = math.floor(width / 2)
+		posX = math.clamp(posX, halfW + margin, math.max(halfW + margin, screen.X - halfW - margin))
 	end
-
-	-- Normalize position to pure integer Offset centered at the current visual position
-	windowFrame.Position = UDim2.fromOffset(centerX, centerY)
 
 	local TWEEN_INFO = TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
 
@@ -2090,9 +2083,10 @@ function Window:ToggleMinimise()
 		s._minimized     = false
 		s._pendingResize = false
 
-		local targetCY = topY + fullH / 2
+		local topY = posY - math.floor(titlebarH / 2)
+		local targetCY = topY + math.floor(fullH / 2)
 		if keepOnScreen then
-			local halfH = fullH / 2
+			local halfH = math.floor(fullH / 2)
 			targetCY = math.clamp(targetCY, halfH + margin, math.max(halfH + margin, screen.Y - halfH - margin))
 		end
 
@@ -2102,7 +2096,7 @@ function Window:ToggleMinimise()
 
 		local tw = tween.play(windowFrame, TWEEN_INFO, {
 			Size     = UDim2.fromOffset(width, fullH),
-			Position = UDim2.fromOffset(centerX, targetCY),
+			Position = UDim2.fromOffset(posX, targetCY),
 		})
 		s._activeTween = tw
 		tw.Completed:Once(function()
@@ -2137,9 +2131,10 @@ function Window:ToggleMinimise()
 			variables.settingsOpen = false
 		end
 
-		local targetCY = topY + titlebarH / 2
+		local topY = posY - math.floor(fullH / 2)
+		local targetCY = topY + math.floor(titlebarH / 2)
 		if keepOnScreen then
-			local halfTH = titlebarH / 2
+			local halfTH = math.floor(titlebarH / 2)
 			targetCY = math.clamp(targetCY, halfTH + margin, math.max(halfTH + margin, screen.Y - halfTH - margin))
 		end
 
@@ -2153,7 +2148,7 @@ function Window:ToggleMinimise()
 
 		local tw = tween.play(windowFrame, TWEEN_INFO, {
 			Size     = UDim2.fromOffset(width, titlebarH),
-			Position = UDim2.fromOffset(centerX, targetCY),
+			Position = UDim2.fromOffset(posX, targetCY),
 		})
 		s._activeTween = tw
 		tw.Completed:Once(function()
