@@ -38,7 +38,7 @@ return {
 		Color3.fromHex("#50536a"),
 		Color3.fromHex("#44475a")
 	),
-	ElementStrokeHover          = Color3.fromHex("#6272a4"),
+	ElementStrokeHover          = Color3.fromHex("#bd93f9"),
 	ElementTextHoverColor       = Color3.fromHex("#f8f8f2"),
 
 	-- ── Typography ────────────────────────────────────────────────────────────

@@ -192,26 +192,23 @@ function Window.new(props: WindowProps): Window
 	titleSep.ZIndex                 = constants.zIndex.windowChrome + 1
 	titleSep.Parent                 = titleBar
 
-	local ACCENT_SIDE_PAD = 10
+	-- Sleek 1px accent hairline divider directly underneath titlebar
 	local accentStrip = Instance.new("Frame")
-	accentStrip.Name             = "AccentStrip"
-	accentStrip.Size             = UDim2.new(1, -ACCENT_SIDE_PAD * 2, 0, 2)
-	accentStrip.Position         = UDim2.fromOffset(ACCENT_SIDE_PAD, 0)
-	accentStrip.BackgroundColor3 = colorAccent
-	accentStrip.BorderSizePixel  = 0
-	accentStrip.ZIndex           = constants.zIndex.windowChrome + 2
-	accentStrip.Parent           = windowFrame         -- ← pindah dari titleBar
-	do
-		local c = Instance.new("UICorner")
-		c.CornerRadius = UDim.new(1, 0)
-		c.Parent       = accentStrip
-	end
+	accentStrip.Name                   = "AccentHairline"
+	accentStrip.Size                   = UDim2.new(1, 0, 0, 1)
+	accentStrip.Position               = UDim2.fromOffset(0, TITLEBAR_H - 1)
+	accentStrip.BackgroundColor3       = colorAccent
+	accentStrip.BackgroundTransparency = 0.35
+	accentStrip.BorderSizePixel        = 0
+	accentStrip.ZIndex                 = constants.zIndex.windowChrome + 2
+	accentStrip.Parent                 = windowFrame
+
 	local accentStripGrad = Instance.new("UIGradient")
 	accentStripGrad.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0.00, 1),
-		NumberSequenceKeypoint.new(0.12, 0),
-		NumberSequenceKeypoint.new(0.88, 0),
-		NumberSequenceKeypoint.new(1.00, 1),
+		NumberSequenceKeypoint.new(0.00, 0.9),
+		NumberSequenceKeypoint.new(0.20, 0.15),
+		NumberSequenceKeypoint.new(0.80, 0.15),
+		NumberSequenceKeypoint.new(1.00, 0.9),
 	})
 	accentStripGrad.Parent = accentStrip
 
@@ -1299,8 +1296,22 @@ function Window.new(props: WindowProps): Window
 		cp._frame.LayoutOrder = 3
 	end
 
-	spMakeSlider(pageAppearance, "Background Transparency", 0, 25, 5, 0, "%", 4, function(pct)
-		windowFrame.BackgroundTransparency = pct / 100
+	spMakeSlider(pageAppearance, "Background Transparency", 0, 80, 5, 0, "%", 4, function(pct)
+		local t = pct / 100
+		-- Window frame background & chrome
+		windowFrame.BackgroundTransparency = t
+		titleBarBg.BackgroundTransparency  = math.clamp(t * 0.85, 0, 0.90)
+		sidebar.BackgroundTransparency     = math.clamp(t * 0.90, 0, 0.92)
+
+		-- Components transparency with visual separation (always more opaque than window background)
+		local elemTrans = math.clamp(t * 0.65, 0, 0.60)
+		local elemStrokeTrans = math.clamp(0.25 - (t * 0.25), 0, 0.45) -- Stroke strengthens as background gets transparent
+
+		resolvedTheme.ElementTransparency = elemTrans
+		resolvedTheme.ElementStrokeTransparency = elemStrokeTrans
+		resolvedTheme.FieldTransparency = math.clamp(0.85 + (t * 0.10), 0.80, 0.95)
+
+		themeUtil.broadcast(resolvedTheme)
 	end)
 
 	-- ── Populate: Controls ───────────────────────────────────────────────
@@ -1434,11 +1445,15 @@ function Window.new(props: WindowProps): Window
 	self._gui     = gui
 	s = (self :: any)
 	s._windowFrame   = windowFrame
+	s._winCorner     = winCorner
+	s._winStroke     = winStroke
+	s._titleBar      = titleBar
+	s._titleBarBg    = titleBarBg
 	s._winScale      = winScale
 	s._userScale     = userScale
 	s._toggleKey     = currentToggleKey
 	s._sidebar       = tabListScroll
-	s._sidebarFrame    = sidebar
+	s._sidebarFrame  = sidebar
 	s._playerCardSlot  = playerCardSlot
 	s._contentArea   = contentArea
 	s._divider       = divider
@@ -1454,6 +1469,10 @@ function Window.new(props: WindowProps): Window
 	s._minBtn        = minBtn
 	s._minIcon       = minIcon
 	s._titleSep      = titleSep
+	s._accentStrip   = accentStrip
+	s._nameLabel     = nameLabel
+	s._subtitleLabel = subtitleLabel
+	s._logoMark      = logoMark
 	s._keepOnScreen  = keepOnScreenVal
 	s._dragging      = false          -- true while titleBar is being dragged
 	s._pendingResize = false          -- resize banked while hidden/minimized
@@ -1469,6 +1488,7 @@ function Window.new(props: WindowProps): Window
 	s._settingsPanel  = settingsPanel
 	s._spOverlay      = spOverlay
 	s._bodyBlocker    = bodyBlocker
+	s._updateAccent   = updateAccent
 
 	-- M1 FIX: apply initial scale (0.9 on touch, 1.0 on desktop) now that s exists.
 	if userScale ~= 1.0 then
@@ -2014,11 +2034,10 @@ function Window:Show()
 	s._visible   = true
 	windowFrame.Position = self:_clampedPosition(windowFrame.Position)
 
-	-- BackgroundTransparency starts at 1 (set in constructor) so the frame is
-	-- invisible on the first rendered frame. We must wait until after that frame
-	-- has been drawn before tweening opacity — otherwise Roblox may render one
-	-- frame where UICorner hasn't been computed yet, producing a square-corner
-	-- flash the moment the window becomes visible.
+	if windowFrame.Visible and windowFrame.BackgroundTransparency == 0 then
+		return
+	end
+
 	windowFrame.BackgroundTransparency = 1
 	windowFrame.Visible = true
 	task.spawn(function()
@@ -2172,13 +2191,59 @@ function Window:ToggleMinimise()
 	end
 end
 
--- ── ChangeTheme ───────────────────────────────────────────────────────────────
-
 function Window:ChangeTheme(newTheme: string | { [string]: any })
 	local s = (self :: any)
 	local resolved = themeUtil.resolve(newTheme)
-	s._theme = resolved
-	variables.activeTheme = resolved
+	-- Merge into the live table so the updateAccent closure keeps a valid ref.
+	local live: { [string]: any } = s._theme or resolved
+	for k, v in resolved do live[k] = v end
+	s._theme = live
+	variables.activeTheme = live
+
+	-- Sync window shell & chrome
+	local wf = s._windowFrame :: Frame?
+	if wf then
+		local winGradient = wf:FindFirstChildOfClass("UIGradient")
+		if winGradient and resolved.WindowColor then
+			winGradient.Color = resolved.WindowColor
+		end
+		if s._winStroke and resolved.SurfaceStroke then
+			s._winStroke.Color = resolved.SurfaceStroke
+		end
+		if s._titleBarBg and resolved.TitleBarColor then
+			s._titleBarBg.BackgroundColor3 = resolved.TitleBarColor
+		end
+		if s._cornerCover and resolved.TitleBarColor then
+			s._cornerCover.BackgroundColor3 = resolved.TitleBarColor
+		end
+		if s._sidebarFrame and resolved.TitleBarColor then
+			s._sidebarFrame.BackgroundColor3 = resolved.TitleBarColor
+		end
+		if s._divider and resolved.SurfaceStroke then
+			s._divider.BackgroundColor3 = resolved.SurfaceStroke
+		end
+		if s._titleSep and resolved.SurfaceStroke then
+			s._titleSep.BackgroundColor3 = resolved.SurfaceStroke
+		end
+		if s._nameLabel and resolved.ContentColor then
+			s._nameLabel.TextColor3 = resolved.ContentColor
+		end
+		if s._subtitleLabel and resolved.PlaceholderColor then
+			s._subtitleLabel.TextColor3 = resolved.PlaceholderColor
+		end
+		if s._logoMark and resolved.AccentColor then
+			s._logoMark.BackgroundColor3 = resolved.AccentColor
+		end
+		if s._accentStrip and resolved.AccentColor then
+			s._accentStrip.BackgroundColor3 = resolved.AccentColor
+		end
+	end
+
+	-- Sync settings panel accent and active updaters
+	if resolved.AccentColor and s._updateAccent then
+		s._updateAccent(resolved.AccentColor)
+	end
+
 	themeUtil.broadcast(resolved)
 end
 

@@ -1,25 +1,20 @@
 --!strict
 
 -- Delirium UI Library
--- loadingScreen.luau — Centered pill boot overlay.
---
--- Usage:
---   local loading = Delirium.LoadingScreen.new({ title = "MyCheat" })
---   loading:update("Initializing...")
---   task.wait(1)
---   loading:dismiss(window)   -- pill fades out, then window fades in
+-- loadingScreen.luau — Centered pill boot overlay with smooth morph transition into Window.
 
 local TweenService = game:GetService("TweenService")
 local RunService   = game:GetService("RunService")
 
-local variables  = require(script.Parent.Parent.utility.variables)
-local constants  = require(script.Parent.Parent.utility.constants)
+local variables = require(script.Parent.Parent.utility.variables)
+local constants = require(script.Parent.Parent.utility.constants)
 
 local FONT_BOLD = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold)
 local FONT_MED  = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium)
 
-local TW_FADE_IN  = TweenInfo.new(0.30, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-local TW_FADE_OUT = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+local TW_FADE_IN = TweenInfo.new(0.30, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local TW_MORPH   = TweenInfo.new(0.48, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+local TW_CONTENT = TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
 export type LoadingScreenProps = {
 	title:  string?,
@@ -34,64 +29,70 @@ export type LoadingScreen = {
 local LoadingScreen = {}
 LoadingScreen.__index = LoadingScreen
 
--- ── LoadingScreen.new ─────────────────────────────────────────────────────────
-
 function LoadingScreen.new(props: LoadingScreenProps): LoadingScreen
 	local title  = props.title  or "Delirium"
 	local accent = props.accent or Color3.fromHex("#4cc2ff")
 
-	-- ── ScreenGui — same container as window so DisplayOrder works ──────────
 	local gui = Instance.new("ScreenGui")
 	gui.Name            = "DeliriumLoading"
-	gui.DisplayOrder    = constants.displayOrder.loading  -- 100010, above window
+	gui.DisplayOrder    = constants.displayOrder.loading -- 100010, above window
 	gui.IgnoreGuiInset  = true
 	gui.ResetOnSpawn    = false
 	gui.ZIndexBehavior  = Enum.ZIndexBehavior.Sibling
 	gui.Parent          = variables.guiContainer
 
-	-- ── Pill container ──────────────────────────────────────────────────────
 	local pill = Instance.new("Frame")
 	pill.Name                   = "Pill"
 	pill.AnchorPoint            = Vector2.new(0.5, 0.5)
 	pill.Position               = UDim2.fromScale(0.5, 0.5)
 	pill.Size                   = UDim2.fromOffset(300, 60)
 	pill.BackgroundColor3       = Color3.fromHex("#0e0e12")
-	pill.BackgroundTransparency = 1    -- starts transparent, fades in
+	pill.BackgroundTransparency = 1
 	pill.BorderSizePixel        = 0
+	pill.ClipsDescendants       = true
 	pill.ZIndex                 = 2
 	pill.Parent                 = gui
-	do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1, 0); c.Parent = pill end
 
-	-- Subtle stroke
+	local pillCorner = Instance.new("UICorner")
+	pillCorner.CornerRadius = UDim.new(1, 0)
+	pillCorner.Parent       = pill
+
 	local stroke = Instance.new("UIStroke")
-	stroke.Color       = Color3.fromHex("#1e1e26")
-	stroke.Thickness   = 1
-	stroke.Transparency = 1    -- fades in with pill
-	stroke.Parent      = pill
+	stroke.Color        = Color3.fromHex("#1e1e26")
+	stroke.Thickness    = 1
+	stroke.Transparency = 1
+	stroke.Parent       = pill
 
-	-- Horizontal layout inside pill
+	-- Internal content container (fades out immediately when morph begins)
+	local content = Instance.new("Frame")
+	content.Name                   = "Content"
+	content.Size                   = UDim2.fromScale(1, 1)
+	content.BackgroundTransparency = 1
+	content.BorderSizePixel        = 0
+	content.ZIndex                 = 3
+	content.Parent                 = pill
+
 	local layout = Instance.new("UIListLayout")
 	layout.FillDirection       = Enum.FillDirection.Horizontal
 	layout.VerticalAlignment   = Enum.VerticalAlignment.Center
 	layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
 	layout.Padding             = UDim.new(0, 12)
 	layout.SortOrder           = Enum.SortOrder.LayoutOrder
-	layout.Parent              = pill
+	layout.Parent              = content
 
 	local padding = Instance.new("UIPadding")
-	padding.PaddingLeft   = UDim.new(0, 16)
-	padding.PaddingRight  = UDim.new(0, 16)
-	padding.Parent        = pill
+	padding.PaddingLeft  = UDim.new(0, 16)
+	padding.PaddingRight = UDim.new(0, 16)
+	padding.Parent       = content
 
-	-- Badge
 	local badge = Instance.new("Frame")
 	badge.Name             = "Badge"
 	badge.Size             = UDim2.fromOffset(32, 32)
 	badge.BackgroundColor3 = accent
 	badge.BorderSizePixel  = 0
-	badge.ZIndex           = 3
+	badge.ZIndex           = 4
 	badge.LayoutOrder      = 1
-	badge.Parent           = pill
+	badge.Parent           = content
 	do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = badge end
 	do
 		local g = Instance.new("UIGradient")
@@ -111,17 +112,16 @@ function LoadingScreen.new(props: LoadingScreenProps): LoadingScreen
 	badgeLbl.TextSize               = 16
 	badgeLbl.FontFace               = FONT_BOLD
 	badgeLbl.TextXAlignment         = Enum.TextXAlignment.Center
-	badgeLbl.ZIndex                 = 4
+	badgeLbl.ZIndex                 = 5
 	badgeLbl.Parent                 = badge
 
-	-- Text stack
 	local textStack = Instance.new("Frame")
 	textStack.Name                   = "TextStack"
-	textStack.Size                   = UDim2.new(1, -76, 1, 0)  -- fill remaining width
+	textStack.Size                   = UDim2.new(1, -76, 1, 0)
 	textStack.BackgroundTransparency = 1
 	textStack.LayoutOrder            = 2
-	textStack.ZIndex                 = 3
-	textStack.Parent                 = pill
+	textStack.ZIndex                 = 4
+	textStack.Parent                 = content
 	do
 		local l = Instance.new("UIListLayout")
 		l.FillDirection       = Enum.FillDirection.Vertical
@@ -143,7 +143,7 @@ function LoadingScreen.new(props: LoadingScreenProps): LoadingScreen
 	titleLbl.TextXAlignment         = Enum.TextXAlignment.Left
 	titleLbl.TextTruncate           = Enum.TextTruncate.AtEnd
 	titleLbl.LayoutOrder            = 1
-	titleLbl.ZIndex                 = 4
+	titleLbl.ZIndex                 = 5
 	titleLbl.Parent                 = textStack
 
 	local statusLbl = Instance.new("TextLabel")
@@ -157,26 +157,28 @@ function LoadingScreen.new(props: LoadingScreenProps): LoadingScreen
 	statusLbl.TextXAlignment         = Enum.TextXAlignment.Left
 	statusLbl.TextTruncate           = Enum.TextTruncate.AtEnd
 	statusLbl.LayoutOrder            = 2
-	statusLbl.ZIndex                 = 4
+	statusLbl.ZIndex                 = 5
 	statusLbl.Parent                 = textStack
 
-	-- ── Fade in pill ────────────────────────────────────────────────────────
-	TweenService:Create(pill,   TW_FADE_IN, { BackgroundTransparency = 0   }):Play()
-	TweenService:Create(stroke, TW_FADE_IN, { Transparency           = 0   }):Play()
+	TweenService:Create(pill,   TW_FADE_IN, { BackgroundTransparency = 0 }):Play()
+	TweenService:Create(stroke, TW_FADE_IN, { Transparency           = 0 }):Play()
 
-	-- Badge heartbeat pulse
-	local pulseT: number = 0
-	local pulseConn: RBXScriptConnection = RunService.Heartbeat:Connect(function(dt)
+	local pulseT = 0
+	local pulseConn = RunService.Heartbeat:Connect(function(dt)
 		pulseT += dt
 		badge.BackgroundTransparency = 0.02 + (math.sin(pulseT * 2.2) + 1) * 0.06
 	end)
 
-	-- ── Build self ──────────────────────────────────────────────────────────
 	local self: LoadingScreen = setmetatable({}, LoadingScreen) :: any
 	local s = self :: any
 	s._gui        = gui
 	s._pill       = pill
+	s._pillCorner = pillCorner
 	s._stroke     = stroke
+	s._content    = content
+	s._badge      = badge
+	s._badgeLbl   = badgeLbl
+	s._titleLbl   = titleLbl
 	s._statusLbl  = statusLbl
 	s._pulseConn  = pulseConn
 	s._dismissed  = false
@@ -184,47 +186,87 @@ function LoadingScreen.new(props: LoadingScreenProps): LoadingScreen
 	return self
 end
 
--- ── Methods ───────────────────────────────────────────────────────────────────
-
--- Update the status text shown inside the pill.
 function LoadingScreen:update(status: string)
 	local s = self :: any
 	if s._dismissed then return end
 	s._statusLbl.Text = status
 end
 
--- Fade out pill, then show window (if passed), then destroy.
+-- Morph pill into window size & position, seamless handoff
 function LoadingScreen:dismiss(window: any?)
 	local s = self :: any
 	if s._dismissed then return end
 	s._dismissed = true
 
-	-- Stop pulse
 	if s._pulseConn then
 		s._pulseConn:Disconnect()
 		s._pulseConn = nil
 	end
 
-	-- Fade pill out
-	local pillOut = TweenService:Create(s._pill,   TW_FADE_OUT, { BackgroundTransparency = 1 })
-	local strokeOut = TweenService:Create(s._stroke, TW_FADE_OUT, { Transparency           = 1 })
-	pillOut:Play()
-	strokeOut:Play()
+	local winFrame: Frame? = if window then (window._windowFrame or (window :: any)._frame) else nil
 
-	pillOut.Completed:Once(function()
-		pillOut:Destroy()
-		strokeOut:Destroy()
+	-- Fade out text & badge first
+	TweenService:Create(s._badge,    TW_CONTENT, { BackgroundTransparency = 1 }):Play()
+	TweenService:Create(s._badgeLbl, TW_CONTENT, { TextTransparency       = 1 }):Play()
+	TweenService:Create(s._titleLbl, TW_CONTENT, { TextTransparency       = 1 }):Play()
+	local fadeOutText = TweenService:Create(s._statusLbl, TW_CONTENT, { TextTransparency = 1 })
+	fadeOutText:Play()
 
-		-- Destroy loading screen gui
-		if s._gui and s._gui.Parent then
-			s._gui:Destroy()
-		end
+	if winFrame and not window.unloaded then
+		local winTargetSize = window._windowSize or winFrame.Size
+		local winTargetPos  = winFrame.Position
+		local winCornerVal  = if window._winCorner then window._winCorner.CornerRadius else UDim.new(0, 10)
+		local winStrokeVal  = if window._winStroke then window._winStroke.Color else Color3.fromHex("#1e1e26")
 
-		-- Show window after pill is gone
-		if window and not window.unloaded then
+		-- Prepare window invisibly underneath pill
+		winFrame.BackgroundTransparency = 0
+		winFrame.Visible = true
+
+		-- Hide internal window parts briefly during morph so they don't jump/flash
+		local winBody: Frame? = window._body
+		local winTitle: Frame? = window._titleBar
+		if winBody then winBody.Visible = false end
+		if winTitle then winTitle.Visible = false end
+
+		-- Morph the pill frame into the exact size & roundness of windowFrame
+		local morphSize   = TweenService:Create(s._pill,       TW_MORPH, { Size = winTargetSize, Position = winTargetPos })
+		local morphCorner = TweenService:Create(s._pillCorner, TW_MORPH, { CornerRadius = winCornerVal })
+		local morphStroke = TweenService:Create(s._stroke,     TW_MORPH, { Color = winStrokeVal })
+
+		morphSize:Play()
+		morphCorner:Play()
+		morphStroke:Play()
+
+		morphSize.Completed:Once(function()
+			morphSize:Destroy()
+			morphCorner:Destroy()
+			morphStroke:Destroy()
+
+			-- Show window children smoothly
+			if winBody then winBody.Visible = true end
+			if winTitle then winTitle.Visible = true end
 			window:Show()
-		end
-	end)
+
+			-- Cleanly destroy loading screen without any blink
+			if s._gui and s._gui.Parent then
+				s._gui:Destroy()
+			end
+		end)
+	else
+		-- Fallback if no window passed: simple fade out
+		local pillOut   = TweenService:Create(s._pill,   TW_MORPH, { BackgroundTransparency = 1 })
+		local strokeOut = TweenService:Create(s._stroke, TW_MORPH, { Transparency           = 1 })
+		pillOut:Play()
+		strokeOut:Play()
+
+		pillOut.Completed:Once(function()
+			pillOut:Destroy()
+			strokeOut:Destroy()
+			if s._gui and s._gui.Parent then
+				s._gui:Destroy()
+			end
+		end)
+	end
 end
 
 return LoadingScreen

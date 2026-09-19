@@ -61,8 +61,15 @@ return {
 	-- ── Slider ────────────────────────────────────────────────────────────────
 	SliderBackground      = Color3.fromRGB(215, 210, 245),
 	SliderBackgroundHover = Color3.fromRGB(200, 195, 235),
+	SliderProgress        = ColorSequence.new(
+		Color3.fromRGB(124, 58,  237),
+		Color3.fromRGB(99,  30,  220)
+	),
 	SliderHandle          = Color3.fromRGB(124, 58, 237),
 	SliderStroke          = Color3.fromRGB(124, 58, 237),
+
+	-- ── Dropdown ──────────────────────────────────────────────────────────────
+	DropdownHighlight = Color3.fromRGB(40, 30, 70),
 
 	-- ── Input / Keybind fields ────────────────────────────────────────────────
 	FieldBackground   = Color3.fromRGB(255, 255, 255),

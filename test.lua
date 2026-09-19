@@ -4306,7 +4306,8 @@ local ClosureBindings = {
             local FONT_BOLD = Font.new('rbxasset://fonts/families/GothamSSm.json', Enum.FontWeight.Bold)
             local FONT_MED = Font.new('rbxasset://fonts/families/GothamSSm.json', Enum.FontWeight.Medium)
             local TW_FADE_IN = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-            local TW_FADE_OUT = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+            local TW_MORPH = TweenInfo.new(0.48, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+            local TW_CONTENT = TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
             export type LoadingScreenProps = {title: string?, accent: Color3?}
             export type LoadingScreen = {update: (self:LoadingScreen, status:string) -> (), dismiss: (self:LoadingScreen, window:any?) -> ()}
@@ -4336,15 +4337,14 @@ local ClosureBindings = {
                 pill.BackgroundColor3 = Color3.fromHex('#0e0e12')
                 pill.BackgroundTransparency = 1
                 pill.BorderSizePixel = 0
+                pill.ClipsDescendants = true
                 pill.ZIndex = 2
                 pill.Parent = gui
 
-                do
-                    local c = Instance.new('UICorner')
+                local pillCorner = Instance.new('UICorner')
 
-                    c.CornerRadius = UDim.new(1, 0)
-                    c.Parent = pill
-                end
+                pillCorner.CornerRadius = UDim.new(1, 0)
+                pillCorner.Parent = pill
 
                 local stroke = Instance.new('UIStroke')
 
@@ -4353,6 +4353,15 @@ local ClosureBindings = {
                 stroke.Transparency = 1
                 stroke.Parent = pill
 
+                local content = Instance.new('Frame')
+
+                content.Name = 'Content'
+                content.Size = UDim2.fromScale(1, 1)
+                content.BackgroundTransparency = 1
+                content.BorderSizePixel = 0
+                content.ZIndex = 3
+                content.Parent = pill
+
                 local layout = Instance.new('UIListLayout')
 
                 layout.FillDirection = Enum.FillDirection.Horizontal
@@ -4360,13 +4369,13 @@ local ClosureBindings = {
                 layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
                 layout.Padding = UDim.new(0, 12)
                 layout.SortOrder = Enum.SortOrder.LayoutOrder
-                layout.Parent = pill
+                layout.Parent = content
 
                 local padding = Instance.new('UIPadding')
 
                 padding.PaddingLeft = UDim.new(0, 16)
                 padding.PaddingRight = UDim.new(0, 16)
-                padding.Parent = pill
+                padding.Parent = content
 
                 local badge = Instance.new('Frame')
 
@@ -4374,9 +4383,9 @@ local ClosureBindings = {
                 badge.Size = UDim2.fromOffset(32, 32)
                 badge.BackgroundColor3 = accent
                 badge.BorderSizePixel = 0
-                badge.ZIndex = 3
+                badge.ZIndex = 4
                 badge.LayoutOrder = 1
-                badge.Parent = pill
+                badge.Parent = content
 
                 do
                     local c = Instance.new('UICorner')
@@ -4404,7 +4413,7 @@ local ClosureBindings = {
                 badgeLbl.TextSize = 16
                 badgeLbl.FontFace = FONT_BOLD
                 badgeLbl.TextXAlignment = Enum.TextXAlignment.Center
-                badgeLbl.ZIndex = 4
+                badgeLbl.ZIndex = 5
                 badgeLbl.Parent = badge
 
                 local textStack = Instance.new('Frame')
@@ -4413,8 +4422,8 @@ local ClosureBindings = {
                 textStack.Size = UDim2.new(1, -76, 1, 0)
                 textStack.BackgroundTransparency = 1
                 textStack.LayoutOrder = 2
-                textStack.ZIndex = 3
-                textStack.Parent = pill
+                textStack.ZIndex = 4
+                textStack.Parent = content
 
                 do
                     local l = Instance.new('UIListLayout')
@@ -4439,7 +4448,7 @@ local ClosureBindings = {
                 titleLbl.TextXAlignment = Enum.TextXAlignment.Left
                 titleLbl.TextTruncate = Enum.TextTruncate.AtEnd
                 titleLbl.LayoutOrder = 1
-                titleLbl.ZIndex = 4
+                titleLbl.ZIndex = 5
                 titleLbl.Parent = textStack
 
                 local statusLbl = Instance.new('TextLabel')
@@ -4454,16 +4463,14 @@ local ClosureBindings = {
                 statusLbl.TextXAlignment = Enum.TextXAlignment.Left
                 statusLbl.TextTruncate = Enum.TextTruncate.AtEnd
                 statusLbl.LayoutOrder = 2
-                statusLbl.ZIndex = 4
+                statusLbl.ZIndex = 5
                 statusLbl.Parent = textStack
 
                 TweenService:Create(pill, TW_FADE_IN, {BackgroundTransparency = 0}):Play()
                 TweenService:Create(stroke, TW_FADE_IN, {Transparency = 0}):Play()
 
-                local pulseT: number = 0
-                local pulseConn: RBXScriptConnection = RunService.Heartbeat:Connect(function(
-                    dt
-                )
+                local pulseT = 0
+                local pulseConn = RunService.Heartbeat:Connect(function(dt)
                     pulseT += dt
 
                     badge.BackgroundTransparency = 0.02 + (math.sin(pulseT * 2.2) + 1) * 0.06
@@ -4473,7 +4480,12 @@ local ClosureBindings = {
 
                 s._gui = gui
                 s._pill = pill
+                s._pillCorner = pillCorner
                 s._stroke = stroke
+                s._content = content
+                s._badge = badge
+                s._badgeLbl = badgeLbl
+                s._titleLbl = titleLbl
                 s._statusLbl = statusLbl
                 s._pulseConn = pulseConn
                 s._dismissed = false
@@ -4504,22 +4516,78 @@ local ClosureBindings = {
                     s._pulseConn = nil
                 end
 
-                local pillOut = TweenService:Create(s._pill, TW_FADE_OUT, {BackgroundTransparency = 1})
-                local strokeOut = TweenService:Create(s._stroke, TW_FADE_OUT, {Transparency = 1})
+                local winFrame: Frame? = if window then(window._windowFrame or (window::any)._frame)else nil
 
-                pillOut:Play()
-                strokeOut:Play()
-                pillOut.Completed:Once(function()
-                    pillOut:Destroy()
-                    strokeOut:Destroy()
+                TweenService:Create(s._badge, TW_CONTENT, {BackgroundTransparency = 1}):Play()
+                TweenService:Create(s._badgeLbl, TW_CONTENT, {TextTransparency = 1}):Play()
+                TweenService:Create(s._titleLbl, TW_CONTENT, {TextTransparency = 1}):Play()
 
-                    if s._gui and s._gui.Parent then
-                        s._gui:Destroy()
+                local fadeOutText = TweenService:Create(s._statusLbl, TW_CONTENT, {TextTransparency = 1})
+
+                fadeOutText:Play()
+
+                if winFrame and not window.unloaded then
+                    local winTargetSize = window._windowSize or winFrame.Size
+                    local winTargetPos = winFrame.Position
+                    local winCornerVal = if window._winCorner then window._winCorner.CornerRadius else UDim.new(0, 10)
+                    local winStrokeVal = if window._winStroke then window._winStroke.Color else Color3.fromHex('#1e1e26')
+
+                    winFrame.BackgroundTransparency = 0
+                    winFrame.Visible = true
+
+                    local winBody: Frame? = window._body
+                    local winTitle: Frame? = window._titleBar
+
+                    if winBody then
+                        winBody.Visible = false
                     end
-                    if window and not window.unloaded then
+                    if winTitle then
+                        winTitle.Visible = false
+                    end
+
+                    local morphSize = TweenService:Create(s._pill, TW_MORPH, {
+                        Size = winTargetSize,
+                        Position = winTargetPos,
+                    })
+                    local morphCorner = TweenService:Create(s._pillCorner, TW_MORPH, {CornerRadius = winCornerVal})
+                    local morphStroke = TweenService:Create(s._stroke, TW_MORPH, {Color = winStrokeVal})
+
+                    morphSize:Play()
+                    morphCorner:Play()
+                    morphStroke:Play()
+                    morphSize.Completed:Once(function()
+                        morphSize:Destroy()
+                        morphCorner:Destroy()
+                        morphStroke:Destroy()
+
+                        if winBody then
+                            winBody.Visible = true
+                        end
+                        if winTitle then
+                            winTitle.Visible = true
+                        end
+
                         window:Show()
-                    end
-                end)
+
+                        if s._gui and s._gui.Parent then
+                            s._gui:Destroy()
+                        end
+                    end)
+                else
+                    local pillOut = TweenService:Create(s._pill, TW_MORPH, {BackgroundTransparency = 1})
+                    local strokeOut = TweenService:Create(s._stroke, TW_MORPH, {Transparency = 1})
+
+                    pillOut:Play()
+                    strokeOut:Play()
+                    pillOut.Completed:Once(function()
+                        pillOut:Destroy()
+                        strokeOut:Destroy()
+
+                        if s._gui and s._gui.Parent then
+                            s._gui:Destroy()
+                        end
+                    end)
+                end
             end
 
             return LoadingScreen
@@ -6986,31 +7054,24 @@ local ClosureBindings = {
                 titleSep.ZIndex = constants.zIndex.windowChrome + 1
                 titleSep.Parent = titleBar
 
-                local ACCENT_SIDE_PAD = 10
                 local accentStrip = Instance.new('Frame')
 
-                accentStrip.Name = 'AccentStrip'
-                accentStrip.Size = UDim2.new(1, -ACCENT_SIDE_PAD * 2, 0, 2)
-                accentStrip.Position = UDim2.fromOffset(ACCENT_SIDE_PAD, 0)
+                accentStrip.Name = 'AccentHairline'
+                accentStrip.Size = UDim2.new(1, 0, 0, 1)
+                accentStrip.Position = UDim2.fromOffset(0, TITLEBAR_H - 1)
                 accentStrip.BackgroundColor3 = colorAccent
+                accentStrip.BackgroundTransparency = 0.35
                 accentStrip.BorderSizePixel = 0
                 accentStrip.ZIndex = constants.zIndex.windowChrome + 2
                 accentStrip.Parent = windowFrame
 
-                do
-                    local c = Instance.new('UICorner')
-
-                    c.CornerRadius = UDim.new(1, 0)
-                    c.Parent = accentStrip
-                end
-
                 local accentStripGrad = Instance.new('UIGradient')
 
                 accentStripGrad.Transparency = NumberSequence.new({
-                    NumberSequenceKeypoint.new(0, 1),
-                    NumberSequenceKeypoint.new(0.12, 0),
-                    NumberSequenceKeypoint.new(0.88, 0),
-                    NumberSequenceKeypoint.new(1, 1),
+                    NumberSequenceKeypoint.new(0, 0.9),
+                    NumberSequenceKeypoint.new(0.2, 0.15),
+                    NumberSequenceKeypoint.new(0.8, 0.15),
+                    NumberSequenceKeypoint.new(1, 0.9),
                 })
                 accentStripGrad.Parent = accentStrip
 
@@ -8200,10 +8261,23 @@ local ClosureBindings = {
                     cp._frame.LayoutOrder = 3
                 end
 
-                spMakeSlider(pageAppearance, 'Background Transparency', 0, 25, 5, 0, '%', 4, function(
+                spMakeSlider(pageAppearance, 'Background Transparency', 0, 80, 5, 0, '%', 4, function(
                     pct
                 )
-                    windowFrame.BackgroundTransparency = pct / 100
+                    local t = pct / 100
+
+                    windowFrame.BackgroundTransparency = t
+                    titleBarBg.BackgroundTransparency = math.clamp(t * 0.85, 0, 0.9)
+                    sidebar.BackgroundTransparency = math.clamp(t * 0.9, 0, 0.92)
+
+                    local elemTrans = math.clamp(t * 0.65, 0, 0.6)
+                    local elemStrokeTrans = math.clamp(0.25 - (t * 0.25), 0, 0.45)
+
+                    resolvedTheme.ElementTransparency = elemTrans
+                    resolvedTheme.ElementStrokeTransparency = elemStrokeTrans
+                    resolvedTheme.FieldTransparency = math.clamp(0.85 + (t * 0.1), 0.8, 0.95)
+
+                    themeUtil.broadcast(resolvedTheme)
                 end)
 
                 do
@@ -8369,6 +8443,10 @@ local ClosureBindings = {
                 self._gui = gui
                 s = (self::any)
                 s._windowFrame = windowFrame
+                s._winCorner = winCorner
+                s._winStroke = winStroke
+                s._titleBar = titleBar
+                s._titleBarBg = titleBarBg
                 s._winScale = winScale
                 s._userScale = userScale
                 s._toggleKey = currentToggleKey
@@ -8389,6 +8467,10 @@ local ClosureBindings = {
                 s._minBtn = minBtn
                 s._minIcon = minIcon
                 s._titleSep = titleSep
+                s._accentStrip = accentStrip
+                s._nameLabel = nameLabel
+                s._subtitleLabel = subtitleLabel
+                s._logoMark = logoMark
                 s._keepOnScreen = keepOnScreenVal
                 s._dragging = false
                 s._pendingResize = false
@@ -8404,6 +8486,7 @@ local ClosureBindings = {
                 s._settingsPanel = settingsPanel
                 s._spOverlay = spOverlay
                 s._bodyBlocker = bodyBlocker
+                s._updateAccent = updateAccent
 
                 if userScale ~= 1 then
                     winScale.Scale = userScale
@@ -9037,6 +9120,11 @@ local ClosureBindings = {
 
                 s._visible = true
                 windowFrame.Position = self:_clampedPosition(windowFrame.Position)
+
+                if windowFrame.Visible and windowFrame.BackgroundTransparency == 0 then
+                    return
+                end
+
                 windowFrame.BackgroundTransparency = 1
                 windowFrame.Visible = true
 
@@ -9235,9 +9323,57 @@ local ClosureBindings = {
             function Window:ChangeTheme(newTheme: string | {[string]: any})
                 local s = (self::any)
                 local resolved = themeUtil.resolve(newTheme)
+                local live: {[string]: any} = s._theme or resolved
 
-                s._theme = resolved
-                variables.activeTheme = resolved
+                for k, v in resolved do
+                    live[k] = v
+                end
+
+                s._theme = live
+                variables.activeTheme = live
+
+                local wf = s._windowFrame::Frame?
+
+                if wf then
+                    local winGradient = wf:FindFirstChildOfClass('UIGradient')
+
+                    if winGradient and resolved.WindowColor then
+                        winGradient.Color = resolved.WindowColor
+                    end
+                    if s._winStroke and resolved.SurfaceStroke then
+                        s._winStroke.Color = resolved.SurfaceStroke
+                    end
+                    if s._titleBarBg and resolved.TitleBarColor then
+                        s._titleBarBg.BackgroundColor3 = resolved.TitleBarColor
+                    end
+                    if s._cornerCover and resolved.TitleBarColor then
+                        s._cornerCover.BackgroundColor3 = resolved.TitleBarColor
+                    end
+                    if s._sidebarFrame and resolved.TitleBarColor then
+                        s._sidebarFrame.BackgroundColor3 = resolved.TitleBarColor
+                    end
+                    if s._divider and resolved.SurfaceStroke then
+                        s._divider.BackgroundColor3 = resolved.SurfaceStroke
+                    end
+                    if s._titleSep and resolved.SurfaceStroke then
+                        s._titleSep.BackgroundColor3 = resolved.SurfaceStroke
+                    end
+                    if s._nameLabel and resolved.ContentColor then
+                        s._nameLabel.TextColor3 = resolved.ContentColor
+                    end
+                    if s._subtitleLabel and resolved.PlaceholderColor then
+                        s._subtitleLabel.TextColor3 = resolved.PlaceholderColor
+                    end
+                    if s._logoMark and resolved.AccentColor then
+                        s._logoMark.BackgroundColor3 = resolved.AccentColor
+                    end
+                    if s._accentStrip and resolved.AccentColor then
+                        s._accentStrip.BackgroundColor3 = resolved.AccentColor
+                    end
+                end
+                if resolved.AccentColor and s._updateAccent then
+                    s._updateAccent(resolved.AccentColor)
+                end
 
                 themeUtil.broadcast(resolved)
             end
@@ -9396,7 +9532,7 @@ local ClosureBindings = {
                 }),
                 ElementStroke = Color3.fromHex('#44475a'),
                 ElementStrokeGradient = ColorSequence.new(Color3.fromHex('#50536a'), Color3.fromHex('#44475a')),
-                ElementStrokeHover = Color3.fromHex('#6272a4'),
+                ElementStrokeHover = Color3.fromHex('#bd93f9'),
                 ElementTextHoverColor = Color3.fromHex('#f8f8f2'),
                 ContentColor = Color3.fromHex('#f8f8f2'),
                 TitlingColor = Color3.fromHex('#ffffff'),
@@ -9468,8 +9604,10 @@ local ClosureBindings = {
                 DarkToggleOverlay = false,
                 SliderBackground = Color3.fromRGB(215, 210, 245),
                 SliderBackgroundHover = Color3.fromRGB(200, 195, 235),
+                SliderProgress = ColorSequence.new(Color3.fromRGB(124, 58, 237), Color3.fromRGB(99, 30, 220)),
                 SliderHandle = Color3.fromRGB(124, 58, 237),
                 SliderStroke = Color3.fromRGB(124, 58, 237),
+                DropdownHighlight = Color3.fromRGB(40, 30, 70),
                 FieldBackground = Color3.fromRGB(255, 255, 255),
                 FieldTransparency = 0.6,
                 FieldGlow = Color3.fromRGB(124, 58, 237),
@@ -12622,38 +12760,17 @@ local ObjectTree = {
                 },
                 {
                     {
-                        16,
-                        2,
-                        {
-                            'toggle',
-                        },
-                    },
-                    {
-                        14,
-                        2,
-                        {
-                            'slider',
-                        },
-                    },
-                    {
-                        10,
-                        2,
-                        {
-                            'label',
-                        },
-                    },
-                    {
-                        17,
-                        2,
-                        {
-                            'window',
-                        },
-                    },
-                    {
                         15,
                         2,
                         {
                             'tab',
+                        },
+                    },
+                    {
+                        16,
+                        2,
+                        {
+                            'toggle',
                         },
                     },
                     {
@@ -12664,17 +12781,17 @@ local ObjectTree = {
                         },
                     },
                     {
-                        4,
+                        10,
                         2,
                         {
-                            'colorpicker',
+                            'label',
                         },
                     },
                     {
-                        5,
+                        6,
                         2,
                         {
-                            'dashboard',
+                            'descriptor',
                         },
                     },
                     {
@@ -12685,10 +12802,24 @@ local ObjectTree = {
                         },
                     },
                     {
-                        7,
+                        4,
                         2,
                         {
-                            'dropdown',
+                            'colorpicker',
+                        },
+                    },
+                    {
+                        17,
+                        2,
+                        {
+                            'window',
+                        },
+                    },
+                    {
+                        14,
+                        2,
+                        {
+                            'slider',
                         },
                     },
                     {
@@ -12696,13 +12827,6 @@ local ObjectTree = {
                         2,
                         {
                             'section',
-                        },
-                    },
-                    {
-                        8,
-                        2,
-                        {
-                            'input',
                         },
                     },
                     {
@@ -12720,19 +12844,26 @@ local ObjectTree = {
                         },
                     },
                     {
-                        6,
+                        5,
                         2,
                         {
-                            'descriptor',
+                            'dashboard',
                         },
                     },
-                },
-            },
-            {
-                22,
-                2,
-                {
-                    'types',
+                    {
+                        8,
+                        2,
+                        {
+                            'input',
+                        },
+                    },
+                    {
+                        7,
+                        2,
+                        {
+                            'dropdown',
+                        },
+                    },
                 },
             },
             {
@@ -12766,61 +12897,19 @@ local ObjectTree = {
                 },
             },
             {
+                22,
+                2,
+                {
+                    'types',
+                },
+            },
+            {
                 23,
                 1,
                 {
                     'utility',
                 },
                 {
-                    {
-                        34,
-                        2,
-                        {
-                            'network',
-                        },
-                    },
-                    {
-                        26,
-                        2,
-                        {
-                            'element',
-                        },
-                    },
-                    {
-                        41,
-                        2,
-                        {
-                            'variables',
-                        },
-                    },
-                    {
-                        37,
-                        2,
-                        {
-                            'services',
-                        },
-                    },
-                    {
-                        28,
-                        2,
-                        {
-                            'flags',
-                        },
-                    },
-                    {
-                        39,
-                        2,
-                        {
-                            'theme',
-                        },
-                    },
-                    {
-                        24,
-                        2,
-                        {
-                            'assetFetcher',
-                        },
-                    },
                     {
                         25,
                         2,
@@ -12836,24 +12925,10 @@ local ObjectTree = {
                         },
                     },
                     {
-                        35,
+                        41,
                         2,
                         {
-                            'runtime',
-                        },
-                    },
-                    {
-                        40,
-                        2,
-                        {
-                            'tween',
-                        },
-                    },
-                    {
-                        38,
-                        2,
-                        {
-                            'signal',
+                            'variables',
                         },
                     },
                     {
@@ -12864,20 +12939,6 @@ local ObjectTree = {
                         },
                     },
                     {
-                        33,
-                        2,
-                        {
-                            'mediaService',
-                        },
-                    },
-                    {
-                        29,
-                        2,
-                        {
-                            'fontLoader',
-                        },
-                    },
-                    {
                         36,
                         2,
                         {
@@ -12885,10 +12946,45 @@ local ObjectTree = {
                         },
                     },
                     {
-                        42,
+                        34,
                         2,
                         {
-                            'windowSizing',
+                            'network',
+                        },
+                    },
+                    {
+                        35,
+                        2,
+                        {
+                            'runtime',
+                        },
+                    },
+                    {
+                        28,
+                        2,
+                        {
+                            'flags',
+                        },
+                    },
+                    {
+                        40,
+                        2,
+                        {
+                            'tween',
+                        },
+                    },
+                    {
+                        24,
+                        2,
+                        {
+                            'assetFetcher',
+                        },
+                    },
+                    {
+                        27,
+                        2,
+                        {
+                            'filesystem',
                         },
                     },
                     {
@@ -12899,10 +12995,52 @@ local ObjectTree = {
                         },
                     },
                     {
-                        27,
+                        37,
                         2,
                         {
-                            'filesystem',
+                            'services',
+                        },
+                    },
+                    {
+                        42,
+                        2,
+                        {
+                            'windowSizing',
+                        },
+                    },
+                    {
+                        39,
+                        2,
+                        {
+                            'theme',
+                        },
+                    },
+                    {
+                        29,
+                        2,
+                        {
+                            'fontLoader',
+                        },
+                    },
+                    {
+                        33,
+                        2,
+                        {
+                            'mediaService',
+                        },
+                    },
+                    {
+                        38,
+                        2,
+                        {
+                            'signal',
+                        },
+                    },
+                    {
+                        26,
+                        2,
+                        {
+                            'element',
                         },
                     },
                 },
