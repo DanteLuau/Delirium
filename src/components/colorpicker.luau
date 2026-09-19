@@ -833,6 +833,10 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 	self.value  = initColor
 	self.alpha  = a
 	self._frame = frame
+	;(self :: any)._flag = flagKey
+	if flagKey and flagKey ~= "" then
+		flags:Set(flagKey, initColor)
+	end
 
 	function self:Set(value: Color3, newAlpha: number?, skipCallback: boolean?)
 		h, s, v    = Color3.toHSV(value)

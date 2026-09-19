@@ -64,7 +64,7 @@ function Input.new(props: InputProps, theme: { [string]: any }, parent: Instance
 		initValue = props.value or ""
 	end
 
-	local frame, stroke = element.makeFrame("Input_" .. name, theme, parent, constants.elementHeight)
+	local frame, stroke, gradient = element.makeFrame("Input_" .. name, theme, parent, constants.elementHeight)
 
 	-- ── Left Side: Title ──────────────────────────────────────────────────
 	local textContainer = Instance.new("Frame")
@@ -284,6 +284,7 @@ function Input.new(props: InputProps, theme: { [string]: any }, parent: Instance
 		textBox.PlaceholderColor3   = t.PlaceholderColor or Color3.fromHex("#9d9d9d")
 		textBox.TextColor3          = t.ContentColor or Color3.fromHex("#ffffff")
 		textBox.FontFace            = t.Font or constants.DEFAULT_FONT
+		gradient.Color              = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
 	end)
 
 	return self

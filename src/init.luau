@@ -68,6 +68,10 @@ delirium.MediaService = mediaService :: any
 -- Accessible as Delirium.SaveManager
 delirium.SaveManager = saveManager :: any
 
+-- LoadingScreen component — exposed so executor bundles don't need a second require.
+-- Usage: local loading = Delirium.LoadingScreen.new({ title = "MyCheat", accent = ... })
+delirium.LoadingScreen = require(script.components.loadingScreen) :: any
+
 -- Internal debug accessors — exposed so executor scripts can inspect internal
 -- state without requiring via game.ReplicatedStorage (which doesn't exist on executor).
 -- These are the same singleton instances used by the library internally.

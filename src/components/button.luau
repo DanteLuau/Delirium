@@ -28,7 +28,7 @@ function Button.new(props: ButtonProps, theme: { [string]: any }, parent: Instan
 	local description = props.description or ""
 	local callback    = props.callback
 
-	local frame, stroke = element.makeFrame("Button_" .. name, theme, parent)
+	local frame, stroke, gradient = element.makeFrame("Button_" .. name, theme, parent)
 
 	-- Inner layout
 	local inner = Instance.new("Frame")
@@ -131,6 +131,7 @@ function Button.new(props: ButtonProps, theme: { [string]: any }, parent: Instan
 			descLabel.TextColor3 = t.PlaceholderColor or Color3.fromHex("#9d9d9d")
 			descLabel.FontFace = t.Font or constants.DEFAULT_FONT
 		end
+		gradient.Color = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
 		theme = t
 	end)
 	return self

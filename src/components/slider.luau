@@ -103,7 +103,7 @@ end
 
 function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instance): Slider
 	local name = props.name or props.Label or props.Text or "Slider"
-	local flagKey = props.flag or props.Flag
+	local flagKey: string? = props.flag or props.Flag
 
 	local rangeMin = (props.range and props.range[1]) or props.min or props.Min or 0
 	local rangeMax = (props.range and props.range[2]) or props.max or props.Max or 100
@@ -197,6 +197,7 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 	local innerPad = Instance.new("UIPadding")
 	innerPad.PaddingLeft = UDim.new(0, 12)
 	innerPad.PaddingRight = UDim.new(0, 12)
+	innerPad.PaddingTop = UDim.new(0, 4)
 	innerPad.Parent = inner
 
 	local flash = Instance.new("Frame")
@@ -216,7 +217,8 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 	-- ── Labels ────────────────────────────────────────────────────────────────
 	local label = Instance.new("TextLabel")
 	label.Name = "Label"
-	label.Position = UDim2.fromOffset(0, 0)
+	label.AnchorPoint = Vector2.new(0, 0.5)
+	label.Position = UDim2.new(0, 0, 0, math.floor(HEADER_H / 2))
 	label.Size = UDim2.new(1, -(VAL_W + GAP), 0, HEADER_H)
 	label.BackgroundTransparency = 1
 	label.Font = Enum.Font.GothamMedium
@@ -248,9 +250,10 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		valLabel.Position = UDim2.new(1, 0, 0.5, 0)
 		valLabel.Size = UDim2.fromOffset(VAL_W, FRAME_H)
 	else
-		valLabel.AnchorPoint = Vector2.new(1, 0)
-		valLabel.Position = UDim2.new(1, 0, 0, 0)
+		valLabel.AnchorPoint = Vector2.new(1, 0.5)
+		valLabel.Position = UDim2.new(1, 0, 0, math.floor(HEADER_H / 2))
 		valLabel.Size = UDim2.fromOffset(VAL_W, HEADER_H)
+		valLabel.AutomaticSize = Enum.AutomaticSize.X
 	end
 
 	-- ── Track ─────────────────────────────────────────────────────────────────
@@ -604,9 +607,11 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		fill.BackgroundColor3 = t.AccentColor or Color3.fromHex("#4cc2ff")
 		fillGrad.Color = t.SliderProgress or ColorSequence.new(Color3.fromHex("#4cc2ff"), Color3.fromHex("#0093fb"))
 		knob.BackgroundColor3 = t.SliderHandle or Color3.fromRGB(255, 255, 255)
+		innerGrad.Color = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
+		stroke.Transparency = if s._enabled then (t.ElementStrokeTransparency or 0) else 0.5
 	end)
 
-	if flagKey then
+	if flagKey and flagKey ~= "" then
 		flags:Set(flagKey, initValue)
 	end
 

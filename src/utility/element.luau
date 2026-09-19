@@ -50,7 +50,7 @@ function element.makeFrame(
 	stroke.Transparency = theme.ElementStrokeTransparency or 0
 	stroke.Parent       = frame
 
-	return frame, stroke
+	return frame, stroke, gradient
 end
 
 -- Creates a full-coverage dark overlay parented to `parent`.

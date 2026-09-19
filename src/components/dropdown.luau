@@ -138,7 +138,7 @@ end
 
 function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: Instance): Dropdown
 	local name = props.name or props.Label or props.Text
-	local flagKey = props.flag or props.Flag
+	local flagKey: string? = props.flag or props.Flag
 	local isMulti = (props.multiSelect == true) or (props.MultiSelect == true)
 	local isSearchable = (props.searchable == true) or (props.Searchable == true)
 	local isEnabled = if props.enabled ~= nil then props.enabled
@@ -265,7 +265,8 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 	flashCorner.Parent = flash
 	flash.Parent = inner
 
-	local ARROW_W = 14
+	local ARROW_W = 16
+	local MULTI_W = 14
 	local arrow = Instance.new("ImageLabel")
 	arrow.Name = "Arrow"
 	arrow.AnchorPoint = Vector2.new(1, 0.5)
@@ -278,9 +279,26 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 	arrow.ZIndex = 4
 	arrow.Parent = inner
 
+	local multiIcon: ImageLabel? = nil
+	if isMulti then
+		local mico = Instance.new("ImageLabel")
+		mico.Name = "MultiIcon"
+		mico.AnchorPoint = Vector2.new(1, 0.5)
+		mico.Position = UDim2.new(1, -(ARROW_W + 6), 0.5, 0)
+		mico.Size = UDim2.fromOffset(MULTI_W, MULTI_W)
+		mico.BackgroundTransparency = 1
+		mico.Image = icons.Resolve("lucide:layers") or icons.Resolve("lucide:list-checks") or "rbxassetid://83827110621355"
+		mico.ImageColor3 = theme.PlaceholderColor or Color3.fromHex("#9d9d9d")
+		mico.ImageTransparency = 0.3
+		mico.ZIndex = 4
+		mico.Parent = inner
+		multiIcon = mico
+	end
+
+	local rightReserve = ARROW_W + (if isMulti then (MULTI_W + 10) else 8)
 	local valueLabel = Instance.new("TextLabel")
 	valueLabel.Name = "ValueLabel"
-	valueLabel.Size = UDim2.new(1, -(ARROW_W + 8), 1, 0)
+	valueLabel.Size = UDim2.new(1, -rightReserve, 1, 0)
 	valueLabel.BackgroundTransparency = 1
 	valueLabel.Font = Enum.Font.GothamMedium
 	valueLabel.FontFace = theme.Font or Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium)
@@ -894,7 +912,17 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 			local ap = frame.AbsolutePosition
 			local as = frame.AbsoluteSize
 			local inX = mousePos.X >= ap.X and mousePos.X <= (ap.X + as.X)
-			local inY = mousePos.Y >= ap.Y and mousePos.Y <= (ap.Y + as.Y)
+			local inY: boolean
+			if s._flipUp then
+				-- List renders above the header frame — bounds check must include that region.
+				-- frame.Size stays HEADER_H when flipped, so as.Y only covers the header;
+				-- clicks on list items appear above ap.Y and get wrongly treated as outside.
+				local listH = getListH()
+				local topY = ap.Y - listH - LIST_GAP
+				inY = mousePos.Y >= topY and mousePos.Y <= (ap.Y + HEADER_H)
+			else
+				inY = mousePos.Y >= ap.Y and mousePos.Y <= (ap.Y + as.Y)
+			end
 			if not (inX and inY) then
 				closeDropdown()
 			end
@@ -941,7 +969,11 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 		-- B3 FIX: cached constant
 		valueLabel.FontFace = t.Font or DEFAULT_FONT
 		arrow.ImageColor3 = t.PlaceholderColor or Color3.fromHex("#9d9d9d")
+		if multiIcon then
+			multiIcon.ImageColor3 = t.PlaceholderColor or Color3.fromHex("#9d9d9d")
+		end
 		listStroke.Color = t.ElementStroke or Color3.fromHex("#2b2b2b")
+		innerGrad.Color = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
 		-- B1 FIX: only rebuild option rows when the list is open.
 		-- When closed, options are invisible; re-coloring happens on next open().
 		-- This prevents dozens of instance destroy/recreate cycles per mouse-move
@@ -951,7 +983,7 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 		end
 	end)
 
-	if flagKey then
+	if flagKey and flagKey ~= "" then
 		flags:Set(flagKey, initVal)
 	end
 
@@ -1005,31 +1037,37 @@ end
 
 function Dropdown:Set(value: any, skipCallback: boolean?)
 	local s = self :: any
-	-- B5 FIX: bail early on unchanged single-select to avoid unconditional
-	-- buildOptions() even when nothing changed (e.g. SaveManager restoring a value
-	-- that is already set, or a repeated programmatic Set call).
-	if not s._multiSelect and value == s._selectedValue then
-		if s._flag then flags:Set(s._flag, value) end
-		self.Changed:Fire(self.value)
-		if not skipCallback and s._callback then
-			task.spawn(s._callback, self.value)
-		end
-		return
-	end
+
 	if s._multiSelect then
-		local arr: { any } = if typeof(value) == "table" then value else { value }
 		s._selectedSet = {}
-		for _, v in ipairs(arr) do
-			s._selectedSet[v] = true
+		local outArr: { any } = {}
+		if typeof(value) == "table" then
+			for k, v in pairs(value) do
+				if typeof(k) == "number" then
+					-- Array element: v is the option value
+					s._selectedSet[v] = true
+					table.insert(outArr, v)
+				elseif v == true then
+					-- Dictionary element: k is the option value
+					s._selectedSet[k] = true
+					table.insert(outArr, k)
+				end
+			end
+		elseif value ~= nil then
+			s._selectedSet[value] = true
+			table.insert(outArr, value)
 		end
-		self.value = arr
-		self.Value = arr
+		self.value = outArr
+		self.Value = outArr
 	else
-		local found = false
+		local matchVal: any = nil
 		for _, opt in ipairs(s._options) do
-			if opt.Value == value then found = true break end
+			if opt.Value == value or opt.Label == value or tostring(opt.Value) == tostring(value) then
+				matchVal = opt.Value
+				break
+			end
 		end
-		s._selectedValue = if found then value else nil
+		s._selectedValue = if matchVal ~= nil then matchVal else value
 		self.value = s._selectedValue
 		self.Value = s._selectedValue
 	end

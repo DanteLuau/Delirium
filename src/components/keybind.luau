@@ -111,7 +111,7 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 		initKey = coerceKey(props.value)
 	end
 
-	local frame, stroke = element.makeFrame("Keybind_" .. name, theme, parent, constants.elementHeight)
+	local frame, stroke, gradient = element.makeFrame("Keybind_" .. name, theme, parent, constants.elementHeight)
 	frame.Active = true
 
 	-- ── Left Side: Title ──────────────────────────────────────────────────
@@ -459,6 +459,7 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 		pill.FontFace               = t.Font or constants.DEFAULT_FONT_MEDIUM
 		pillStroke.Color            = t.ElementStroke or Color3.fromHex("#2b2b2b")
 		stroke.Color                = t.ElementStroke or Color3.fromHex("#2b2b2b")
+		gradient.Color              = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
 	end)
 
 	return self

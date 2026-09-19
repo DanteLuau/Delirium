@@ -9,6 +9,7 @@
 local constants    = require(script.Parent.Parent.utility.constants)
 local themeUtil    = require(script.Parent.Parent.utility.theme)
 local tween        = require(script.Parent.Parent.utility.tween)
+local saveManager  = require(script.Parent.Parent.utility.saveManager)
 local Section      = require(script.Parent.section)
 local Label        = require(script.Parent.label)
 local Button       = require(script.Parent.button)
@@ -480,9 +481,25 @@ function Tab:_resolveParent(side: string?): ScrollingFrame
 end
 
 function Tab:_createOn(targetScroll: ScrollingFrame, module: any, props: any): any
+	-- Auto-derive flagKey from name when no explicit flag is provided
+	if props and not props.flag and not (props :: any).Flag
+		and not (props :: any).noSave and not (props :: any).ignoreFlag then
+		local nameStr = props.name or (props :: any).Label or (props :: any).Text
+		if type(nameStr) == "string" and #nameStr > 0 then
+			props = table.clone(props)
+			props.flag = saveManager.deriveFlagFromName(nameStr)
+		end
+	end
+
 	local el = module.new(props, self._theme, targetScroll)
 	el._frame.LayoutOrder = nextOrder(self)
 	table.insert((self :: any)._elements, el)
+
+	-- Central registration: any element that exposes ._flag gets auto-registered.
+	local flagKey = (el :: any)._flag
+	if flagKey and flagKey ~= "" then
+		saveManager:Register(flagKey, el)
+	end
 
 	local desc = props and (props.description or props.Description or props.Tooltip)
 	if desc and desc ~= "" then
@@ -495,6 +512,16 @@ function Tab:_createOn(targetScroll: ScrollingFrame, module: any, props: any): a
 end
 
 function Tab:_createColorPickerOn(targetScroll: ScrollingFrame, props: any): any
+	-- Auto-derive flagKey from name when no explicit flag is provided
+	if props and not props.flag and not (props :: any).Flag
+		and not (props :: any).noSave and not (props :: any).ignoreFlag then
+		local nameStr = props.name or (props :: any).Label or (props :: any).Text
+		if type(nameStr) == "string" and #nameStr > 0 then
+			props = table.clone(props)
+			props.flag = saveManager.deriveFlagFromName(nameStr)
+		end
+	end
+
 	local wf = (self :: any)._windowFrame :: Frame?
 	local merged = table.clone(props :: any) :: ColorPicker.ColorPickerProps
 	if wf and not (merged :: any).overlayParent then
@@ -504,6 +531,14 @@ function Tab:_createColorPickerOn(targetScroll: ScrollingFrame, props: any): any
 	local cp = ColorPicker.new(merged, self._theme, targetScroll)
 	cp._frame.LayoutOrder = nextOrder(self)
 	table.insert((self :: any)._elements, cp)
+
+	-- ColorPicker:Set(value, alpha?, skipCallback?) — wrap for saveManager compatibility
+	local flagKey = (cp :: any)._flag
+	if flagKey and flagKey ~= "" then
+		saveManager:Register(flagKey, function(v: any, skipCallback: boolean?)
+			cp:Set(v, nil, skipCallback)
+		end)
+	end
 
 	local desc = props and (props.description or props.Description or props.Tooltip)
 	if desc and desc ~= "" then

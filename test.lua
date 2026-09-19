@@ -76,6 +76,10 @@ delirium.SaveManager = saveManager :: any
 
 
 
+delirium.LoadingScreen = require(script.components.loadingScreen) :: any
+
+
+
 
 delirium._imageCache = imageCache :: any
 delirium._image      = imageUtil  :: any
@@ -134,7 +138,7 @@ function Button.new(props: ButtonProps, theme: { [string]: any }, parent: Instan
 	local description = props.description or ""
 	local callback    = props.callback
 
-	local frame, stroke = element.makeFrame("Button_" .. name, theme, parent)
+	local frame, stroke, gradient = element.makeFrame("Button_" .. name, theme, parent)
 
 	
 	local inner = Instance.new("Frame")
@@ -237,6 +241,7 @@ function Button.new(props: ButtonProps, theme: { [string]: any }, parent: Instan
 			descLabel.TextColor3 = t.PlaceholderColor or Color3.fromHex("#9d9d9d")
 			descLabel.FontFace = t.Font or constants.DEFAULT_FONT
 		end
+		gradient.Color = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
 		theme = t
 	end)
 	return self
@@ -1085,6 +1090,10 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 	self.value  = initColor
 	self.alpha  = a
 	self._frame = frame
+	;(self :: any)._flag = flagKey
+	if flagKey and flagKey ~= "" then
+		flags:Set(flagKey, initColor)
+	end
 
 	function self:Set(value: Color3, newAlpha: number?, skipCallback: boolean?)
 		h, s, v    = Color3.toHSV(value)
@@ -1117,6 +1126,632 @@ end
 return ColorPicker
 
 end)() end,[5]=function()local wax,script,require=ImportGlobals(5)local ImportGlobals return (function(...)
+
+
+
+
+
+
+
+local tween     = require(script.Parent.Parent.utility.tween)
+local themeUtil = require(script.Parent.Parent.utility.theme)
+local constants = require(script.Parent.Parent.utility.constants)
+local variables = require(script.Parent.Parent.utility.variables)
+
+local Players    = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
+local TWEEN_TAB  = TweenInfo.new(0.16, Enum.EasingStyle.Quad,  Enum.EasingDirection.Out)
+local THUMB_TYPE = Enum.ThumbnailType.HeadShot
+local THUMB_SIZE = Enum.ThumbnailSize.Size100x100
+
+export type Dashboard = {
+	_cardFrame:   Frame,
+	_content:     Frame,
+	_themeUnsub:  () -> (),
+	ShowContent:  (self: Dashboard) -> (),
+	HideContent:  (self: Dashboard) -> (),
+	Destroy:      (self: Dashboard) -> (),
+}
+
+local Dashboard = {}
+Dashboard.__index = Dashboard
+
+
+
+local function formatAge(days: number): string
+	if days >= 365 then
+		local y = math.floor(days / 365)
+		return y == 1 and "1 year" or y .. " years"
+	elseif days >= 30 then
+		local m = math.floor(days / 30)
+		return m == 1 and "1 month" or m .. " months"
+	else
+		return days == 1 and "1 day" or days .. " days"
+	end
+end
+
+local function formatTime(secs: number): string
+	local h = math.floor(secs / 3600)
+	local m = math.floor((secs % 3600) / 60)
+	local s = math.floor(secs % 60)
+	if h > 0 then return string.format("%dh %02dm", h, m)
+	elseif m > 0 then return string.format("%dm %02ds", m, s)
+	else return string.format("%ds", s) end
+end
+
+local function makeCircle(parent: Instance, size: number): Frame
+	local f = Instance.new("Frame")
+	f.Size = UDim2.fromOffset(size, size); f.BackgroundColor3 = Color3.fromRGB(0,0,0)
+	f.BorderSizePixel = 0; f.ClipsDescendants = true; f.Parent = parent
+	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1,0); c.Parent = f
+	return f
+end
+
+
+
+
+
+
+
+
+function Dashboard.new(
+	sidebarSlot:  Frame,
+	_windowFrame: Frame,
+	contentArea:  Frame,
+	theme:        { [string]: any }
+): Dashboard
+
+	local lp: Player = Players.LocalPlayer
+
+	
+	local function getTokens(t: { [string]: any })
+		return {
+			accent        = t.AccentColor        or Color3.fromHex("#4cc2ff"),
+			accentDim     = t.AccentMuted         or Color3.fromHex("#1a3d52"),
+			border        = t.SurfaceStroke       or Color3.fromHex("#2b2b2b"),
+			surface       = t.TitleBarColor       or Color3.fromHex("#111114"),
+			surfaceMid    = t.WindowColor.Keypoints[1].Value,
+			textPrimary   = t.TitlingColor        or Color3.fromHex("#ffffff"),
+			textSecondary = t.PlaceholderColor    or Color3.fromHex("#8a8a92"),
+			neutralBtn    = t.NeutralButton       or Color3.fromHex("#1e1e1e"),
+			neutralHover  = t.NeutralButtonHover  or Color3.fromHex("#252525"),
+			errorColor    = t.ErrorColor          or Color3.fromHex("#ff4f58"),
+			font          = t.Font                or Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium),
+			fontBold      = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.SemiBold),
+			fontXBold     = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold),
+			elemCorner    = t.ElementCornerRadius or UDim.new(0, 8),
+			winGradient   = t.WindowColor,
+		}
+	end
+
+	local tk = getTokens(theme)
+
+	
+	
+	
+
+	local card = Instance.new("Frame")
+	card.Name = "Dashboard"; card.Size = UDim2.new(1,0,1,0)
+	card.BackgroundColor3 = tk.surface; card.BorderSizePixel = 0
+	card.ClipsDescendants = false; card.Parent = sidebarSlot
+
+	
+	local topSep = Instance.new("Frame")
+	topSep.Name = "TopSep"; topSep.Size = UDim2.new(1,0,0,1)
+	topSep.BackgroundColor3 = tk.border; topSep.BackgroundTransparency = 0.4
+	topSep.BorderSizePixel = 0; topSep.Parent = card
+
+	
+	local cardHit = Instance.new("TextButton")
+	cardHit.Name = "Hit"; cardHit.Size = UDim2.fromScale(1,1)
+	cardHit.BackgroundTransparency = 1; cardHit.Text = ""
+	cardHit.AutoButtonColor = false; cardHit.ZIndex = 2; cardHit.Parent = card
+
+	
+	local avatarClip = makeCircle(card, 36)
+	avatarClip.Name = "AvatarClip"; avatarClip.AnchorPoint = Vector2.new(0,0.5)
+	avatarClip.Position = UDim2.new(0,10,0.5,0); avatarClip.ZIndex = 2
+
+	local avatarImg = Instance.new("ImageLabel")
+	avatarImg.Name = "Avatar"; avatarImg.Size = UDim2.fromScale(1,1)
+	avatarImg.BackgroundColor3 = Color3.fromHex("#1c1c1f"); avatarImg.BorderSizePixel = 0
+	avatarImg.Image = ""; avatarImg.ScaleType = Enum.ScaleType.Fit
+	avatarImg.ZIndex = 2; avatarImg.Parent = avatarClip
+
+	
+	local nameStack = Instance.new("Frame")
+	nameStack.Name = "NameStack"; nameStack.AnchorPoint = Vector2.new(0,0.5)
+	nameStack.Position = UDim2.new(0,54,0.5,0); nameStack.Size = UDim2.new(1,-66,0,36)
+	nameStack.BackgroundTransparency = 1; nameStack.ZIndex = 2; nameStack.Parent = card
+	do
+		local l = Instance.new("UIListLayout"); l.FillDirection = Enum.FillDirection.Vertical
+		l.VerticalAlignment = Enum.VerticalAlignment.Center; l.Padding = UDim.new(0,2); l.Parent = nameStack
+	end
+
+	local dispLbl = Instance.new("TextLabel")
+	dispLbl.Name = "DisplayName"; dispLbl.Size = UDim2.new(1,0,0,16)
+	dispLbl.BackgroundTransparency = 1; dispLbl.Text = lp.DisplayName
+	dispLbl.TextColor3 = tk.textPrimary; dispLbl.TextSize = 13
+	dispLbl.FontFace = tk.fontBold; dispLbl.TextXAlignment = Enum.TextXAlignment.Left
+	dispLbl.TextTruncate = Enum.TextTruncate.AtEnd; dispLbl.ZIndex = 3; dispLbl.Parent = nameStack
+
+	local userLbl = Instance.new("TextLabel")
+	userLbl.Name = "Username"; userLbl.Size = UDim2.new(1,0,0,13)
+	userLbl.BackgroundTransparency = 1; userLbl.Text = "@" .. lp.Name
+	userLbl.TextColor3 = tk.textSecondary; userLbl.TextSize = 11
+	userLbl.FontFace = tk.font; userLbl.TextXAlignment = Enum.TextXAlignment.Left
+	userLbl.TextTruncate = Enum.TextTruncate.AtEnd; userLbl.ZIndex = 3; userLbl.Parent = nameStack
+
+	
+	local chevron = Instance.new("TextLabel")
+	chevron.Name = "Chevron"; chevron.AnchorPoint = Vector2.new(1,0.5)
+	chevron.Position = UDim2.new(1,-8,0.5,0); chevron.Size = UDim2.fromOffset(14,14)
+	chevron.BackgroundTransparency = 1; chevron.Text = "›"
+	chevron.TextColor3 = tk.textSecondary; chevron.TextSize = 16
+	chevron.FontFace = tk.fontBold; chevron.ZIndex = 3; chevron.Parent = card
+
+	
+	cardHit.MouseEnter:Connect(function()
+		tween.fire(card, TweenInfo.new(0.14, Enum.EasingStyle.Quad), { BackgroundColor3 = tk.neutralHover })
+	end)
+	cardHit.MouseLeave:Connect(function()
+		tween.fire(card, TweenInfo.new(0.14, Enum.EasingStyle.Quad), { BackgroundColor3 = tk.surface })
+	end)
+
+	
+	
+	
+
+	local content = Instance.new("Frame")
+	content.Name = "DashboardContent"
+	content.Size = UDim2.fromScale(1, 1)
+	content.BackgroundTransparency = 1
+	content.Visible = false
+	content.ClipsDescendants = true
+	content.Parent = contentArea
+
+	
+	local TAB_BAR_H = 40
+	local TAB_DEFS  = { "Profile", "Stats", "Session" }
+
+	local tabBar = Instance.new("Frame")
+	tabBar.Name = "TabBar"; tabBar.Size = UDim2.new(1,0,0,TAB_BAR_H)
+	tabBar.BackgroundColor3 = tk.surface; tabBar.BackgroundTransparency = 0
+	tabBar.BorderSizePixel = 0; tabBar.ZIndex = 2; tabBar.Parent = content
+	do
+		local l = Instance.new("UIListLayout"); l.FillDirection = Enum.FillDirection.Horizontal
+		l.HorizontalAlignment = Enum.HorizontalAlignment.Left
+		l.VerticalAlignment = Enum.VerticalAlignment.Center
+		l.SortOrder = Enum.SortOrder.LayoutOrder; l.Parent = tabBar
+	end
+
+	local tabBarSep = Instance.new("Frame")
+	tabBarSep.Name = "TabBarSep"; tabBarSep.AnchorPoint = Vector2.new(0,1)
+	tabBarSep.Position = UDim2.new(0,0,1,0); tabBarSep.Size = UDim2.new(1,0,0,1)
+	tabBarSep.BackgroundColor3 = tk.border; tabBarSep.BackgroundTransparency = 0.4
+	tabBarSep.BorderSizePixel = 0; tabBarSep.ZIndex = 3; tabBarSep.Parent = tabBar
+
+	
+	local CONTENT_TOP = TAB_BAR_H + 1
+
+	
+	local tabEntries: { { btn: TextButton, underline: Frame, scroll: ScrollingFrame } } = {}
+	local activeTabIdx = 1
+
+	local function getTabW(): number
+		
+		local fullW = contentArea.AbsoluteSize.X
+		if fullW < 10 then fullW = 600 end 
+		return math.floor(fullW / #TAB_DEFS)
+	end
+
+	local function buildTab(label: string, order: number)
+		local btn = Instance.new("TextButton")
+		btn.Name = "Tab_" .. label
+		btn.Size = UDim2.new(1 / #TAB_DEFS, 0, 1, 0) 
+		btn.BackgroundTransparency = 1; btn.Text = label
+		btn.TextColor3 = tk.textSecondary; btn.TextSize = 12
+		btn.FontFace = tk.fontBold; btn.AutoButtonColor = false
+		btn.ZIndex = 3; btn.LayoutOrder = order; btn.Parent = tabBar
+
+		local underline = Instance.new("Frame")
+		underline.Name = "Underline"; underline.AnchorPoint = Vector2.new(0.5,1)
+		underline.Position = UDim2.new(0.5,0,1,0)
+		underline.Size = UDim2.fromOffset(0, 2) 
+		underline.BackgroundColor3 = tk.accent; underline.BorderSizePixel = 0
+		underline.ZIndex = 4; underline.Parent = btn
+		do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1,0); c.Parent = underline end
+
+		local scroll = Instance.new("ScrollingFrame")
+		scroll.Name = "Content_" .. label
+		scroll.Position = UDim2.fromOffset(0, CONTENT_TOP)
+		scroll.Size = UDim2.new(1, 0, 1, -CONTENT_TOP)
+		scroll.BackgroundTransparency = 1; scroll.BorderSizePixel = 0
+		scroll.ScrollBarThickness = 2; scroll.ScrollBarImageColor3 = tk.border
+		scroll.ScrollBarImageTransparency = 0.5
+		scroll.CanvasSize = UDim2.fromOffset(0,0); scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+		scroll.ClipsDescendants = true; scroll.ZIndex = 2
+		scroll.Visible = false; scroll.Parent = content
+		do
+			local l = Instance.new("UIListLayout"); l.FillDirection = Enum.FillDirection.Vertical
+			l.VerticalAlignment = Enum.VerticalAlignment.Top; l.Padding = UDim.new(0,0)
+			l.SortOrder = Enum.SortOrder.LayoutOrder; l.Parent = scroll
+		end
+		do local p = Instance.new("UIPadding"); p.PaddingBottom = UDim.new(0,20); p.Parent = scroll end
+
+		return btn, underline, scroll
+	end
+
+	for i, label in ipairs(TAB_DEFS) do
+		local btn, ul, scroll = buildTab(label, i)
+		table.insert(tabEntries, { btn = btn, underline = ul, scroll = scroll })
+	end
+
+	
+	local function selectInnerTab(idx: number)
+		activeTabIdx = idx
+		for i, entry in ipairs(tabEntries) do
+			local active = (i == idx)
+			TweenService:Create(entry.btn, TWEEN_TAB, {
+				TextColor3 = if active then tk.accent else tk.textSecondary
+			}):Play()
+			
+			
+			TweenService:Create(entry.underline, TWEEN_TAB, {
+				Size = if active then UDim2.fromOffset(60, 2) else UDim2.fromOffset(0, 2)
+			}):Play()
+			entry.scroll.Visible = active
+		end
+	end
+
+	for i, entry in ipairs(tabEntries) do
+		local idx = i
+		entry.btn.MouseButton1Click:Connect(function() selectInnerTab(idx) end)
+	end
+
+	
+	local function makeSecLabel(parent: ScrollingFrame, text: string, order: number)
+		local lbl = Instance.new("TextLabel")
+		lbl.Name = "Sec_" .. text; lbl.Size = UDim2.new(1,0,0,28)
+		lbl.BackgroundTransparency = 1; lbl.Text = text
+		lbl.TextColor3 = tk.textSecondary; lbl.TextTransparency = 0.3
+		lbl.TextSize = 9; lbl.FontFace = tk.fontXBold
+		lbl.TextXAlignment = Enum.TextXAlignment.Left; lbl.LayoutOrder = order
+		lbl.ZIndex = 3; lbl.Parent = parent
+		do
+			local p = Instance.new("UIPadding"); p.PaddingLeft = UDim.new(0,14)
+			p.PaddingTop = UDim.new(0,10); p.Parent = lbl
+		end
+	end
+
+	
+	local function makeStatCard(
+		parent: ScrollingFrame,
+		labelText: string,
+		valueText: string,
+		order: number,
+		accentLeft: boolean?
+	): TextLabel
+		local wrap = Instance.new("Frame")
+		wrap.Name = "Wrap_" .. labelText:gsub(" ","_"); wrap.Size = UDim2.new(1,0,0,42)
+		wrap.BackgroundTransparency = 1; wrap.LayoutOrder = order; wrap.ZIndex = 2; wrap.Parent = parent
+		do local p = Instance.new("UIPadding"); p.PaddingLeft = UDim.new(0,12); p.PaddingRight = UDim.new(0,12); p.Parent = wrap end
+
+		local row = Instance.new("Frame")
+		row.Name = "Row"; row.Size = UDim2.new(1,0,1,-6)
+		row.AnchorPoint = Vector2.new(0,0.5); row.Position = UDim2.fromScale(0,0.5)
+		row.BackgroundColor3 = Color3.fromRGB(255,255,255); row.BackgroundTransparency = 0.955
+		row.BorderSizePixel = 0; row.ZIndex = 2; row.Parent = wrap
+		do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,8); c.Parent = row end
+		do
+			local sk = Instance.new("UIStroke"); sk.Color = tk.border; sk.Thickness = 1
+			sk.Transparency = 0.55; sk.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; sk.Parent = row
+		end
+		do local p = Instance.new("UIPadding"); p.PaddingLeft = UDim.new(0,12); p.PaddingRight = UDim.new(0,12); p.Parent = row end
+
+		if accentLeft then
+			local bar = Instance.new("Frame")
+			bar.Size = UDim2.new(0,3,0,16); bar.AnchorPoint = Vector2.new(0,0.5)
+			bar.Position = UDim2.new(0,0,0.5,0); bar.BackgroundColor3 = tk.accent
+			bar.BorderSizePixel = 0; bar.ZIndex = 3; bar.Parent = row
+			do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1,0); c.Parent = bar end
+		end
+
+		local off = if accentLeft then 10 else 0
+		local lbl = Instance.new("TextLabel")
+		lbl.Name = "Label"; lbl.AnchorPoint = Vector2.new(0,0.5)
+		lbl.Position = UDim2.new(0,off,0.5,0); lbl.Size = UDim2.new(0.55,0,0,14)
+		lbl.BackgroundTransparency = 1; lbl.Text = labelText
+		lbl.TextColor3 = tk.textSecondary; lbl.TextSize = 12
+		lbl.FontFace = tk.font; lbl.TextXAlignment = Enum.TextXAlignment.Left
+		lbl.ZIndex = 3; lbl.Parent = row
+
+		local val = Instance.new("TextLabel")
+		val.Name = "Value"; val.AnchorPoint = Vector2.new(1,0.5)
+		val.Position = UDim2.fromScale(1,0.5); val.Size = UDim2.new(0.5,0,0,14)
+		val.BackgroundTransparency = 1; val.Text = valueText
+		val.TextColor3 = tk.textPrimary; val.TextSize = 12
+		val.FontFace = tk.fontBold; val.TextXAlignment = Enum.TextXAlignment.Right
+		val.TextTruncate = Enum.TextTruncate.AtEnd; val.ZIndex = 3; val.Parent = row
+
+		return val
+	end
+
+	
+	
+	
+	local profScroll = tabEntries[1].scroll
+
+	
+	local heroCard = Instance.new("Frame")
+	heroCard.Name = "HeroCard"; heroCard.Size = UDim2.new(1,0,0,0)
+	heroCard.AutomaticSize = Enum.AutomaticSize.Y
+	heroCard.BackgroundTransparency = 1; heroCard.LayoutOrder = 1; heroCard.Parent = profScroll
+	do
+		local p = Instance.new("UIPadding"); p.PaddingTop = UDim.new(0,24)
+		p.PaddingBottom = UDim.new(0,16); p.Parent = heroCard
+	end
+	do
+		local l = Instance.new("UIListLayout"); l.FillDirection = Enum.FillDirection.Vertical
+		l.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		l.VerticalAlignment = Enum.VerticalAlignment.Top
+		l.Padding = UDim.new(0,10); l.Parent = heroCard
+	end
+
+	local bigRing = Instance.new("Frame")
+	bigRing.Name = "BigRing"; bigRing.Size = UDim2.fromOffset(96,96)
+	bigRing.BackgroundColor3 = tk.accent; bigRing.BackgroundTransparency = 1
+	bigRing.BorderSizePixel = 0; bigRing.ZIndex = 2; bigRing.Parent = heroCard
+	do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1,0); c.Parent = bigRing end
+
+	local bigClip = makeCircle(bigRing, 86)
+	bigClip.AnchorPoint = Vector2.new(0.5,0.5); bigClip.Position = UDim2.fromScale(0.5,0.5); bigClip.ZIndex = 3
+
+	local bigAvatar = Instance.new("ImageLabel")
+	bigAvatar.Name = "BigAvatar"; bigAvatar.Size = UDim2.fromScale(1,1)
+	bigAvatar.BackgroundColor3 = Color3.fromHex("#1c1c1f"); bigAvatar.BorderSizePixel = 0
+	bigAvatar.Image = ""; bigAvatar.ScaleType = Enum.ScaleType.Fit
+	bigAvatar.ZIndex = 4; bigAvatar.Parent = bigClip
+
+	local bigName = Instance.new("TextLabel")
+	bigName.Name = "BigName"; bigName.Size = UDim2.new(1,-32,0,24)
+	bigName.BackgroundTransparency = 1; bigName.Text = lp.DisplayName
+	bigName.TextColor3 = tk.textPrimary; bigName.TextSize = 18
+	bigName.FontFace = tk.fontBold; bigName.TextXAlignment = Enum.TextXAlignment.Center
+	bigName.TextTruncate = Enum.TextTruncate.AtEnd; bigName.ZIndex = 3; bigName.Parent = heroCard
+
+	
+	local chipRow = Instance.new("Frame")
+	chipRow.Name = "ChipRow"; chipRow.Size = UDim2.new(1,-32,0,24)
+	chipRow.BackgroundTransparency = 1; chipRow.ZIndex = 3; chipRow.Parent = heroCard
+	do
+		local l = Instance.new("UIListLayout"); l.FillDirection = Enum.FillDirection.Horizontal
+		l.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		l.VerticalAlignment = Enum.VerticalAlignment.Center
+		l.Padding = UDim.new(0,6); l.Parent = chipRow
+	end
+
+	local function makeChip(text: string, isAccent: boolean)
+		local chip = Instance.new("Frame")
+		chip.Size = UDim2.new(0,0,1,0); chip.AutomaticSize = Enum.AutomaticSize.X
+		chip.BackgroundColor3 = if isAccent then tk.accentDim else Color3.fromRGB(255,255,255)
+		chip.BackgroundTransparency = if isAccent then 0 else 0.92
+		chip.BorderSizePixel = 0; chip.ZIndex = 4; chip.Parent = chipRow
+		do
+			local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1,0); c.Parent = chip
+			local p = Instance.new("UIPadding"); p.PaddingLeft = UDim.new(0,8); p.PaddingRight = UDim.new(0,8); p.Parent = chip
+		end
+		local lbl2 = Instance.new("TextLabel")
+		lbl2.Size = UDim2.new(0,0,1,0); lbl2.AutomaticSize = Enum.AutomaticSize.X
+		lbl2.BackgroundTransparency = 1; lbl2.Text = text
+		lbl2.TextColor3 = if isAccent then tk.accent else tk.textSecondary; lbl2.TextSize = 11
+		lbl2.FontFace = tk.fontBold; lbl2.ZIndex = 5; lbl2.Parent = chip
+	end
+	makeChip("@" .. lp.Name, false)
+	makeChip("ID " .. tostring(lp.UserId), true)
+
+	
+	local profDiv = Instance.new("Frame")
+	profDiv.Name = "Divider"; profDiv.Size = UDim2.new(1,-28,0,1)
+	profDiv.BackgroundColor3 = tk.border; profDiv.BackgroundTransparency = 0.45
+	profDiv.BorderSizePixel = 0; profDiv.LayoutOrder = 2; profDiv.ZIndex = 2; profDiv.Parent = profScroll
+
+	makeSecLabel(profScroll, "IDENTITY", 3)
+	makeStatCard(profScroll, "Display Name", lp.DisplayName,            4, true)
+	makeStatCard(profScroll, "Username",     "@" .. lp.Name,            5, true)
+	makeStatCard(profScroll, "User ID",      tostring(lp.UserId),       6, true)
+	makeStatCard(profScroll, "Account Age",  formatAge(lp.AccountAge),  7, true)
+
+	
+	
+	
+	local statsScroll = tabEntries[2].scroll
+
+	makeSecLabel(statsScroll, "ACCOUNT", 1)
+	makeStatCard(statsScroll, "Account Age",  formatAge(lp.AccountAge),                            2)
+	makeStatCard(statsScroll, "User ID",      tostring(lp.UserId),                                 3)
+	local memberRow = makeStatCard(statsScroll, "Membership", "—",                                 4)
+	local teamRow   = makeStatCard(statsScroll, "Team",       lp.Team and lp.Team.Name or "—",     5)
+
+	pcall(function()
+		local tier = lp.MembershipType
+		memberRow.Text = if tier == Enum.MembershipType.Premium then "Premium"
+			elseif tier == Enum.MembershipType.None then "None"
+			else "—"
+	end)
+
+	makeSecLabel(statsScroll, "PLACE", 10)
+	makeStatCard(statsScroll, "Place ID",  tostring(game.PlaceId),                           11)
+	makeStatCard(statsScroll, "Game ID",   tostring(game.GameId),                            12)
+	local jobIdFull = tostring(game.JobId)
+	makeStatCard(statsScroll, "Job ID",    if #jobIdFull > 14 then jobIdFull:sub(1,12) .. "…" else jobIdFull, 13)
+
+	
+	local executorName: string = "—"
+	pcall(function()
+		
+		local env: any = (getfenv :: any)(0)
+		local fn: any = env.identifyexecutor or env.getexecutorname or env.EXECUTOR_NAME
+		if type(fn) == "function" then
+			executorName = tostring(fn())
+		elseif type(fn) == "string" then
+			executorName = fn
+		end
+	end)
+
+	makeSecLabel(statsScroll, "RUNTIME", 20)
+	makeStatCard(statsScroll, "Executor", executorName, 21)
+
+	
+	
+	
+	local sessScroll = tabEntries[3].scroll
+
+	makeSecLabel(sessScroll, "PERFORMANCE", 1)
+	local pingRow   = makeStatCard(sessScroll, "Ping",    "—",  2, true)
+	local fpsRow    = makeStatCard(sessScroll, "FPS",     "—",  3, true)
+	local uptimeRow = makeStatCard(sessScroll, "Session", "0s", 4, true)
+
+	makeSecLabel(sessScroll, "CHARACTER", 10)
+	local healthRow = makeStatCard(sessScroll, "Health",    "—", 11, true)
+	local wsRow     = makeStatCard(sessScroll, "WalkSpeed", "—", 12, true)
+	local jpRow     = makeStatCard(sessScroll, "JumpPower", "—", 13, true)
+
+	makeSecLabel(sessScroll, "SERVER", 20)
+	makeStatCard(sessScroll, "Place ID", tostring(game.PlaceId),  21)
+	makeStatCard(sessScroll, "Job ID",   if #jobIdFull > 14 then jobIdFull:sub(1,12) .. "…" else jobIdFull, 22)
+
+	
+	local sessionStart = os.clock()
+	local pingTimer = 0; local fpsTimer = 0; local fpsCount = 0; local charTimer = 0
+
+	local liveConn: RBXScriptConnection = RunService.Heartbeat:Connect(function(dt)
+		
+		if not content.Visible then return end
+
+		fpsCount += 1; fpsTimer += dt
+		if fpsTimer >= 0.5 then
+			fpsRow.Text = tostring(math.round(fpsCount / fpsTimer)) .. " fps"
+			fpsCount = 0; fpsTimer = 0
+		end
+
+		uptimeRow.Text = formatTime(os.clock() - sessionStart)
+
+		pingTimer += dt
+		if pingTimer >= 1.5 then
+			pingTimer = 0
+			local ok, ms = pcall(function()
+				return math.round(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue())
+			end)
+			pingRow.Text = if ok then tostring(ms) .. " ms" else "—"
+		end
+
+		charTimer += dt
+		if charTimer >= 0.5 then
+			charTimer = 0
+			pcall(function()
+				local char = lp.Character; if not char then return end
+				local hum = char:FindFirstChildOfClass("Humanoid"); if not hum then return end
+				healthRow.Text = math.round(hum.Health) .. " / " .. math.round(hum.MaxHealth)
+				wsRow.Text = tostring(hum.WalkSpeed)
+				jpRow.Text = tostring(hum.JumpPower)
+			end)
+		end
+	end)
+
+	
+	local teamConn = lp:GetPropertyChangedSignal("Team"):Connect(function()
+		teamRow.Text = lp.Team and lp.Team.Name or "—"
+	end)
+
+	
+	task.spawn(function()
+		local ok, url = pcall(function()
+			return Players:GetUserThumbnailAsync(lp.UserId, THUMB_TYPE, THUMB_SIZE)
+		end)
+		if ok and url then
+			avatarImg.Image = url
+			bigAvatar.Image = url
+		end
+	end)
+
+	
+	
+	
+
+	local contentVisible = false
+
+	local function showContent()
+		if contentVisible then return end
+		contentVisible = true
+		content.Visible = true
+		selectInnerTab(1) 
+		
+		tween.fire(card, TweenInfo.new(0.14, Enum.EasingStyle.Quad), { BackgroundColor3 = tk.neutralHover })
+		tween.fire(chevron, TweenInfo.new(0.14, Enum.EasingStyle.Quad), { TextColor3 = tk.accent })
+	end
+
+	local function hideContent()
+		if not contentVisible then return end
+		contentVisible = false
+		content.Visible = false
+		tween.fire(card, TweenInfo.new(0.14, Enum.EasingStyle.Quad), { BackgroundColor3 = tk.surface })
+		tween.fire(chevron, TweenInfo.new(0.14, Enum.EasingStyle.Quad), { TextColor3 = tk.textSecondary })
+	end
+
+	
+	local themeUnsub = themeUtil.subscribe(function(t)
+		tk = getTokens(t)
+		card.BackgroundColor3    = if contentVisible then tk.neutralHover else tk.surface
+		bigRing.BackgroundColor3 = tk.accent
+		dispLbl.TextColor3          = tk.textPrimary
+		userLbl.TextColor3          = tk.textSecondary
+		bigName.TextColor3          = tk.textPrimary
+		chevron.TextColor3          = if contentVisible then tk.accent else tk.textSecondary
+		tabBar.BackgroundColor3     = tk.surface
+		for i, entry in ipairs(tabEntries) do
+			entry.underline.BackgroundColor3 = tk.accent
+			entry.btn.TextColor3 = if i == activeTabIdx then tk.accent else tk.textSecondary
+		end
+	end)
+
+	
+	local self: Dashboard = setmetatable({}, Dashboard) :: any
+	local s = self :: any
+	s._cardFrame   = card
+	s._content     = content
+	s._liveConn    = liveConn
+	s._teamConn    = teamConn
+	s._themeUnsub  = themeUnsub
+	s._showContent = showContent
+	s._hideContent = hideContent
+	s._cardHit     = cardHit
+
+	return self
+end
+
+function Dashboard:ShowContent()
+	(self :: any)._showContent()
+end
+
+function Dashboard:HideContent()
+	(self :: any)._hideContent()
+end
+
+function Dashboard:Destroy()
+	local s = (self :: any)
+	if s._themeUnsub then s._themeUnsub() end
+	if s._liveConn   then s._liveConn:Disconnect() end
+	if s._teamConn   then s._teamConn:Disconnect() end
+	if s._content    then s._content:Destroy() end
+	if s._cardFrame  then s._cardFrame:Destroy() end
+end
+
+return Dashboard
+
+end)() end,[6]=function()local wax,script,require=ImportGlobals(6)local ImportGlobals return (function(...)
 
 
 
@@ -1194,7 +1829,7 @@ end
 
 return Descriptor
 
-end)() end,[6]=function()local wax,script,require=ImportGlobals(6)local ImportGlobals return (function(...)
+end)() end,[7]=function()local wax,script,require=ImportGlobals(7)local ImportGlobals return (function(...)
 
 
 
@@ -1334,7 +1969,7 @@ end
 
 function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: Instance): Dropdown
 	local name = props.name or props.Label or props.Text
-	local flagKey = props.flag or props.Flag
+	local flagKey: string? = props.flag or props.Flag
 	local isMulti = (props.multiSelect == true) or (props.MultiSelect == true)
 	local isSearchable = (props.searchable == true) or (props.Searchable == true)
 	local isEnabled = if props.enabled ~= nil then props.enabled
@@ -1461,7 +2096,8 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 	flashCorner.Parent = flash
 	flash.Parent = inner
 
-	local ARROW_W = 14
+	local ARROW_W = 16
+	local MULTI_W = 14
 	local arrow = Instance.new("ImageLabel")
 	arrow.Name = "Arrow"
 	arrow.AnchorPoint = Vector2.new(1, 0.5)
@@ -1474,9 +2110,26 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 	arrow.ZIndex = 4
 	arrow.Parent = inner
 
+	local multiIcon: ImageLabel? = nil
+	if isMulti then
+		local mico = Instance.new("ImageLabel")
+		mico.Name = "MultiIcon"
+		mico.AnchorPoint = Vector2.new(1, 0.5)
+		mico.Position = UDim2.new(1, -(ARROW_W + 6), 0.5, 0)
+		mico.Size = UDim2.fromOffset(MULTI_W, MULTI_W)
+		mico.BackgroundTransparency = 1
+		mico.Image = icons.Resolve("lucide:layers") or icons.Resolve("lucide:list-checks") or "rbxassetid://83827110621355"
+		mico.ImageColor3 = theme.PlaceholderColor or Color3.fromHex("#9d9d9d")
+		mico.ImageTransparency = 0.3
+		mico.ZIndex = 4
+		mico.Parent = inner
+		multiIcon = mico
+	end
+
+	local rightReserve = ARROW_W + (if isMulti then (MULTI_W + 10) else 8)
 	local valueLabel = Instance.new("TextLabel")
 	valueLabel.Name = "ValueLabel"
-	valueLabel.Size = UDim2.new(1, -(ARROW_W + 8), 1, 0)
+	valueLabel.Size = UDim2.new(1, -rightReserve, 1, 0)
 	valueLabel.BackgroundTransparency = 1
 	valueLabel.Font = Enum.Font.GothamMedium
 	valueLabel.FontFace = theme.Font or Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium)
@@ -2090,7 +2743,17 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 			local ap = frame.AbsolutePosition
 			local as = frame.AbsoluteSize
 			local inX = mousePos.X >= ap.X and mousePos.X <= (ap.X + as.X)
-			local inY = mousePos.Y >= ap.Y and mousePos.Y <= (ap.Y + as.Y)
+			local inY: boolean
+			if s._flipUp then
+				
+				
+				
+				local listH = getListH()
+				local topY = ap.Y - listH - LIST_GAP
+				inY = mousePos.Y >= topY and mousePos.Y <= (ap.Y + HEADER_H)
+			else
+				inY = mousePos.Y >= ap.Y and mousePos.Y <= (ap.Y + as.Y)
+			end
 			if not (inX and inY) then
 				closeDropdown()
 			end
@@ -2137,7 +2800,11 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 		
 		valueLabel.FontFace = t.Font or DEFAULT_FONT
 		arrow.ImageColor3 = t.PlaceholderColor or Color3.fromHex("#9d9d9d")
+		if multiIcon then
+			multiIcon.ImageColor3 = t.PlaceholderColor or Color3.fromHex("#9d9d9d")
+		end
 		listStroke.Color = t.ElementStroke or Color3.fromHex("#2b2b2b")
+		innerGrad.Color = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
 		
 		
 		
@@ -2147,7 +2814,7 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 		end
 	end)
 
-	if flagKey then
+	if flagKey and flagKey ~= "" then
 		flags:Set(flagKey, initVal)
 	end
 
@@ -2201,31 +2868,37 @@ end
 
 function Dropdown:Set(value: any, skipCallback: boolean?)
 	local s = self :: any
-	
-	
-	
-	if not s._multiSelect and value == s._selectedValue then
-		if s._flag then flags:Set(s._flag, value) end
-		self.Changed:Fire(self.value)
-		if not skipCallback and s._callback then
-			task.spawn(s._callback, self.value)
-		end
-		return
-	end
+
 	if s._multiSelect then
-		local arr: { any } = if typeof(value) == "table" then value else { value }
 		s._selectedSet = {}
-		for _, v in ipairs(arr) do
-			s._selectedSet[v] = true
+		local outArr: { any } = {}
+		if typeof(value) == "table" then
+			for k, v in pairs(value) do
+				if typeof(k) == "number" then
+					
+					s._selectedSet[v] = true
+					table.insert(outArr, v)
+				elseif v == true then
+					
+					s._selectedSet[k] = true
+					table.insert(outArr, k)
+				end
+			end
+		elseif value ~= nil then
+			s._selectedSet[value] = true
+			table.insert(outArr, value)
 		end
-		self.value = arr
-		self.Value = arr
+		self.value = outArr
+		self.Value = outArr
 	else
-		local found = false
+		local matchVal: any = nil
 		for _, opt in ipairs(s._options) do
-			if opt.Value == value then found = true break end
+			if opt.Value == value or opt.Label == value or tostring(opt.Value) == tostring(value) then
+				matchVal = opt.Value
+				break
+			end
 		end
-		s._selectedValue = if found then value else nil
+		s._selectedValue = if matchVal ~= nil then matchVal else value
 		self.value = s._selectedValue
 		self.Value = s._selectedValue
 	end
@@ -2290,7 +2963,7 @@ end
 
 return Dropdown
 
-end)() end,[7]=function()local wax,script,require=ImportGlobals(7)local ImportGlobals return (function(...)
+end)() end,[8]=function()local wax,script,require=ImportGlobals(8)local ImportGlobals return (function(...)
 
 
 
@@ -2356,7 +3029,7 @@ function Input.new(props: InputProps, theme: { [string]: any }, parent: Instance
 		initValue = props.value or ""
 	end
 
-	local frame, stroke = element.makeFrame("Input_" .. name, theme, parent, constants.elementHeight)
+	local frame, stroke, gradient = element.makeFrame("Input_" .. name, theme, parent, constants.elementHeight)
 
 	
 	local textContainer = Instance.new("Frame")
@@ -2576,6 +3249,7 @@ function Input.new(props: InputProps, theme: { [string]: any }, parent: Instance
 		textBox.PlaceholderColor3   = t.PlaceholderColor or Color3.fromHex("#9d9d9d")
 		textBox.TextColor3          = t.ContentColor or Color3.fromHex("#ffffff")
 		textBox.FontFace            = t.Font or constants.DEFAULT_FONT
+		gradient.Color              = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
 	end)
 
 	return self
@@ -2613,7 +3287,7 @@ end
 
 return Input
 
-end)() end,[8]=function()local wax,script,require=ImportGlobals(8)local ImportGlobals return (function(...)
+end)() end,[9]=function()local wax,script,require=ImportGlobals(9)local ImportGlobals return (function(...)
 
 
 
@@ -2726,7 +3400,7 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 		initKey = coerceKey(props.value)
 	end
 
-	local frame, stroke = element.makeFrame("Keybind_" .. name, theme, parent, constants.elementHeight)
+	local frame, stroke, gradient = element.makeFrame("Keybind_" .. name, theme, parent, constants.elementHeight)
 	frame.Active = true
 
 	
@@ -3074,6 +3748,7 @@ function Keybind.new(props: KeybindProps, theme: { [string]: any }, parent: Inst
 		pill.FontFace               = t.Font or constants.DEFAULT_FONT_MEDIUM
 		pillStroke.Color            = t.ElementStroke or Color3.fromHex("#2b2b2b")
 		stroke.Color                = t.ElementStroke or Color3.fromHex("#2b2b2b")
+		gradient.Color              = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
 	end)
 
 	return self
@@ -3121,7 +3796,7 @@ end
 
 return Keybind
 
-end)() end,[9]=function()local wax,script,require=ImportGlobals(9)local ImportGlobals return (function(...)
+end)() end,[10]=function()local wax,script,require=ImportGlobals(10)local ImportGlobals return (function(...)
 
 
 
@@ -3204,7 +3879,356 @@ end
 
 return Label
 
-end)() end,[10]=function()local wax,script,require=ImportGlobals(10)local ImportGlobals return (function(...)
+end)() end,[11]=function()local wax,script,require=ImportGlobals(11)local ImportGlobals return (function(...)
+
+
+
+
+
+
+
+
+
+
+
+local TweenService = game:GetService("TweenService")
+local RunService   = game:GetService("RunService")
+local Players      = game:GetService("Players")
+
+local FONT_BOLD = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold)
+local FONT_MED  = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium)
+local FONT_SEMI = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.SemiBold)
+
+local TW_IN   = TweenInfo.new(0.28, Enum.EasingStyle.Quad,  Enum.EasingDirection.Out)
+local TW_OUT  = TweenInfo.new(0.40, Enum.EasingStyle.Quad,  Enum.EasingDirection.In)
+local TW_BAR  = TweenInfo.new(0.45, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+local TW_SNAP = TweenInfo.new(0.15, Enum.EasingStyle.Quad,  Enum.EasingDirection.Out)
+
+export type LoadingScreenProps = {
+	title:    string?,   
+	accent:   Color3?,   
+}
+
+export type LoadingScreen = {
+	
+	setProgress: (self: LoadingScreen, label: string, pct: number) -> (),
+	
+	dismiss:     (self: LoadingScreen) -> (),
+}
+
+local LoadingScreen = {}
+LoadingScreen.__index = LoadingScreen
+
+
+
+function LoadingScreen.new(props: LoadingScreenProps): LoadingScreen
+	local title  = props.title  or "Delirium"
+	local accent = props.accent or Color3.fromHex("#4cc2ff")
+
+	
+	local gui = Instance.new("ScreenGui")
+	gui.Name           = "DeliriumLoading"
+	gui.DisplayOrder   = 100010        
+	gui.IgnoreGuiInset = true
+	gui.ResetOnSpawn   = false
+	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	gui.Parent         = Players.LocalPlayer:WaitForChild("PlayerGui")
+
+	
+	local bg = Instance.new("Frame")
+	bg.Name                   = "Bg"
+	bg.Size                   = UDim2.fromScale(1, 1)
+	bg.BackgroundColor3       = Color3.fromHex("#08080b")
+	bg.BackgroundTransparency = 1          
+	bg.BorderSizePixel        = 0
+	bg.ZIndex                 = 1
+	bg.Parent                 = gui
+
+	
+	local glow = Instance.new("Frame")
+	glow.Name                   = "Glow"
+	glow.AnchorPoint            = Vector2.new(0.5, 0.5)
+	glow.Position               = UDim2.fromScale(0.5, 0.5)
+	glow.Size                   = UDim2.fromOffset(480, 480)
+	glow.BackgroundColor3       = accent
+	glow.BackgroundTransparency = 0.965
+	glow.BorderSizePixel        = 0
+	glow.ZIndex                 = 2
+	glow.Parent                 = bg
+	do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1, 0); c.Parent = glow end
+
+	
+	local topStrip = Instance.new("Frame")
+	topStrip.Name             = "TopStrip"
+	topStrip.AnchorPoint      = Vector2.new(0.5, 0)
+	topStrip.Position         = UDim2.fromScale(0.5, 0)
+	topStrip.Size             = UDim2.new(0, 0, 0, 1)   
+	topStrip.BackgroundColor3 = accent
+	topStrip.BorderSizePixel  = 0
+	topStrip.ZIndex           = 10
+	topStrip.Parent           = bg
+	do
+		local g = Instance.new("UIGradient")
+		g.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0.00, 1),
+			NumberSequenceKeypoint.new(0.10, 0),
+			NumberSequenceKeypoint.new(0.90, 0),
+			NumberSequenceKeypoint.new(1.00, 1),
+		})
+		g.Parent = topStrip
+	end
+
+	
+	local container = Instance.new("Frame")
+	container.Name                   = "Container"
+	container.AnchorPoint            = Vector2.new(0.5, 0.5)
+	container.Position               = UDim2.fromScale(0.5, 0.5)
+	container.Size                   = UDim2.new(0, 260, 0, 0)
+	container.AutomaticSize          = Enum.AutomaticSize.Y
+	container.BackgroundTransparency = 1
+	container.ZIndex                 = 5
+	container.Parent                 = bg
+	do
+		local l = Instance.new("UIListLayout")
+		l.FillDirection       = Enum.FillDirection.Vertical
+		l.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		l.VerticalAlignment   = Enum.VerticalAlignment.Top
+		l.Padding             = UDim.new(0, 0)
+		l.SortOrder           = Enum.SortOrder.LayoutOrder
+		l.Parent              = container
+	end
+
+	
+	local badgeWrap = Instance.new("Frame")
+	badgeWrap.Name                   = "BadgeWrap"
+	badgeWrap.Size                   = UDim2.new(1, 0, 0, 56)
+	badgeWrap.BackgroundTransparency = 1
+	badgeWrap.LayoutOrder            = 1
+	badgeWrap.ZIndex                 = 5
+	badgeWrap.Parent                 = container
+
+	local badge = Instance.new("Frame")
+	badge.Name             = "Badge"
+	badge.AnchorPoint      = Vector2.new(0.5, 0.5)
+	badge.Position         = UDim2.fromScale(0.5, 0.5)
+	badge.Size             = UDim2.fromOffset(44, 44)
+	badge.BackgroundColor3 = accent
+	badge.BorderSizePixel  = 0
+	badge.ZIndex           = 6
+	badge.Parent           = badgeWrap
+	do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 10); c.Parent = badge end
+	do
+		local g = Instance.new("UIGradient")
+		g.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.40),
+			NumberSequenceKeypoint.new(1, 0.68),
+		})
+		g.Rotation = 135
+		g.Parent   = badge
+	end
+	local badgeLbl = Instance.new("TextLabel")
+	badgeLbl.Size                   = UDim2.fromScale(1, 1)
+	badgeLbl.BackgroundTransparency = 1
+	badgeLbl.Text                   = string.sub(title, 1, 1):upper()
+	badgeLbl.TextColor3             = Color3.fromRGB(255, 255, 255)
+	badgeLbl.TextSize               = 22
+	badgeLbl.FontFace               = FONT_BOLD
+	badgeLbl.TextXAlignment         = Enum.TextXAlignment.Center
+	badgeLbl.ZIndex                 = 7
+	badgeLbl.Parent                 = badge
+
+	
+	local titleLbl = Instance.new("TextLabel")
+	titleLbl.Name                   = "Title"
+	titleLbl.Size                   = UDim2.new(1, 0, 0, 22)
+	titleLbl.BackgroundTransparency = 1
+	titleLbl.Text                   = title
+	titleLbl.TextColor3             = Color3.fromRGB(255, 255, 255)
+	titleLbl.TextSize               = 17
+	titleLbl.FontFace               = FONT_BOLD
+	titleLbl.TextXAlignment         = Enum.TextXAlignment.Center
+	titleLbl.LayoutOrder            = 2
+	titleLbl.ZIndex                 = 5
+	titleLbl.Parent                 = container
+
+	
+	do
+		local sp = Instance.new("Frame"); sp.Name = "Sp1"
+		sp.Size = UDim2.new(1, 0, 0, 6); sp.BackgroundTransparency = 1
+		sp.LayoutOrder = 3; sp.Parent = container
+	end
+
+	
+	local statusLbl = Instance.new("TextLabel")
+	statusLbl.Name                   = "Status"
+	statusLbl.Size                   = UDim2.new(1, 0, 0, 14)
+	statusLbl.BackgroundTransparency = 1
+	statusLbl.Text                   = "Starting up..."
+	statusLbl.TextColor3             = Color3.fromHex("#52525e")
+	statusLbl.TextSize               = 11
+	statusLbl.FontFace               = FONT_MED
+	statusLbl.TextXAlignment         = Enum.TextXAlignment.Center
+	statusLbl.LayoutOrder            = 4
+	statusLbl.ZIndex                 = 5
+	statusLbl.Parent                 = container
+
+	
+	do
+		local sp = Instance.new("Frame"); sp.Name = "Sp2"
+		sp.Size = UDim2.new(1, 0, 0, 22); sp.BackgroundTransparency = 1
+		sp.LayoutOrder = 5; sp.Parent = container
+	end
+
+	
+	local track = Instance.new("Frame")
+	track.Name             = "Track"
+	track.Size             = UDim2.new(1, 0, 0, 2)
+	track.BackgroundColor3 = Color3.fromHex("#16161c")
+	track.BorderSizePixel  = 0
+	track.LayoutOrder      = 6
+	track.ZIndex           = 5
+	track.Parent           = container
+	do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1, 0); c.Parent = track end
+
+	
+	local fill = Instance.new("Frame")
+	fill.Name             = "Fill"
+	fill.Size             = UDim2.fromScale(0, 1)
+	fill.BackgroundColor3 = accent
+	fill.BorderSizePixel  = 0
+	fill.ZIndex           = 6
+	fill.Parent           = track
+	do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1, 0); c.Parent = fill end
+	do
+		
+		local g = Instance.new("UIGradient")
+		g.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.20),
+			NumberSequenceKeypoint.new(1, 0),
+		})
+		g.Parent = fill
+	end
+
+	
+	do
+		local sp = Instance.new("Frame"); sp.Name = "Sp3"
+		sp.Size = UDim2.new(1, 0, 0, 10); sp.BackgroundTransparency = 1
+		sp.LayoutOrder = 7; sp.Parent = container
+	end
+
+	
+	local pctLbl = Instance.new("TextLabel")
+	pctLbl.Name                   = "Pct"
+	pctLbl.Size                   = UDim2.new(1, 0, 0, 12)
+	pctLbl.BackgroundTransparency = 1
+	pctLbl.Text                   = "0%"
+	pctLbl.TextColor3             = Color3.fromHex("#2a2a34")
+	pctLbl.TextSize               = 10
+	pctLbl.FontFace               = FONT_SEMI
+	pctLbl.TextXAlignment         = Enum.TextXAlignment.Center
+	pctLbl.LayoutOrder            = 8
+	pctLbl.ZIndex                 = 5
+	pctLbl.Parent                 = container
+
+	
+
+	
+	TweenService:Create(bg, TW_IN, { BackgroundTransparency = 0 }):Play()
+
+	
+	task.delay(0.12, function()
+		TweenService:Create(topStrip, TweenInfo.new(0.55, Enum.EasingStyle.Quad), {
+			Size = UDim2.new(1, 0, 0, 1),
+		}):Play()
+	end)
+
+	
+	local shimmerT  = 0
+	local shimmerConn: RBXScriptConnection = RunService.Heartbeat:Connect(function(dt)
+		shimmerT += dt
+		
+		badge.BackgroundTransparency = 0.03 + (math.sin(shimmerT * 2.2) + 1) * 0.07
+	end)
+
+	
+	local self: LoadingScreen = setmetatable({}, LoadingScreen) :: any
+	local s = self :: any
+	s._gui         = gui
+	s._bg          = bg
+	s._fill        = fill
+	s._statusLbl   = statusLbl
+	s._pctLbl      = pctLbl
+	s._shimmerConn = shimmerConn
+	s._dismissed   = false
+	s._activeFill  = nil  
+
+	return self
+end
+
+
+
+function LoadingScreen:setProgress(label: string, pct: number)
+	local s = self :: any
+	if s._dismissed then return end
+
+	local clamped = math.clamp(pct, 0, 100)
+
+	s._statusLbl.Text = label
+	s._pctLbl.Text    = math.round(clamped) .. "%"
+
+	
+	if s._activeFill then
+		pcall(function() (s._activeFill :: Tween):Cancel() end)
+	end
+	local tw = TweenService:Create(s._fill, TW_BAR, {
+		Size = UDim2.fromScale(clamped / 100, 1),
+	})
+	s._activeFill = tw
+	tw:Play()
+end
+
+function LoadingScreen:dismiss()
+	local s = self :: any
+	if s._dismissed then return end
+	s._dismissed = true
+
+	
+	if s._shimmerConn then
+		s._shimmerConn:Disconnect()
+		s._shimmerConn = nil
+	end
+
+	
+	if s._activeFill then
+		pcall(function() (s._activeFill :: Tween):Cancel() end)
+		s._activeFill = nil
+	end
+
+	
+	s._statusLbl.Text = "Ready."
+	s._pctLbl.Text    = "100%"
+	TweenService:Create(s._fill, TW_SNAP, { Size = UDim2.fromScale(1, 1) }):Play()
+
+	
+	task.delay(0.22, function()
+		local fadeTw = TweenService:Create(
+			s._bg :: Frame,
+			TW_OUT,
+			{ BackgroundTransparency = 1 }
+		)
+		fadeTw:Play()
+		fadeTw.Completed:Once(function()
+			fadeTw:Destroy()
+			if s._gui and s._gui.Parent then
+				s._gui:Destroy()
+			end
+		end)
+	end)
+end
+
+return LoadingScreen
+
+end)() end,[12]=function()local wax,script,require=ImportGlobals(12)local ImportGlobals return (function(...)
 
 
 
@@ -3729,7 +4753,7 @@ end
 
 return notification
 
-end)() end,[11]=function()local wax,script,require=ImportGlobals(11)local ImportGlobals return (function(...)
+end)() end,[13]=function()local wax,script,require=ImportGlobals(13)local ImportGlobals return (function(...)
 
 
 
@@ -3838,7 +4862,7 @@ end
 
 return Section
 
-end)() end,[12]=function()local wax,script,require=ImportGlobals(12)local ImportGlobals return (function(...)
+end)() end,[14]=function()local wax,script,require=ImportGlobals(14)local ImportGlobals return (function(...)
 
 
 
@@ -3943,7 +4967,7 @@ end
 
 function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instance): Slider
 	local name = props.name or props.Label or props.Text or "Slider"
-	local flagKey = props.flag or props.Flag
+	local flagKey: string? = props.flag or props.Flag
 
 	local rangeMin = (props.range and props.range[1]) or props.min or props.Min or 0
 	local rangeMax = (props.range and props.range[2]) or props.max or props.Max or 100
@@ -4037,6 +5061,7 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 	local innerPad = Instance.new("UIPadding")
 	innerPad.PaddingLeft = UDim.new(0, 12)
 	innerPad.PaddingRight = UDim.new(0, 12)
+	innerPad.PaddingTop = UDim.new(0, 4)
 	innerPad.Parent = inner
 
 	local flash = Instance.new("Frame")
@@ -4056,7 +5081,8 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 	
 	local label = Instance.new("TextLabel")
 	label.Name = "Label"
-	label.Position = UDim2.fromOffset(0, 0)
+	label.AnchorPoint = Vector2.new(0, 0.5)
+	label.Position = UDim2.new(0, 0, 0, math.floor(HEADER_H / 2))
 	label.Size = UDim2.new(1, -(VAL_W + GAP), 0, HEADER_H)
 	label.BackgroundTransparency = 1
 	label.Font = Enum.Font.GothamMedium
@@ -4088,9 +5114,10 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		valLabel.Position = UDim2.new(1, 0, 0.5, 0)
 		valLabel.Size = UDim2.fromOffset(VAL_W, FRAME_H)
 	else
-		valLabel.AnchorPoint = Vector2.new(1, 0)
-		valLabel.Position = UDim2.new(1, 0, 0, 0)
+		valLabel.AnchorPoint = Vector2.new(1, 0.5)
+		valLabel.Position = UDim2.new(1, 0, 0, math.floor(HEADER_H / 2))
 		valLabel.Size = UDim2.fromOffset(VAL_W, HEADER_H)
+		valLabel.AutomaticSize = Enum.AutomaticSize.X
 	end
 
 	
@@ -4444,9 +5471,11 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 		fill.BackgroundColor3 = t.AccentColor or Color3.fromHex("#4cc2ff")
 		fillGrad.Color = t.SliderProgress or ColorSequence.new(Color3.fromHex("#4cc2ff"), Color3.fromHex("#0093fb"))
 		knob.BackgroundColor3 = t.SliderHandle or Color3.fromRGB(255, 255, 255)
+		innerGrad.Color = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
+		stroke.Transparency = if s._enabled then (t.ElementStrokeTransparency or 0) else 0.5
 	end)
 
-	if flagKey then
+	if flagKey and flagKey ~= "" then
 		flags:Set(flagKey, initValue)
 	end
 
@@ -4510,7 +5539,7 @@ end
 
 return Slider
 
-end)() end,[13]=function()local wax,script,require=ImportGlobals(13)local ImportGlobals return (function(...)
+end)() end,[15]=function()local wax,script,require=ImportGlobals(15)local ImportGlobals return (function(...)
 
 
 
@@ -4521,6 +5550,7 @@ end)() end,[13]=function()local wax,script,require=ImportGlobals(13)local Import
 local constants    = require(script.Parent.Parent.utility.constants)
 local themeUtil    = require(script.Parent.Parent.utility.theme)
 local tween        = require(script.Parent.Parent.utility.tween)
+local saveManager  = require(script.Parent.Parent.utility.saveManager)
 local Section      = require(script.Parent.section)
 local Label        = require(script.Parent.label)
 local Button       = require(script.Parent.button)
@@ -4992,9 +6022,25 @@ function Tab:_resolveParent(side: string?): ScrollingFrame
 end
 
 function Tab:_createOn(targetScroll: ScrollingFrame, module: any, props: any): any
+	
+	if props and not props.flag and not (props :: any).Flag
+		and not (props :: any).noSave and not (props :: any).ignoreFlag then
+		local nameStr = props.name or (props :: any).Label or (props :: any).Text
+		if type(nameStr) == "string" and #nameStr > 0 then
+			props = table.clone(props)
+			props.flag = saveManager.deriveFlagFromName(nameStr)
+		end
+	end
+
 	local el = module.new(props, self._theme, targetScroll)
 	el._frame.LayoutOrder = nextOrder(self)
 	table.insert((self :: any)._elements, el)
+
+	
+	local flagKey = (el :: any)._flag
+	if flagKey and flagKey ~= "" then
+		saveManager:Register(flagKey, el)
+	end
 
 	local desc = props and (props.description or props.Description or props.Tooltip)
 	if desc and desc ~= "" then
@@ -5007,6 +6053,16 @@ function Tab:_createOn(targetScroll: ScrollingFrame, module: any, props: any): a
 end
 
 function Tab:_createColorPickerOn(targetScroll: ScrollingFrame, props: any): any
+	
+	if props and not props.flag and not (props :: any).Flag
+		and not (props :: any).noSave and not (props :: any).ignoreFlag then
+		local nameStr = props.name or (props :: any).Label or (props :: any).Text
+		if type(nameStr) == "string" and #nameStr > 0 then
+			props = table.clone(props)
+			props.flag = saveManager.deriveFlagFromName(nameStr)
+		end
+	end
+
 	local wf = (self :: any)._windowFrame :: Frame?
 	local merged = table.clone(props :: any) :: ColorPicker.ColorPickerProps
 	if wf and not (merged :: any).overlayParent then
@@ -5016,6 +6072,14 @@ function Tab:_createColorPickerOn(targetScroll: ScrollingFrame, props: any): any
 	local cp = ColorPicker.new(merged, self._theme, targetScroll)
 	cp._frame.LayoutOrder = nextOrder(self)
 	table.insert((self :: any)._elements, cp)
+
+	
+	local flagKey = (cp :: any)._flag
+	if flagKey and flagKey ~= "" then
+		saveManager:Register(flagKey, function(v: any, skipCallback: boolean?)
+			cp:Set(v, nil, skipCallback)
+		end)
+	end
 
 	local desc = props and (props.description or props.Description or props.Tooltip)
 	if desc and desc ~= "" then
@@ -5185,7 +6249,7 @@ end
 
 return Tab
 
-end)() end,[14]=function()local wax,script,require=ImportGlobals(14)local ImportGlobals return (function(...)
+end)() end,[16]=function()local wax,script,require=ImportGlobals(16)local ImportGlobals return (function(...)
 
 
 
@@ -5219,7 +6283,7 @@ Toggle.__index = Toggle
 function Toggle.new(props: ToggleProps, theme: { [string]: any }, parent: Instance): Toggle
 	local name        = props.name or "Toggle"
 	local description = props.description or ""
-	local flagKey     = props.flag
+	local flagKey: string? = props.flag or (props :: any).Flag
 	local callback    = props.callback
 
 	
@@ -5231,7 +6295,7 @@ function Toggle.new(props: ToggleProps, theme: { [string]: any }, parent: Instan
 	end
 
 	
-	local frame, stroke = element.makeFrame("Toggle_" .. name, theme, parent)
+	local frame, stroke, gradient = element.makeFrame("Toggle_" .. name, theme, parent)
 
 	
 	local inner = Instance.new("Frame")
@@ -5329,9 +6393,15 @@ function Toggle.new(props: ToggleProps, theme: { [string]: any }, parent: Instan
 		titleLabel.FontFace = t.Font or Font.new("rbxasset://fonts/families/GothamSSm.json")
 		track.BackgroundColor3 = t.ToggleTrack or Color3.fromRGB(0, 0, 0)
 		track.BackgroundTransparency = t.ToggleTrackTransparency or 0.85
-		knob.BackgroundColor3 = t.ToggleKnobOff or Color3.fromHex("#9d9d9d")
-		knob.BackgroundTransparency = t.ToggleKnobOffTransparency or 0.5
+		if self.value then
+			knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+			knob.BackgroundTransparency = 0
+		else
+			knob.BackgroundColor3 = t.ToggleKnobOff or Color3.fromHex("#9d9d9d")
+			knob.BackgroundTransparency = t.ToggleKnobOffTransparency or 0.5
+		end
 		glow.BackgroundColor3 = t.AccentColor or Color3.fromHex("#4cc2ff")
+		gradient.Color = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
 		theme = t
 	end)
 
@@ -5418,7 +6488,7 @@ end
 
 return Toggle
 
-end)() end,[15]=function()local wax,script,require=ImportGlobals(15)local ImportGlobals return (function(...)
+end)() end,[17]=function()local wax,script,require=ImportGlobals(17)local ImportGlobals return (function(...)
 
 
 
@@ -5433,7 +6503,8 @@ local variables    = require(script.Parent.Parent.utility.variables)
 local tween        = require(script.Parent.Parent.utility.tween)
 local themeUtil    = require(script.Parent.Parent.utility.theme)
 local windowSizing = require(script.Parent.Parent.utility.windowSizing)
-local notification = require(script.Parent.notification)
+local notification  = require(script.Parent.notification)
+local PlayerCard    = require(script.Parent.dashboard)
 local Tab          = require(script.Parent.tab)
 local icons        = require(script.Parent.Parent.utility.icons)
 local ColorPicker  = require(script.Parent.colorpicker)
@@ -5568,7 +6639,7 @@ function Window.new(props: WindowProps): Window
 	winStroke.Parent          = windowFrame
 
 
-	local TITLEBAR_H = 50
+	local TITLEBAR_H = 44
 
 	local titleBar = Instance.new("Frame")
 	titleBar.Name                   = "TitleBar"
@@ -5587,9 +6658,20 @@ function Window.new(props: WindowProps): Window
 	titleBarBg.BorderSizePixel  = 0
 	titleBarBg.ZIndex           = constants.zIndex.windowChrome - 1
 	titleBarBg.Parent           = titleBar
+
 	local titleBarCorner = Instance.new("UICorner")
-	titleBarCorner.CornerRadius = UDim.new(0, 0)  
+	titleBarCorner.CornerRadius = resolvedTheme.CornerRoundness or UDim.new(0, 8)
 	titleBarCorner.Parent       = titleBarBg
+
+	local cornerRadiusPx = (resolvedTheme.CornerRoundness or UDim.new(0, 8)).Offset
+	local cornerCover = Instance.new("Frame")
+	cornerCover.Name             = "CornerCover"
+	cornerCover.Size             = UDim2.new(1, 0, 0, cornerRadiusPx)
+	cornerCover.Position         = UDim2.new(0, 0, 1, -cornerRadiusPx)
+	cornerCover.BackgroundColor3 = colorTitleBar
+	cornerCover.BorderSizePixel  = 0
+	cornerCover.ZIndex           = constants.zIndex.windowChrome - 1
+	cornerCover.Parent           = titleBarBg
 
 
 	
@@ -5837,10 +6919,12 @@ function Window.new(props: WindowProps): Window
 	sidebarHeader.TextXAlignment         = Enum.TextXAlignment.Left
 	sidebarHeader.Parent                 = sidebar
 
+	local PLAYER_CARD_H = 64   
+
 	local tabListScroll = Instance.new("ScrollingFrame")
 	tabListScroll.Name                    = "TabList"
 	tabListScroll.Position                = UDim2.fromOffset(0, 30)
-	tabListScroll.Size                    = UDim2.new(1, 0, 1, -32)
+	tabListScroll.Size                    = UDim2.new(1, 0, 1, -(32 + PLAYER_CARD_H))
 	tabListScroll.BackgroundTransparency  = 1
 	tabListScroll.BorderSizePixel         = 0
 	tabListScroll.ScrollBarThickness      = 2
@@ -5866,6 +6950,17 @@ function Window.new(props: WindowProps): Window
 	sidebarPad.Parent        = tabListScroll
 
 	
+	local playerCardSlot = Instance.new("Frame")
+	playerCardSlot.Name             = "PlayerCardSlot"
+	playerCardSlot.AnchorPoint      = Vector2.new(0, 1)
+	playerCardSlot.Position         = UDim2.fromScale(0, 1)
+	playerCardSlot.Size             = UDim2.new(1, 0, 0, PLAYER_CARD_H)
+	playerCardSlot.BackgroundTransparency = 1
+	playerCardSlot.BorderSizePixel  = 0
+	playerCardSlot.ClipsDescendants = false
+	playerCardSlot.Parent           = sidebar
+
+	
 	local divider = Instance.new("Frame")
 	divider.Name                   = "Divider"
 	divider.AnchorPoint            = Vector2.new(0, 0)
@@ -5886,9 +6981,10 @@ function Window.new(props: WindowProps): Window
 	contentArea.Parent                 = body
 
 	
-	local SP_W    = 520
-	local SP_H    = 340
-	local SP_TB   = 34
+	local SP_W    = 580
+	local SP_H    = 420
+	local SP_TB   = 44
+	local SP_NAV  = 116
 
 	local spAccent   = colorAccent
 	
@@ -5966,18 +7062,47 @@ function Window.new(props: WindowProps): Window
 		sep.ZIndex           = constants.zIndex.popup
 		sep.Parent           = spTB
 	end
+	
+	local spTBBadge = Instance.new("Frame")
+	spTBBadge.Name             = "IconBadge"
+	spTBBadge.AnchorPoint      = Vector2.new(0, 0.5)
+	spTBBadge.Position         = UDim2.new(0, 12, 0.5, 0)
+	spTBBadge.Size             = UDim2.fromOffset(26, 26)
+	spTBBadge.BackgroundColor3 = colorAccent
+	spTBBadge.BorderSizePixel  = 0
+	spTBBadge.ZIndex           = constants.zIndex.popup + 1
+	spTBBadge.Parent           = spTB
 	do
-		local p = Instance.new("UIPadding")
-		p.PaddingLeft  = UDim.new(0, 12)
-		p.PaddingRight = UDim.new(0, 8)
-		p.Parent       = spTB
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(0, 6)
+		c.Parent       = spTBBadge
+	end
+	do
+		local g = Instance.new("UIGradient")
+		g.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.45),
+			NumberSequenceKeypoint.new(1, 0.75),
+		})
+		g.Rotation = 135
+		g.Parent   = spTBBadge
+	end
+	do
+		local settingsIco = Instance.new("ImageLabel")
+		settingsIco.Size                   = UDim2.fromOffset(14, 14)
+		settingsIco.AnchorPoint            = Vector2.new(0.5, 0.5)
+		settingsIco.Position               = UDim2.fromScale(0.5, 0.5)
+		settingsIco.BackgroundTransparency = 1
+		settingsIco.Image                  = ICON_SETTINGS
+		settingsIco.ImageColor3            = Color3.fromRGB(255, 255, 255)
+		settingsIco.ZIndex                 = constants.zIndex.popup + 2
+		settingsIco.Parent                 = spTBBadge
 	end
 
 	local spTitle = Instance.new("TextLabel")
 	spTitle.Name                   = "Title"
 	spTitle.AnchorPoint            = Vector2.new(0, 0.5)
-	spTitle.Position               = UDim2.fromScale(0, 0.5)
-	spTitle.Size                   = UDim2.new(0.7, 0, 0, 16)
+	spTitle.Position               = UDim2.new(0, 46, 0.5, 0)
+	spTitle.Size                   = UDim2.new(0.6, -46, 0, 16)
 	spTitle.BackgroundTransparency = 1
 	spTitle.Text                   = "Settings"
 	spTitle.TextColor3             = colorTextPrimary
@@ -5985,7 +7110,7 @@ function Window.new(props: WindowProps): Window
 	spTitle.FontFace               = resolvedTheme.TitleFont
 		or Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.SemiBold)
 	spTitle.TextXAlignment         = Enum.TextXAlignment.Left
-	spTitle.ZIndex                 = constants.zIndex.popup
+	spTitle.ZIndex                 = constants.zIndex.popup + 1
 	spTitle.Parent                 = spTB
 
 	local spClose = Instance.new("TextButton")
@@ -6036,14 +7161,88 @@ function Window.new(props: WindowProps): Window
 	spBody.Position               = UDim2.fromOffset(0, SP_TB + 1)
 	spBody.Size                   = UDim2.new(1, 0, 1, -(SP_TB + 1))
 	spBody.BackgroundTransparency = 1
+	spBody.ClipsDescendants       = false
 	spBody.ZIndex                 = constants.zIndex.popup
 	spBody.Parent                 = settingsPanel
 
 	
+	local spNav = Instance.new("Frame")
+	spNav.Name             = "Nav"
+	spNav.Size             = UDim2.new(0, SP_NAV, 1, 0)
+	spNav.BackgroundColor3 = Color3.fromHex("#0e0e0e")
+	spNav.BackgroundTransparency = 0
+	spNav.BorderSizePixel  = 0
+	spNav.ClipsDescendants = true
+	spNav.ZIndex           = constants.zIndex.popup
+	spNav.Parent           = spBody
+	do
+		local g = Instance.new("UIGradient")
+		g.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromHex("#181818")),
+			ColorSequenceKeypoint.new(1, Color3.fromHex("#101010")),
+		})
+		g.Rotation = 90
+		g.Parent   = spNav
+	end
+	
+	local spNavInner = Instance.new("Frame")
+	spNavInner.Name             = "NavInner"
+	spNavInner.Size             = UDim2.fromScale(1, 1)
+	spNavInner.BackgroundTransparency = 1
+	spNavInner.ZIndex           = constants.zIndex.popup
+	spNavInner.Parent           = spNav
+	do
+		local p = Instance.new("UIPadding")
+		p.PaddingTop    = UDim.new(0, 10)
+		p.PaddingBottom = UDim.new(0, 10)
+		p.PaddingLeft   = UDim.new(0, 7)
+		p.PaddingRight  = UDim.new(0, 7)
+		p.Parent        = spNavInner
+	end
+	local spNavLayout = Instance.new("UIListLayout")
+	spNavLayout.FillDirection     = Enum.FillDirection.Vertical
+	spNavLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+	spNavLayout.Padding           = UDim.new(0, 2)
+	spNavLayout.SortOrder         = Enum.SortOrder.LayoutOrder
+	spNavLayout.Parent            = spNavInner
+
+	
+	local spNavSectionLbl = Instance.new("TextLabel")
+	spNavSectionLbl.Name                   = "SectionLbl"
+	spNavSectionLbl.Size                   = UDim2.new(1, 0, 0, 22)
+	spNavSectionLbl.BackgroundTransparency = 1
+	spNavSectionLbl.Text                   = "PREFERENCES"
+	spNavSectionLbl.TextColor3             = colorTextSecondary
+	spNavSectionLbl.TextTransparency       = 0.5
+	spNavSectionLbl.TextSize               = 9
+	spNavSectionLbl.FontFace               = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold)
+	spNavSectionLbl.TextXAlignment         = Enum.TextXAlignment.Left
+	spNavSectionLbl.LayoutOrder            = 0
+	spNavSectionLbl.ZIndex                 = constants.zIndex.popup + 1
+	spNavSectionLbl.Parent                 = spNavInner
+	do
+		local p = Instance.new("UIPadding")
+		p.PaddingLeft   = UDim.new(0, 5)
+		p.PaddingBottom = UDim.new(0, 2)
+		p.Parent        = spNavSectionLbl
+	end
+
+	
+	local spNavDivLine = Instance.new("Frame")
+	spNavDivLine.Name             = "NavDivLine"
+	spNavDivLine.Position         = UDim2.fromOffset(SP_NAV, 0)
+	spNavDivLine.Size             = UDim2.new(0, 1, 1, 0)
+	spNavDivLine.BackgroundColor3 = colorBorder
+	spNavDivLine.BackgroundTransparency = 0.4
+	spNavDivLine.BorderSizePixel  = 0
+	spNavDivLine.ZIndex           = constants.zIndex.popup + 1
+	spNavDivLine.Parent           = spBody
+
+	
 	local spContent = Instance.new("ScrollingFrame")
 	spContent.Name                    = "Content"
-	spContent.Position                = UDim2.fromOffset(0, 0)
-	spContent.Size                    = UDim2.fromScale(1, 1)
+	spContent.Position                = UDim2.fromOffset(SP_NAV + 1, 0)
+	spContent.Size                    = UDim2.new(1, -(SP_NAV + 1), 1, 0)
 	spContent.BackgroundTransparency  = 1
 	spContent.BorderSizePixel         = 0
 	spContent.ScrollBarThickness      = 2
@@ -6078,6 +7277,8 @@ function Window.new(props: WindowProps): Window
 		logoMark.BackgroundColor3 = col
 		resolvedTheme.AccentColor = col
 		resolvedTheme.ElementStrokeHover = col   
+		resolvedTheme.SliderProgress = ColorSequence.new(col, col:Lerp(Color3.fromRGB(0, 0, 0), 0.25))
+		resolvedTheme.AccentStroke = col:Lerp(Color3.fromRGB(255, 255, 255), 0.2)
 		for _, fn in spAccentUpdaters do
 			fn(col)
 		end
@@ -6145,33 +7346,6 @@ function Window.new(props: WindowProps): Window
 		lbl.ZIndex                 = constants.zIndex.popup
 		lbl.Parent                 = row
 		return row
-	end
-
-	
-	local function spMakeSectionHeader(parent: Frame, title: string, order: number)
-		local hdr = Instance.new("Frame")
-		hdr.Name                   = "Header_" .. title
-		hdr.Size                   = UDim2.new(1, 0, 0, 22)
-		hdr.BackgroundTransparency = 1
-		hdr.BorderSizePixel        = 0
-		hdr.LayoutOrder            = order
-		hdr.ZIndex                 = constants.zIndex.popup
-		hdr.Parent                 = parent
-
-		local lbl = Instance.new("TextLabel")
-		lbl.Name                   = "Title"
-		lbl.AnchorPoint            = Vector2.new(0, 1)
-		lbl.Position               = UDim2.new(0, 4, 1, -2)
-		lbl.Size                   = UDim2.new(1, -8, 0, 14)
-		lbl.BackgroundTransparency = 1
-		lbl.Text                   = string.upper(title)
-		lbl.TextColor3             = colorTextSecondary
-		lbl.TextTransparency       = 0.4
-		lbl.TextSize               = 10
-		lbl.FontFace               = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold)
-		lbl.TextXAlignment         = Enum.TextXAlignment.Left
-		lbl.ZIndex                 = constants.zIndex.popup
-		lbl.Parent                 = hdr
 	end
 
 	
@@ -6349,45 +7523,198 @@ function Window.new(props: WindowProps): Window
 	
 	
 
-	local spIfaceFrame = Instance.new("Frame")
-	spIfaceFrame.Name                   = "Interface"
-	spIfaceFrame.Position               = UDim2.fromOffset(12, 8)
-	spIfaceFrame.Size                   = UDim2.new(1, -24, 0, 0)
-	spIfaceFrame.AutomaticSize          = Enum.AutomaticSize.Y
-	spIfaceFrame.BackgroundTransparency = 1
-	spIfaceFrame.Visible                = true
-	spIfaceFrame.ZIndex                 = constants.zIndex.popup
-	spIfaceFrame.Parent                 = spContent
-	do
-		local l = Instance.new("UIListLayout")
-		l.FillDirection     = Enum.FillDirection.Vertical
-		l.VerticalAlignment = Enum.VerticalAlignment.Top
-		l.Padding           = UDim.new(0, constants.elementPadding)
-		l.SortOrder         = Enum.SortOrder.LayoutOrder
-		l.Parent            = spIfaceFrame
-	end
-	do
-		local p = Instance.new("UIPadding")
-		p.PaddingBottom = UDim.new(0, 14)
-		p.Parent        = spIfaceFrame
+	
+	local function spMakePage(parentFrame: ScrollingFrame): Frame
+		local pg = Instance.new("Frame")
+		pg.Name                   = "Page"
+		pg.Size                   = UDim2.new(1, -24, 0, 0)
+		pg.Position               = UDim2.fromOffset(12, 8)
+		pg.AutomaticSize          = Enum.AutomaticSize.Y
+		pg.BackgroundTransparency = 1
+		pg.Visible                = false
+		pg.ZIndex                 = constants.zIndex.popup
+		pg.Parent                 = parentFrame
+		do
+			local l = Instance.new("UIListLayout")
+			l.FillDirection     = Enum.FillDirection.Vertical
+			l.VerticalAlignment = Enum.VerticalAlignment.Top
+			l.Padding           = UDim.new(0, constants.elementPadding)
+			l.SortOrder         = Enum.SortOrder.LayoutOrder
+			l.Parent            = pg
+		end
+		do
+			local p = Instance.new("UIPadding")
+			p.PaddingBottom = UDim.new(0, 14)
+			p.Parent        = pg
+		end
+		return pg
 	end
 
 	
-	spMakeSectionHeader(spIfaceFrame, "Appearance", 1)
+	local spActiveNavItem: Frame? = nil
+	local spNavPages: { [Frame]: Frame } = {}
 
-	local currentCornerRadius = (resolvedTheme.CornerRoundness or UDim.new(0, 10)).Offset
-	spMakeSlider(spIfaceFrame, "Corner Roundness", 0, 16, 1, currentCornerRadius, "px", 2, function(r)
-		local cr = UDim.new(0, r)
-		
-		winCorner.CornerRadius = cr
-		
-		
-		
-		
-		if not (s and (s :: any)._minimized) then
-			titleBarCorner.CornerRadius = cr
+	local function spMakeNavItem(label: string, iconChar: string, order: number): Frame
+		local item = Instance.new("Frame")
+		item.Name             = "NavItem_" .. label
+		item.Size             = UDim2.new(1, 0, 0, 34)
+		item.BackgroundColor3 = Color3.fromHex("#1e1e1e")
+		item.BackgroundTransparency = 1
+		item.BorderSizePixel  = 0
+		item.LayoutOrder      = order
+		item.ClipsDescendants = false
+		item.ZIndex           = constants.zIndex.popup + 1
+		item.Parent           = spNavInner
+		do
+			local c = Instance.new("UICorner")
+			c.CornerRadius = UDim.new(0, 6)
+			c.Parent       = item
 		end
+
 		
+		local activeBar = Instance.new("Frame")
+		activeBar.Name             = "ActiveBar"
+		activeBar.AnchorPoint      = Vector2.new(0, 0.5)
+		activeBar.Position         = UDim2.new(0, 0, 0.5, 0)
+		activeBar.Size             = UDim2.fromOffset(3, 14)
+		activeBar.BackgroundColor3 = colorAccent
+		activeBar.BorderSizePixel  = 0
+		activeBar.Visible          = false
+		activeBar.ZIndex           = constants.zIndex.popup + 2
+		activeBar.Parent           = item
+		do
+			local c = Instance.new("UICorner")
+			c.CornerRadius = UDim.new(1, 0)
+			c.Parent       = activeBar
+		end
+
+		
+		local iconBadge = Instance.new("Frame")
+		iconBadge.Name             = "IconBadge"
+		iconBadge.AnchorPoint      = Vector2.new(0, 0.5)
+		iconBadge.Position         = UDim2.new(0, 10, 0.5, 0)
+		iconBadge.Size             = UDim2.fromOffset(20, 20)
+		iconBadge.BackgroundColor3 = Color3.fromHex("#242424")
+		iconBadge.BorderSizePixel  = 0
+		iconBadge.ZIndex           = constants.zIndex.popup + 2
+		iconBadge.Parent           = item
+		do
+			local c = Instance.new("UICorner")
+			c.CornerRadius = UDim.new(0, 5)
+			c.Parent       = iconBadge
+		end
+		local iconLbl = Instance.new("TextLabel")
+		iconLbl.Name                   = "Icon"
+		iconLbl.Size                   = UDim2.fromScale(1, 1)
+		iconLbl.BackgroundTransparency = 1
+		iconLbl.Text                   = iconChar
+		iconLbl.TextColor3             = colorTextSecondary
+		iconLbl.TextSize               = 10
+		iconLbl.FontFace               = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold)
+		iconLbl.TextXAlignment         = Enum.TextXAlignment.Center
+		iconLbl.ZIndex                 = constants.zIndex.popup + 3
+		iconLbl.Parent                 = iconBadge
+
+		
+		local lbl = Instance.new("TextLabel")
+		lbl.Name                   = "Label"
+		lbl.AnchorPoint            = Vector2.new(0, 0.5)
+		lbl.Position               = UDim2.new(0, 36, 0.5, 0)
+		lbl.Size                   = UDim2.new(1, -36, 0, 14)
+		lbl.BackgroundTransparency = 1
+		lbl.Text                   = label
+		lbl.TextColor3             = colorTextSecondary
+		lbl.TextSize               = 11
+		lbl.FontFace               = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium)
+		lbl.TextXAlignment         = Enum.TextXAlignment.Left
+		lbl.ZIndex                 = constants.zIndex.popup + 2
+		lbl.Parent                 = item
+
+		
+		local hit = Instance.new("TextButton")
+		hit.Name                   = "Hit"
+		hit.Size                   = UDim2.fromScale(1, 1)
+		hit.BackgroundTransparency = 1
+		hit.Text                   = ""
+		hit.AutoButtonColor        = false
+		hit.ZIndex                 = constants.zIndex.popup + 3
+		hit.Parent                 = item
+
+		hit.MouseEnter:Connect(function()
+			if spActiveNavItem ~= item then
+				item.BackgroundTransparency = 0.82
+				lbl.TextColor3 = colorTextPrimary
+				iconBadge.BackgroundColor3 = Color3.fromHex("#2c2c2c")
+			end
+		end)
+		hit.MouseLeave:Connect(function()
+			if spActiveNavItem ~= item then
+				item.BackgroundTransparency = 1
+				lbl.TextColor3 = colorTextSecondary
+				iconBadge.BackgroundColor3 = Color3.fromHex("#242424")
+			end
+		end)
+		hit.MouseButton1Click:Connect(function()
+			if spActiveNavItem == item then return end
+			
+			if spActiveNavItem then
+				local oldBar   = spActiveNavItem:FindFirstChild("ActiveBar")
+				local oldLbl   = spActiveNavItem:FindFirstChild("Label")
+				local oldBadge = spActiveNavItem:FindFirstChild("IconBadge")
+				local oldIco   = if oldBadge then (oldBadge :: Frame):FindFirstChild("Icon") else nil
+				spActiveNavItem.BackgroundTransparency = 1
+				if oldBar   then (oldBar   :: Frame).Visible             = false end
+				if oldLbl   then (oldLbl   :: TextLabel).TextColor3      = colorTextSecondary end
+				if oldBadge then (oldBadge :: Frame).BackgroundColor3    = Color3.fromHex("#242424") end
+				if oldIco   then (oldIco   :: TextLabel).TextColor3      = colorTextSecondary end
+				local oldPage = spNavPages[spActiveNavItem]
+				if oldPage then oldPage.Visible = false end
+			end
+			
+			spActiveNavItem = item
+			item.BackgroundTransparency = 0.86
+			item.BackgroundColor3 = colorAccent
+			activeBar.Visible     = true
+			lbl.TextColor3        = colorAccent
+			iconBadge.BackgroundColor3 = colorAccent
+			iconLbl.TextColor3    = Color3.fromRGB(255, 255, 255)
+			local newPage = spNavPages[item]
+			if newPage then
+				newPage.Visible = true
+				spContent.CanvasPosition = Vector2.zero
+			end
+		end)
+
+		return item
+	end
+
+	
+	local pageAppearance = spMakePage(spContent)
+	pageAppearance.Name = "PageAppearance"
+
+	local pageControls = spMakePage(spContent)
+	pageControls.Name = "PageControls"
+
+	local pageFont = spMakePage(spContent)
+	pageFont.Name = "PageFont"
+
+	
+	local navItemAppearance = spMakeNavItem("Appearance", "◈",  1)
+	local navItemControls   = spMakeNavItem("Controls",   "⌨",  2)
+	local navItemFont       = spMakeNavItem("Font",       "Aa", 3)
+
+	spNavPages[navItemAppearance] = pageAppearance
+	spNavPages[navItemControls]   = pageControls
+	spNavPages[navItemFont]       = pageFont
+
+	
+	local currentCornerRadius = (resolvedTheme.CornerRoundness or UDim.new(0, 10)).Offset
+	spMakeSlider(pageAppearance, "Corner Roundness", 0, 16, 1, currentCornerRadius, "px", 1, function(r)
+		local cr = UDim.new(0, r)
+		winCorner.CornerRadius = cr
+		titleBarCorner.CornerRadius = cr
+		cornerCover.Size = UDim.new(1, 0, 0, r)
+		cornerCover.Position = UDim.new(0, 0, 1, -r)
 		resolvedTheme.CornerRoundness = cr
 	end)
 
@@ -6404,11 +7731,7 @@ function Window.new(props: WindowProps): Window
 			{ Scale = factor }
 		)
 		if s then s._scaleTween = tw end
-
-		
-		
 		tw.Completed:Once(function()
-			
 			tw:Destroy()
 			if s then s._scaleTween = nil end
 			if not self then return end
@@ -6416,7 +7739,6 @@ function Window.new(props: WindowProps): Window
 			if not wf then return end
 			local screen = (self :: any)._gui.AbsoluteSize
 			local margin = 8
-			
 			local curW = wf.AbsoluteSize.X
 			local curH = wf.AbsoluteSize.Y
 			local curPos = wf.Position
@@ -6444,11 +7766,10 @@ function Window.new(props: WindowProps): Window
 				posTw:Play()
 			end
 		end)
-
 		tw:Play()
 	end
 
-	spMakeSlider(spIfaceFrame, "UI Scale / DPI", 80, 125, 5, 100, "%", 3, function(pct)
+	spMakeSlider(pageAppearance, "UI Scale / DPI", 80, 125, 5, 100, "%", 2, function(pct)
 		smoothSetScale(pct / 100)
 	end)
 
@@ -6459,20 +7780,16 @@ function Window.new(props: WindowProps): Window
 			callback = function(col: Color3, _alpha: number)
 				updateAccent(col)
 			end,
-		}, resolvedTheme, spIfaceFrame)
-		cp._frame.LayoutOrder = 4
+		}, resolvedTheme, pageAppearance)
+		cp._frame.LayoutOrder = 3
 	end
 
-	spMakeSlider(spIfaceFrame, "Background Transparency", 0, 25, 5, 0, "%", 5, function(pct)
+	spMakeSlider(pageAppearance, "Background Transparency", 0, 25, 5, 0, "%", 4, function(pct)
 		windowFrame.BackgroundTransparency = pct / 100
 	end)
 
 	
-	spMakeSectionHeader(spIfaceFrame, "Controls & Window", 6)
-
 	do
-		
-		
 		local kb = Keybind.new({
 			name      = "Menu Keybind",
 			value     = currentToggleKey,
@@ -6480,12 +7797,11 @@ function Window.new(props: WindowProps): Window
 				currentToggleKey = newKey
 				if s then s._toggleKey = newKey end
 			end,
-		}, resolvedTheme, spIfaceFrame)
-		kb._frame.LayoutOrder = 7
+		}, resolvedTheme, pageControls)
+		kb._frame.LayoutOrder = 1
 	end
 
 	
-	spMakeSectionHeader(spIfaceFrame, "Font", 10)
 	do
 		local FONT_MAP: { [string]: string } = {
 			["Gotham"]          = "rbxasset://fonts/families/GothamSSm.json",
@@ -6501,13 +7817,12 @@ function Window.new(props: WindowProps): Window
 			name        = "UI Font",
 			options     = { "Gotham", "Roboto", "Source Sans Pro", "Ubuntu", "Syne", "Nunito", "Builder Sans", "Jura" },
 			value       = "Gotham",
-			layoutOrder = 11,
+			layoutOrder = 1,
 			callback    = function(val: any)
 				local family = FONT_MAP[tostring(val)] or "rbxasset://fonts/families/GothamSSm.json"
 				resolvedTheme.Font      = Font.new(family, Enum.FontWeight.Medium)
 				resolvedTheme.TitleFont = Font.new(family, Enum.FontWeight.SemiBold)
 				themeUtil.broadcast(resolvedTheme)
-				
 				for _, desc in windowFrame:GetDescendants() do
 					if desc:IsA("TextLabel") or desc:IsA("TextButton") then
 						local existing = (desc :: TextLabel).FontFace
@@ -6515,8 +7830,27 @@ function Window.new(props: WindowProps): Window
 					end
 				end
 			end,
-		}, resolvedTheme, spIfaceFrame)
-		fontDD._frame.LayoutOrder = 11
+		}, resolvedTheme, pageFont)
+		fontDD._frame.LayoutOrder = 1
+	end
+
+	
+	do
+		local firstItem = navItemAppearance
+		spActiveNavItem        = firstItem
+		firstItem.BackgroundTransparency = 0.86
+		firstItem.BackgroundColor3       = colorAccent
+		local bar   = firstItem:FindFirstChild("ActiveBar")
+		local lbl   = firstItem:FindFirstChild("Label")
+		local badge = firstItem:FindFirstChild("IconBadge")
+		if bar   then (bar   :: Frame).Visible             = true end
+		if lbl   then (lbl   :: TextLabel).TextColor3      = colorAccent end
+		if badge then
+			(badge :: Frame).BackgroundColor3 = colorAccent
+			local ico = (badge :: Frame):FindFirstChild("Icon")
+			if ico then (ico :: TextLabel).TextColor3 = Color3.fromRGB(255, 255, 255) end
+		end
+		pageAppearance.Visible = true
 	end
 
 	local function updateSettingsPanelSize()
@@ -6558,7 +7892,8 @@ function Window.new(props: WindowProps): Window
 	s._userScale     = userScale
 	s._toggleKey     = currentToggleKey
 	s._sidebar       = tabListScroll
-	s._sidebarFrame  = sidebar
+	s._sidebarFrame    = sidebar
+	s._playerCardSlot  = playerCardSlot
 	s._contentArea   = contentArea
 	s._divider       = divider
 	s._theme         = resolvedTheme
@@ -6584,6 +7919,7 @@ function Window.new(props: WindowProps): Window
 	s._minimizeAnimId = nil           
 	s._titleBarBg     = titleBarBg
 	s._titleBarCorner = titleBarCorner
+	s._cornerCover    = cornerCover
 
 	
 	if userScale ~= 1.0 then
@@ -6912,6 +8248,10 @@ function Window:CreateTab(props: Tab.TabProps): Tab.Tab
 
 	btn.MouseButton1Click:Connect(function()
 		local _s = (self :: any)
+		
+		if _s._playerCard then
+			(_s._playerCard :: any):HideContent()
+		end
 		_s:_activateTab(t)
 	end)
 
@@ -6926,6 +8266,33 @@ function Window:CreateTab(props: Tab.TabProps): Tab.Tab
 	end
 
 	return t
+end
+
+
+
+function Window:CreatePlayerCard()
+	local s            = (self :: any)
+	local slot: Frame  = s._playerCardSlot
+	local wf: Frame    = s._windowFrame
+	local ca: Frame    = s._contentArea
+	local theme        = s._theme
+
+	local pc = PlayerCard.new(slot, wf, ca, theme)
+	s._playerCard = pc
+
+	
+	local cardHit = (pc :: any)._cardHit :: TextButton?
+	if cardHit then
+		cardHit.MouseButton1Click:Connect(function()
+			for _, tab in (s._tabs :: { any }) do
+				tab:Hide()
+			end
+			s._activeTab = nil
+			pc:ShowContent()
+		end)
+	end
+
+	return pc
 end
 
 function Window:_activateTab(target: Tab.Tab)
@@ -6965,6 +8332,7 @@ function Window:Show()
 		;(s._body :: Frame).Visible = true
 		if s._divider then (s._divider :: Frame).Visible = true end
 		if s._titleSep then (s._titleSep :: Frame).Visible = true end
+		if s._cornerCover then (s._cornerCover :: Frame).Visible = true end
 		local fullH: number = s._windowSize.Y.Offset
 		local topY = windowFrame.Position.Y.Offset - math.floor(s._titlebarH / 2)
 		local restoreCenterY = topY + math.floor(fullH / 2)
@@ -7029,10 +8397,28 @@ function Window:ToggleMinimise()
 	local windowFrame: Frame    = s._windowFrame
 	local body: Frame           = s._body
 	local divider: Frame?       = s._divider
+	local cornerCover: Frame?   = s._cornerCover
 	local titlebarH: number     = s._titlebarH
 	local fullH: number         = s._windowSize.Y.Offset
 	local width: number         = s._windowSize.X.Offset
 	local keepOnScreen: boolean = s._keepOnScreen
+	local screen                = self._gui.AbsoluteSize
+	local margin                = 8
+
+	
+	local absPos  = windowFrame.AbsolutePosition
+	local absSize = windowFrame.AbsoluteSize
+	local centerX = absPos.X + absSize.X / 2
+	local centerY = absPos.Y + absSize.Y / 2
+	local topY    = absPos.Y
+
+	if keepOnScreen then
+		local halfW = width / 2
+		centerX = math.clamp(centerX, halfW + margin, math.max(halfW + margin, screen.X - halfW - margin))
+	end
+
+	
+	windowFrame.Position = UDim2.fromOffset(centerX, centerY)
 
 	local TWEEN_INFO = TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
 
@@ -7041,36 +8427,27 @@ function Window:ToggleMinimise()
 		s._minimized     = false
 		s._pendingResize = false
 
-		local topY = windowFrame.Position.Y.Offset - math.floor(titlebarH / 2)
-		local restoreCenterY = topY + math.floor(fullH / 2)
-		local targetPos = UDim2.fromOffset(windowFrame.Position.X.Offset, restoreCenterY)
+		local targetCY = topY + fullH / 2
 		if keepOnScreen then
-			targetPos = self:_clampedPosition(targetPos)
+			local halfH = fullH / 2
+			targetCY = math.clamp(targetCY, halfH + margin, math.max(halfH + margin, screen.Y - halfH - margin))
 		end
 
-		
-		if s._titleBarCorner then
-			(s._titleBarCorner :: UICorner).CornerRadius = UDim.new(0, 0)
-		end
-
-		
-		body.Visible = false
-		if divider then divider.Visible = false end
+		body.Visible = true
+		if divider then divider.Visible = true end
+		if s._titleSep then (s._titleSep :: Frame).Visible = true end
 
 		local tw = tween.play(windowFrame, TWEEN_INFO, {
-			Size = UDim2.fromOffset(width, fullH),
-			Position = targetPos,
+			Size     = UDim2.fromOffset(width, fullH),
+			Position = UDim2.fromOffset(centerX, targetCY),
 		})
 		s._activeTween = tw
 		tw.Completed:Once(function()
-			
 			tw:Destroy()
 			if s._activeTween == tw then
 				s._activeTween = nil
 				if not s._minimized then
-					body.Visible = true
-					if divider then divider.Visible = true end
-					if s._titleSep then (s._titleSep :: Frame).Visible = true end
+					if cornerCover then cornerCover.Visible = true end
 				end
 			end
 		end)
@@ -7080,7 +8457,7 @@ function Window:ToggleMinimise()
 			local _ic = s._minIcon :: ImageLabel
 			local _fo = tween.play(_ic, TweenInfo.new(0.1, Enum.EasingStyle.Quad), { ImageTransparency = 1 })
 			_fo.Completed:Once(function()
-				_fo:Destroy() 
+				_fo:Destroy()
 				_ic.Image = ICON_MINIMIZE
 				tween.fire(_ic, TweenInfo.new(0.1, Enum.EasingStyle.Quad), { ImageTransparency = 0 })
 			end)
@@ -7089,39 +8466,47 @@ function Window:ToggleMinimise()
 		
 		s._minimized = true
 
-		local topY = windowFrame.Position.Y.Offset - math.floor(fullH / 2)
-		local minCenterY = topY + math.floor(titlebarH / 2)
-		local targetPos = UDim2.fromOffset(windowFrame.Position.X.Offset, minCenterY)
+		local targetCY = topY + titlebarH / 2
+		if keepOnScreen then
+			local halfTH = titlebarH / 2
+			targetCY = math.clamp(targetCY, halfTH + margin, math.max(halfTH + margin, screen.Y - halfTH - margin))
+		end
 
 		
-		body.Visible = false
+		if cornerCover then cornerCover.Visible = false end
 		if divider then divider.Visible = false end
 		if s._titleSep then (s._titleSep :: Frame).Visible = false end
 
+		local animId = {}
+		s._minimizeAnimId = animId
+
 		local tw = tween.play(windowFrame, TWEEN_INFO, {
-			Size = UDim2.fromOffset(width, titlebarH),
-			Position = targetPos,
+			Size     = UDim2.fromOffset(width, titlebarH),
+			Position = UDim2.fromOffset(centerX, targetCY),
 		})
 		s._activeTween = tw
 		tw.Completed:Once(function()
-			
 			tw:Destroy()
 			if s._activeTween == tw then
 				s._activeTween = nil
-				
-				if s._titleBarCorner then
-					local cr = s._theme.CornerRoundness or UDim.new(0, 10)
-					;(s._titleBarCorner :: UICorner).CornerRadius = cr
-				end
+				body.Visible = false
 			end
 		end)
+
+		
+		task.delay(0.22, function()
+			if s._minimizeAnimId ~= animId then return end
+			if not s._minimized then return end
+			body.Visible = false
+		end)
+
 		;(s._minBtn :: TextButton).Text = ""
 		
 		if s._minIcon then
 			local _ic = s._minIcon :: ImageLabel
 			local _fo = tween.play(_ic, TweenInfo.new(0.1, Enum.EasingStyle.Quad), { ImageTransparency = 1 })
 			_fo.Completed:Once(function()
-				_fo:Destroy() 
+				_fo:Destroy()
 				_ic.Image = ICON_RESTORE
 				tween.fire(_ic, TweenInfo.new(0.1, Enum.EasingStyle.Quad), { ImageTransparency = 0 })
 			end)
@@ -7162,6 +8547,10 @@ function Window:Unload()
 	end
 	table.clear(s._connections)
 
+	if s._playerCard then
+		pcall(function() s._playerCard:Destroy() end)
+	end
+
 	self._gui:Destroy()
 
 	local tabs: { Tab.Tab } = s._tabs
@@ -7172,7 +8561,7 @@ end
 
 return Window
 
-end)() end,[17]=function()local wax,script,require=ImportGlobals(17)local ImportGlobals return (function(...)
+end)() end,[19]=function()local wax,script,require=ImportGlobals(19)local ImportGlobals return (function(...)
 
 
 
@@ -7271,7 +8660,7 @@ return {
 	LiveAnimation    = false,
 }
 
-end)() end,[18]=function()local wax,script,require=ImportGlobals(18)local ImportGlobals return (function(...)
+end)() end,[20]=function()local wax,script,require=ImportGlobals(20)local ImportGlobals return (function(...)
 
 
 
@@ -7363,7 +8752,7 @@ return {
 	ActionColor      = Color3.fromHex("#f8f8f2"),
 	LiveAnimation    = false,
 }
-end)() end,[19]=function()local wax,script,require=ImportGlobals(19)local ImportGlobals return (function(...)
+end)() end,[21]=function()local wax,script,require=ImportGlobals(21)local ImportGlobals return (function(...)
 
 
 
@@ -7438,7 +8827,7 @@ return {
 	ActionColor = Color3.fromRGB(30, 20, 60),
 }
 
-end)() end,[20]=function()local wax,script,require=ImportGlobals(20)local ImportGlobals return (function(...)
+end)() end,[22]=function()local wax,script,require=ImportGlobals(22)local ImportGlobals return (function(...)
 
 
 
@@ -7731,7 +9120,7 @@ export type Delirium = {
 
 return {}
 
-end)() end,[22]=function()local wax,script,require=ImportGlobals(22)local ImportGlobals return (function(...)
+end)() end,[24]=function()local wax,script,require=ImportGlobals(24)local ImportGlobals return (function(...)
 
 
 
@@ -7887,7 +9276,7 @@ end
 
 return AssetFetcher
 
-end)() end,[23]=function()local wax,script,require=ImportGlobals(23)local ImportGlobals return (function(...)
+end)() end,[25]=function()local wax,script,require=ImportGlobals(25)local ImportGlobals return (function(...)
 
 
 
@@ -7959,7 +9348,7 @@ constants.clickSoundId = ""
 
 return constants
 
-end)() end,[24]=function()local wax,script,require=ImportGlobals(24)local ImportGlobals return (function(...)
+end)() end,[26]=function()local wax,script,require=ImportGlobals(26)local ImportGlobals return (function(...)
 
 
 
@@ -8011,7 +9400,7 @@ function element.makeFrame(
 	stroke.Transparency = theme.ElementStrokeTransparency or 0
 	stroke.Parent       = frame
 
-	return frame, stroke
+	return frame, stroke, gradient
 end
 
 
@@ -8034,7 +9423,7 @@ end
 
 return element
 
-end)() end,[25]=function()local wax,script,require=ImportGlobals(25)local ImportGlobals return (function(...)
+end)() end,[27]=function()local wax,script,require=ImportGlobals(27)local ImportGlobals return (function(...)
 
 
 
@@ -8263,7 +9652,7 @@ end
 
 return filesystem
 
-end)() end,[26]=function()local wax,script,require=ImportGlobals(26)local ImportGlobals return (function(...)
+end)() end,[28]=function()local wax,script,require=ImportGlobals(28)local ImportGlobals return (function(...)
 
 
 
@@ -8331,7 +9720,7 @@ setmetatable(flags :: any, mt)
 
 return flags
 
-end)() end,[27]=function()local wax,script,require=ImportGlobals(27)local ImportGlobals return (function(...)
+end)() end,[29]=function()local wax,script,require=ImportGlobals(29)local ImportGlobals return (function(...)
 
 
 
@@ -8714,7 +10103,7 @@ end
 
 return FontLoader
 
-end)() end,[28]=function()local wax,script,require=ImportGlobals(28)local ImportGlobals return (function(...)
+end)() end,[30]=function()local wax,script,require=ImportGlobals(30)local ImportGlobals return (function(...)
 
 
 
@@ -8971,7 +10360,7 @@ end
 
 return module
 
-end)() end,[29]=function()local wax,script,require=ImportGlobals(29)local ImportGlobals return (function(...)
+end)() end,[31]=function()local wax,script,require=ImportGlobals(31)local ImportGlobals return (function(...)
 
 
 
@@ -9132,7 +10521,7 @@ end
 
 return image
 
-end)() end,[30]=function()local wax,script,require=ImportGlobals(30)local ImportGlobals return (function(...)
+end)() end,[32]=function()local wax,script,require=ImportGlobals(32)local ImportGlobals return (function(...)
 
 
 
@@ -9366,7 +10755,7 @@ end
 
 return imageCache
 
-end)() end,[31]=function()local wax,script,require=ImportGlobals(31)local ImportGlobals return (function(...)
+end)() end,[33]=function()local wax,script,require=ImportGlobals(33)local ImportGlobals return (function(...)
 
 
 
@@ -9508,7 +10897,7 @@ end
 
 return MediaService
 
-end)() end,[32]=function()local wax,script,require=ImportGlobals(32)local ImportGlobals return (function(...)
+end)() end,[34]=function()local wax,script,require=ImportGlobals(34)local ImportGlobals return (function(...)
 
 
 
@@ -9533,7 +10922,7 @@ end
 
 return network
 
-end)() end,[33]=function()local wax,script,require=ImportGlobals(33)local ImportGlobals return (function(...)
+end)() end,[35]=function()local wax,script,require=ImportGlobals(35)local ImportGlobals return (function(...)
 
 
 
@@ -9617,7 +11006,64 @@ end)()
 
 return runtime
 
-end)() end,[34]=function()local wax,script,require=ImportGlobals(34)local ImportGlobals return (function(...)
+end)() end,[36]=function()local wax,script,require=ImportGlobals(36)local ImportGlobals return (function(...)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -9651,20 +11097,33 @@ local HttpService = services.getService("HttpService") :: HttpService
 
 
 
-type SetCallback  = (value: any) -> ()
-type FlagEntry    = { set: SetCallback }
+type Setter      = (value: any, skipCallback: boolean?) -> ()
+type FlagEntry   = { element: any?, set: Setter }
 
 export type SaveManager = {
-	SetFolder:             (self: SaveManager, name: string) -> (),
-	Register:              (self: SaveManager, flag: string, set: SetCallback) -> (),
-	Save:                  (self: SaveManager, profileName: string?) -> (),
-	Load:                  (self: SaveManager, profileName: string?) -> (),
-	List:                  (self: SaveManager) -> { string },
-	Delete:                (self: SaveManager, profileName: string) -> (),
-	BuildConfigTab:        (self: SaveManager, window: any) -> (),
-	SetAutoSaveInterval:   (self: SaveManager, seconds: number) -> (),
-	_scheduleAutoSave:     (self: SaveManager) -> (),
-	deriveFlagFromName:    (label: string) -> string,
+	
+	SetFolder:           (self: SaveManager, name: string) -> (),
+	SetAutoSaveInterval: (self: SaveManager, seconds: number) -> (),
+	
+	Register:            (self: SaveManager, flag: string, target: any) -> (),
+	RegisterMany:        (self: SaveManager, map: { [string]: any }) -> (),
+	Ignore:              (self: SaveManager, flag: string) -> (),
+	IgnoreMany:          (self: SaveManager, mapOrList: any) -> (),
+	GetRegistry:         (self: SaveManager) -> { [string]: FlagEntry },
+	
+	Save:                (self: SaveManager, profileName: string?) -> boolean,
+	Load:                (self: SaveManager, profileName: string?, skipCallbacks: boolean?) -> number,
+	Refresh:             (self: SaveManager, skipCallbacks: boolean?) -> (),
+	
+	List:                (self: SaveManager) -> { string },
+	Delete:              (self: SaveManager, profileName: string) -> boolean,
+	
+	StopAutoSave:        (self: SaveManager) -> (),
+	ScheduleAutoSave:    (self: SaveManager) -> (),
+	
+	BuildConfigTab:      (self: SaveManager, window: any) -> (),
+	
+	deriveFlagFromName:  (label: string) -> string,
 }
 
 
@@ -9672,18 +11131,26 @@ export type SaveManager = {
 local SaveManager   = {} :: any
 SaveManager.__index = SaveManager
 
-local _registry    : { [string]: FlagEntry } = {}
-local _pendingLoad : { [string]: any }        = {}
-local _ignored     : { [string]: boolean }    = {}
-local _folder      : string  = "Delirium"
-local _loading     : boolean = false
+
+local _registry  : { [string]: FlagEntry } = {}
+
+
+local _pendingLoad : { [string]: any } = {}
+
+local _ignored   : { [string]: boolean } = {}
+
+local _folder    : string  = "Delirium"
+
+local _loading   : boolean = false
+
 local _savePending : boolean = false
 
 
 local _autoEnabled  : boolean = false
 local _autoInterval : number  = 30
 local _autoThread   : thread? = nil
-local _getAutoProfile : (() -> string)? = nil
+
+local _activeProfile : string = "flags"
 
 
 
@@ -9697,31 +11164,36 @@ local function fnv1a(s: string): number
 	return h
 end
 
+
+local function resolveProfile(name: string?): string
+	if not name then return _activeProfile end
+	local trimmed = (name :: string):match("^%s*(.-)%s*$") or ""
+	return if #trimmed > 0 then trimmed else "flags"
+end
+
 local function profilePath(name: string?): string
-	local n = if name and #name > 0 then name else "flags"
-	return _folder .. "/" .. n .. ".json"
+	return _folder .. "/" .. resolveProfile(name) .. ".json"
 end
 
 
 local function serializeValue(v: any): any
-	if typeof(v) == "EnumItem" then
-		return { __enumType = tostring(v.EnumType), __name = v.Name }
-	end
-	if typeof(v) == "Color3" then
+	local t = typeof(v)
+	if t == "EnumItem" then
+		return { __type = "EnumItem", enumType = tostring(v.EnumType), name = v.Name }
+	elseif t == "Color3" then
 		return { __type = "Color3", r = v.R, g = v.G, b = v.B }
 	end
 	return v
 end
 
 local function deserializeValue(v: any): any
-	if type(v) ~= "table" then return v end
-	if v.__enumType and v.__name then
+	if type(v) ~= "table" or not v.__type then return v end
+	if v.__type == "EnumItem" then
 		local ok, result = pcall(function()
-			return (Enum :: any)[v.__enumType][v.__name]
+			return (Enum :: any)[v.enumType][v.name]
 		end)
-		if ok and result then return result end
-	end
-	if v.__type == "Color3" then
+		return if ok and result then result else nil
+	elseif v.__type == "Color3" then
 		return Color3.new(v.r or 0, v.g or 0, v.b or 0)
 	end
 	return v
@@ -9734,8 +11206,7 @@ local function atomicWrite(path: string, content: string): boolean
 
 	filesystem.ensureDir(_folder)
 
-	local wOk = pcall(filesystem.writefile, tempPath, content)
-	if not wOk then return false end
+	if not pcall(filesystem.writefile, tempPath, content) then return false end
 
 	
 	local rOk, readBack = pcall(filesystem.readfile, tempPath)
@@ -9745,16 +11216,10 @@ local function atomicWrite(path: string, content: string): boolean
 	end
 
 	local promOk = pcall(filesystem.writefile, path, content)
-
-	
 	
 	pcall(filesystem.delfile, tempPath)
-
 	return promOk
 end
-
-
-
 
 
 
@@ -9766,16 +11231,15 @@ local function stopAutoSave()
 	_autoEnabled = false
 end
 
-local function startAutoSave(getProfile: () -> string)
+local function startAutoSave()
 	stopAutoSave()
-	_autoEnabled     = true
-	_getAutoProfile  = getProfile
-	_autoThread = task.spawn(function()
+	_autoEnabled = true
+	_autoThread  = task.spawn(function()
 		while _autoEnabled do
 			task.wait(_autoInterval)
-			if not _autoEnabled then break end
-			local name = if _getAutoProfile then _getAutoProfile() else "flags"
-			SaveManager:Save(name)
+			if _autoEnabled then
+				SaveManager:Save(_activeProfile)
+			end
 		end
 		_autoThread = nil
 	end)
@@ -9793,18 +11257,20 @@ function SaveManager.deriveFlagFromName(label: string): string
 		:gsub("%s+", "_")
 		:gsub("[^%w_]", "")
 		:sub(1, 48)
-	if #sanitized > 0 then return sanitized end
-	return string.format("Flag%08x", fnv1a(label))
+	return if #sanitized > 0 then sanitized else string.format("Flag%08x", fnv1a(label))
 end
 
 
+
+
 function SaveManager:SetFolder(name: string)
+	assert(type(name) == "string" and #name > 0, "SaveManager:SetFolder — name must be a non-empty string")
 	_folder = name
 end
 
 
-
 function SaveManager:SetAutoSaveInterval(seconds: number)
+	assert(type(seconds) == "number" and seconds > 0, "SaveManager:SetAutoSaveInterval — must be > 0")
 	_autoInterval = seconds
 end
 
@@ -9812,22 +11278,80 @@ end
 
 
 
-function SaveManager:Register(flag: string, set: SetCallback)
-	_registry[flag] = { set = set }
 
+
+
+
+
+function SaveManager:Register(flag: string, target: any)
+	assert(type(flag) == "string" and #flag > 0, "SaveManager:Register — flag must be a non-empty string")
+
+	local entry: FlagEntry
+	if type(target) == "function" then
+		entry = { set = target }
+	elseif type(target) == "table" and target.Set then
+		local el = target
+		entry = {
+			element = el,
+			set = function(value: any, skipCallback: boolean?)
+				el:Set(value, skipCallback)
+			end,
+		}
+	else
+		error("SaveManager:Register — target must be a function or a component with a :Set method", 2)
+	end
+
+	_registry[flag] = entry
+
+	
 	local pending = _pendingLoad[flag]
 	if pending ~= nil then
-		pcall(set, pending)
+		_pendingLoad[flag] = nil
 		flags:Set(flag, pending)
+		
+		
+		pcall(entry.set, pending, false)
 	end
 end
 
 
 
+function SaveManager:RegisterMany(map: { [string]: any })
+	for flag, target in map do
+		self:Register(flag, target)
+	end
+end
 
-function SaveManager:Save(profileName: string?)
+
+function SaveManager:Ignore(flag: string)
+	_ignored[flag] = true
+end
+
+
+function SaveManager:IgnoreMany(mapOrList: any)
+	if type(mapOrList) ~= "table" then return end
+	for k, v in mapOrList do
+		if type(k) == "number" and type(v) == "string" then
+			_ignored[v] = true
+		elseif type(k) == "string" and v == true then
+			_ignored[k] = true
+		end
+	end
+end
+
+
+function SaveManager:GetRegistry(): { [string]: FlagEntry }
+	return _registry
+end
+
+
+
+
+
+function SaveManager:Save(profileName: string?): boolean
 	local snapshot = flags:GetAll()
 	local data: { [string]: any } = {}
+
 	for k, v in snapshot do
 		if not _ignored[k] then
 			data[k] = serializeValue(v)
@@ -9837,45 +11361,75 @@ function SaveManager:Save(profileName: string?)
 	local ok, encoded = pcall(function()
 		return HttpService:JSONEncode(data)
 	end)
-	if not ok then return end
+	if not ok or type(encoded) ~= "string" then return false end
 
-	atomicWrite(profilePath(profileName), encoded)
+	return atomicWrite(profilePath(profileName), encoded)
 end
 
 
 
 
-function SaveManager:Load(profileName: string?)
+
+
+function SaveManager:Load(profileName: string?, skipCallbacks: boolean?): number
 	local path = profilePath(profileName)
 
 	local raw: string? = nil
 	pcall(function()
-		if not filesystem.isfile(path) then return end
-		raw = filesystem.readfile(path)
+		if filesystem.isfile(path) then
+			raw = filesystem.readfile(path)
+		end
 	end)
-	if not raw or raw == "" then return end
+	if not raw or raw == "" then return 0 end
 
-	local ok, data = pcall(function()
-		return HttpService:JSONDecode(raw :: string)
-	end)
-	if not ok or type(data) ~= "table" then return end
+	local ok, data = pcall(HttpService.JSONDecode, HttpService, raw :: string)
+	if not ok or type(data) ~= "table" then return 0 end
+
+	
+	table.clear(_pendingLoad)
 
 	_loading = true
+	local count = 0
+	local skip = (skipCallbacks == true)
 
 	for flag, rawValue in data do
 		if _ignored[flag] then continue end
+
 		local value = deserializeValue(rawValue)
+		if value == nil then continue end
+
 		_pendingLoad[flag] = value
 		flags:Set(flag, value)
 
 		local entry = _registry[flag]
 		if entry then
-			pcall(entry.set, value)
+			if pcall(entry.set, value, skip) then
+				count += 1
+			end
+			_pendingLoad[flag] = nil
+		else
+			count += 1
 		end
 	end
 
 	_loading = false
+	return count
 end
+
+
+
+
+function SaveManager:Refresh(skipCallbacks: boolean?)
+	local skip = (skipCallbacks == true)
+	for flag, entry in _registry do
+		local value = flags:Get(flag)
+		if value ~= nil then
+			pcall(entry.set, value, skip)
+		end
+	end
+end
+
+
 
 
 
@@ -9883,15 +11437,12 @@ function SaveManager:List(): { string }
 	local names: { string } = {}
 	pcall(function()
 		filesystem.ensureDir(_folder)
-		local files = filesystem.listfiles(_folder)
-		for _, path in files do
+		for _, path in filesystem.listfiles(_folder) do
 			local normalized = path:gsub("\\", "/")
 			local filename   = normalized:match("([^/]+)$") or ""
-			
-			
 			if filename:match("%.saving$") then continue end
-			local name = filename:match("^(.+)%.json$")
-			if name then
+			local name = filename:match("^(.-)%.json$")
+			if name and #name > 0 then
 				table.insert(names, name)
 			end
 		end
@@ -9901,24 +11452,38 @@ function SaveManager:List(): { string }
 end
 
 
-function SaveManager:Delete(profileName: string)
-	if not profileName or #profileName == 0 then return end
-	pcall(function()
-		local path = profilePath(profileName)
-		if not filesystem.isfile(path) then return end
+function SaveManager:Delete(profileName: string): boolean
+	local trimmed = resolveProfile(profileName)
+	if trimmed == "flags" and (not profileName or profileName == "") then
+		
+		return false
+	end
+	local path = profilePath(trimmed)
+	local existed = pcall(function()
+		if not filesystem.isfile(path) then error("not found") end
 		filesystem.delfile(path)
 	end)
+	return existed
 end
 
 
 
-function SaveManager:_scheduleAutoSave()
-	if _loading then return end
-	if _savePending then return end
+
+function SaveManager:StopAutoSave()
+	stopAutoSave()
+end
+
+
+
+
+function SaveManager:ScheduleAutoSave()
+	if _loading or _savePending then return end
 	_savePending = true
 	task.delay(0.5, function()
 		_savePending = false
-		self:Save()
+		if not _loading then
+			self:Save(_activeProfile)
+		end
 	end)
 end
 
@@ -9935,9 +11500,9 @@ end
 
 function SaveManager:BuildConfigTab(window: any)
 	
-	_ignored["__SM_ProfileName"] = true
-	_ignored["__SM_ProfileList"] = true
-	_ignored["__SM_AutoSave"]    = true
+	_ignored["__SM_input_profile"] = true
+	_ignored["__SM_dd_profiles"]   = true
+	_ignored["__SM_toggle_auto"]   = true
 
 	local tab = window:CreateTab({
 		name    = "Config",
@@ -9947,106 +11512,162 @@ function SaveManager:BuildConfigTab(window: any)
 
 	local col = tab.Left
 
-	col:CreateSection({ name = "Configuration" })
+	
+	col:CreateSection({ name = "Profile" })
 
 	
-	local nameInput = col:CreateInput({
+	col:CreateInput({
 		name         = "Profile Name",
 		placeholder  = "flags  (default)",
-		flag         = "__SM_ProfileName",
+		flag         = "__SM_input_profile",
+		value        = _activeProfile,
 		clearOnFocus = false,
-		callback     = function(_: string) end,
-	})
-
-	local function currentProfile(): string
-		local v = (nameInput :: any).value
-		return if v and #(v :: string) > 0 then v :: string else "flags"
-	end
-
-	
-	local profilesDD = col:CreateDropdown({
-		name        = "Saved Profiles",
-		options     = self:List(),
-		placeholder = "select a profile...",
-		flag        = "__SM_ProfileList",
-		callback    = function(value: string | { string })
-			local pick = if type(value) == "string" then value else (value :: { string })[1]
-			local ni = nameInput :: any
-			ni:Set(pick, true)
+		callback     = function(v: string)
+			local trimmed = v:match("^%s*(.-)%s*$") or ""
+			_activeProfile = if #trimmed > 0 then trimmed else "flags"
 		end,
 	})
 
-	local function refreshList()
-		local dd = profilesDD :: any
-		dd:SetOptions(self:List())
+	local ddHandle: any = nil
+
+	local function refreshDropdown()
+		if not ddHandle then return end
+		local list = self:List()
+		ddHandle:SetOptions(if #list > 0 then list else { "(no profiles)" })
 	end
 
 	
+	ddHandle = col:CreateDropdown({
+		name        = "Saved Profiles",
+		options     = (function()
+			local list = self:List()
+			return if #list > 0 then list else { "(no profiles)" }
+		end)(),
+		placeholder = "select to autofill name...",
+		flag        = "__SM_dd_profiles",
+		callback    = function(value: string | { string })
+			local pick = if type(value) == "string"
+				then value :: string
+				else (value :: { string })[1] or ""
+			
+			if pick == "(no profiles)" then return end
+			_activeProfile = pick
+			
+			
+			flags:Set("__SM_input_profile", pick)
+		end,
+	})
+
+	
+	col:CreateSection({ name = "Actions" })
+
 	col:CreateButton({
 		name        = "Save",
-		description = "Write all flags to the named profile on disk.",
+		description = "Write all flags to the active profile.",
 		callback    = function()
-			local name = currentProfile()
-			self:Save(name)
-			refreshList()
-			window:Notify({ title = "Saved", content = "Profile '" .. name .. "' written to disk." })
+			local name = _activeProfile
+			local ok   = self:Save(name)
+			refreshDropdown()
+			if ok then
+				window:Notify({
+					title   = "Saved",
+					content = "Profile '" .. name .. "' written to disk.",
+					type    = "success",
+					duration = 3,
+				})
+			else
+				window:Notify({
+					title   = "Save Failed",
+					content = "Could not write '" .. name .. "'. Check executor filesystem.",
+					type    = "error",
+					duration = 4,
+				})
+			end
 		end,
 	})
 
-	
 	col:CreateButton({
 		name        = "Load",
-		description = "Restore flags from the selected profile and sync UI.",
+		description = "Restore flags from the active profile.",
 		callback    = function()
-			local name = currentProfile()
-			self:Load(name)
-			window:Notify({ title = "Loaded", content = "Profile '" .. name .. "' applied." })
+			local name  = _activeProfile
+			local count = self:Load(name)
+			if count > 0 then
+				window:Notify({
+					title   = "Loaded",
+					content = "Profile '" .. name .. "' — " .. tostring(count) .. " flags restored.",
+					type    = "success",
+					duration = 3,
+				})
+			else
+				window:Notify({
+					title   = "Load",
+					content = "Profile '" .. name .. "' not found or empty.",
+					type    = "warning",
+					duration = 3,
+				})
+			end
 		end,
 	})
 
-	
 	col:CreateButton({
 		name        = "Delete",
-		description = "Permanently remove the named profile from disk.",
+		description = "Permanently remove the active profile from disk.",
 		callback    = function()
-			local name = currentProfile()
-			self:Delete(name)
-			refreshList()
-			window:Notify({ title = "Deleted", content = "Profile '" .. name .. "' removed." })
+			local name = _activeProfile
+			local ok   = self:Delete(name)
+			refreshDropdown()
+			if ok then
+				window:Notify({
+					title   = "Deleted",
+					content = "Profile '" .. name .. "' removed.",
+					type    = "info",
+					duration = 3,
+				})
+			else
+				window:Notify({
+					title   = "Delete Failed",
+					content = "Profile '" .. name .. "' not found.",
+					type    = "error",
+					duration = 3,
+				})
+			end
 		end,
 	})
 
 	
+	col:CreateSection({ name = "Auto Save" })
+
 	col:CreateToggle({
 		name        = "Auto Save",
-		description = "Automatically saves every " .. tostring(_autoInterval) .. " seconds.",
-		flag        = "__SM_AutoSave",
+		description = "Save every " .. tostring(_autoInterval) .. " s to the active profile.",
+		flag        = "__SM_toggle_auto",
 		value       = false,
 		callback    = function(enabled: boolean)
 			if enabled then
-				startAutoSave(currentProfile)
+				startAutoSave()
 				window:Notify({
 					title   = "Auto Save On",
-					content = "Saving every " .. tostring(_autoInterval) .. "s to '" .. currentProfile() .. "'.",
+					content = "Saving every " .. tostring(_autoInterval) .. " s to '" .. _activeProfile .. "'.",
+					type    = "info",
+					duration = 3,
 				})
 			else
 				stopAutoSave()
-				window:Notify({ title = "Auto Save Off", content = "Stopped." })
+				window:Notify({
+					title   = "Auto Save Off",
+					content = "Stopped.",
+					type    = "info",
+					duration = 2,
+				})
 			end
 		end,
 	})
 end
 
-
-
-
-function SaveManager:StopAutoSave()
-	stopAutoSave()
-end
-
 return SaveManager
 
-end)() end,[35]=function()local wax,script,require=ImportGlobals(35)local ImportGlobals return (function(...)
+end)() end,[37]=function()local wax,script,require=ImportGlobals(37)local ImportGlobals return (function(...)
 
 
 
@@ -10061,7 +11682,7 @@ end
 
 return services
 
-end)() end,[36]=function()local wax,script,require=ImportGlobals(36)local ImportGlobals return (function(...)
+end)() end,[38]=function()local wax,script,require=ImportGlobals(38)local ImportGlobals return (function(...)
 
 
 
@@ -10176,7 +11797,7 @@ end
 
 return Signal
 
-end)() end,[37]=function()local wax,script,require=ImportGlobals(37)local ImportGlobals return (function(...)
+end)() end,[39]=function()local wax,script,require=ImportGlobals(39)local ImportGlobals return (function(...)
 
 
 
@@ -10482,7 +12103,7 @@ function theme.diff(a: ThemeTable, b: ThemeTable): DiffResult
 end
 
 return theme
-end)() end,[38]=function()local wax,script,require=ImportGlobals(38)local ImportGlobals return (function(...)
+end)() end,[40]=function()local wax,script,require=ImportGlobals(40)local ImportGlobals return (function(...)
 
 
 
@@ -10560,7 +12181,7 @@ end
 
 return tween
 
-end)() end,[39]=function()local wax,script,require=ImportGlobals(39)local ImportGlobals return (function(...)
+end)() end,[41]=function()local wax,script,require=ImportGlobals(41)local ImportGlobals return (function(...)
 
 
 
@@ -10607,7 +12228,7 @@ variables.settingsOpen = false
 
 return variables
 
-end)() end,[40]=function()local wax,script,require=ImportGlobals(40)local ImportGlobals return (function(...)
+end)() end,[42]=function()local wax,script,require=ImportGlobals(42)local ImportGlobals return (function(...)
 
 
 
@@ -10711,7 +12332,7 @@ return windowSizing
 end)() end} 
 
 
-local ObjectTree = {{1,2,{"Delirium"},{{2,1,{"components"},{{9,2,{"label"}},{13,2,{"tab"}},{8,2,{"keybind"}},{11,2,{"section"}},{6,2,{"dropdown"}},{15,2,{"window"}},{5,2,{"descriptor"}},{7,2,{"input"}},{12,2,{"slider"}},{4,2,{"colorpicker"}},{3,2,{"button"}},{10,2,{"notification"}},{14,2,{"toggle"}}}},{21,1,{"utility"},{{24,2,{"element"}},{28,2,{"icons"}},{31,2,{"mediaService"}},{26,2,{"flags"}},{29,2,{"image"}},{38,2,{"tween"}},{32,2,{"network"}},{37,2,{"theme"}},{39,2,{"variables"}},{23,2,{"constants"}},{34,2,{"saveManager"}},{30,2,{"imageCache"}},{40,2,{"windowSizing"}},{36,2,{"signal"}},{35,2,{"services"}},{22,2,{"assetFetcher"}},{25,2,{"filesystem"}},{27,2,{"fontLoader"}},{33,2,{"runtime"}}}},{20,2,{"types"}},{16,1,{"themes"},{{19,2,{"light"}},{18,2,{"dracula"}},{17,2,{"default"}}}}}}}
+local ObjectTree = {{1,2,{"Delirium"},{{23,1,{"utility"},{{37,2,{"services"}},{36,2,{"saveManager"}},{29,2,{"fontLoader"}},{38,2,{"signal"}},{34,2,{"network"}},{35,2,{"runtime"}},{26,2,{"element"}},{40,2,{"tween"}},{28,2,{"flags"}},{27,2,{"filesystem"}},{32,2,{"imageCache"}},{24,2,{"assetFetcher"}},{42,2,{"windowSizing"}},{39,2,{"theme"}},{31,2,{"image"}},{30,2,{"icons"}},{41,2,{"variables"}},{33,2,{"mediaService"}},{25,2,{"constants"}}}},{2,1,{"components"},{{12,2,{"notification"}},{9,2,{"keybind"}},{14,2,{"slider"}},{8,2,{"input"}},{5,2,{"dashboard"}},{3,2,{"button"}},{10,2,{"label"}},{11,2,{"loadingScreen"}},{7,2,{"dropdown"}},{16,2,{"toggle"}},{15,2,{"tab"}},{13,2,{"section"}},{17,2,{"window"}},{6,2,{"descriptor"}},{4,2,{"colorpicker"}}}},{22,2,{"types"}},{18,1,{"themes"},{{20,2,{"dracula"}},{21,2,{"light"}},{19,2,{"default"}}}}}}}
 
 
 local LineOffsets = nil
@@ -11207,5 +12828,6 @@ end
 for _, ScriptRef in next, ScriptsToRun do
     Defer(LoadScript, ScriptRef)
 end
+
 
 return LoadScript(RealObjectRoot:GetChildren()[1])

@@ -32,7 +32,7 @@ Toggle.__index = Toggle
 function Toggle.new(props: ToggleProps, theme: { [string]: any }, parent: Instance): Toggle
 	local name        = props.name or "Toggle"
 	local description = props.description or ""
-	local flagKey     = props.flag
+	local flagKey: string? = props.flag or (props :: any).Flag
 	local callback    = props.callback
 
 	-- Resolve initial value from Flags if the key exists
@@ -44,7 +44,7 @@ function Toggle.new(props: ToggleProps, theme: { [string]: any }, parent: Instan
 	end
 
 	-- ── Frame ──────────────────────────────────────────────────────────────
-	local frame, stroke = element.makeFrame("Toggle_" .. name, theme, parent)
+	local frame, stroke, gradient = element.makeFrame("Toggle_" .. name, theme, parent)
 
 	-- ── Text content ──────────────────────────────────────────────────────
 	local inner = Instance.new("Frame")
@@ -142,9 +142,15 @@ function Toggle.new(props: ToggleProps, theme: { [string]: any }, parent: Instan
 		titleLabel.FontFace = t.Font or Font.new("rbxasset://fonts/families/GothamSSm.json")
 		track.BackgroundColor3 = t.ToggleTrack or Color3.fromRGB(0, 0, 0)
 		track.BackgroundTransparency = t.ToggleTrackTransparency or 0.85
-		knob.BackgroundColor3 = t.ToggleKnobOff or Color3.fromHex("#9d9d9d")
-		knob.BackgroundTransparency = t.ToggleKnobOffTransparency or 0.5
+		if self.value then
+			knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+			knob.BackgroundTransparency = 0
+		else
+			knob.BackgroundColor3 = t.ToggleKnobOff or Color3.fromHex("#9d9d9d")
+			knob.BackgroundTransparency = t.ToggleKnobOffTransparency or 0.5
+		end
 		glow.BackgroundColor3 = t.AccentColor or Color3.fromHex("#4cc2ff")
+		gradient.Color = t.ElementGradient or ColorSequence.new(Color3.fromRGB(28, 24, 44))
 		theme = t
 	end)
 

@@ -13,7 +13,8 @@ local variables    = require(script.Parent.Parent.utility.variables)
 local tween        = require(script.Parent.Parent.utility.tween)
 local themeUtil    = require(script.Parent.Parent.utility.theme)
 local windowSizing = require(script.Parent.Parent.utility.windowSizing)
-local notification = require(script.Parent.notification)
+local notification  = require(script.Parent.notification)
+local PlayerCard    = require(script.Parent.dashboard)
 local Tab          = require(script.Parent.tab)
 local icons        = require(script.Parent.Parent.utility.icons)
 local ColorPicker  = require(script.Parent.colorpicker)
@@ -148,7 +149,7 @@ function Window.new(props: WindowProps): Window
 	winStroke.Parent          = windowFrame
 
 -- ── Title bar ─────────────────────────────────────────────────────────
-	local TITLEBAR_H = 50
+	local TITLEBAR_H = 44
 
 	local titleBar = Instance.new("Frame")
 	titleBar.Name                   = "TitleBar"
@@ -158,8 +159,8 @@ function Window.new(props: WindowProps): Window
 	titleBar.ZIndex                 = constants.zIndex.windowChrome
 	titleBar.Parent                 = windowFrame
 
-	-- Colored bg child with conditional UICorner.
-	-- Square by default (window open). Rounded on minimise-complete so the pill looks right.
+	-- Colored bg child with UICorner matching windowFrame so top corners are always cleanly rounded.
+	-- Bottom corners are flattened while open using cornerCover, and rounded when minimized.
 	local titleBarBg = Instance.new("Frame")
 	titleBarBg.Name             = "Background"
 	titleBarBg.Size             = UDim2.fromScale(1, 1)
@@ -167,9 +168,20 @@ function Window.new(props: WindowProps): Window
 	titleBarBg.BorderSizePixel  = 0
 	titleBarBg.ZIndex           = constants.zIndex.windowChrome - 1
 	titleBarBg.Parent           = titleBar
+
 	local titleBarCorner = Instance.new("UICorner")
-	titleBarCorner.CornerRadius = UDim.new(0, 0)  -- set to CornerRoundness on minimise-complete
+	titleBarCorner.CornerRadius = resolvedTheme.CornerRoundness or UDim.new(0, 8)
 	titleBarCorner.Parent       = titleBarBg
+
+	local cornerRadiusPx = (resolvedTheme.CornerRoundness or UDim.new(0, 8)).Offset
+	local cornerCover = Instance.new("Frame")
+	cornerCover.Name             = "CornerCover"
+	cornerCover.Size             = UDim2.new(1, 0, 0, cornerRadiusPx)
+	cornerCover.Position         = UDim2.new(0, 0, 1, -cornerRadiusPx)
+	cornerCover.BackgroundColor3 = colorTitleBar
+	cornerCover.BorderSizePixel  = 0
+	cornerCover.ZIndex           = constants.zIndex.windowChrome - 1
+	cornerCover.Parent           = titleBarBg
 
 
 	-- Separator: garis tipis 1px di bawah titlebar
@@ -417,10 +429,12 @@ function Window.new(props: WindowProps): Window
 	sidebarHeader.TextXAlignment         = Enum.TextXAlignment.Left
 	sidebarHeader.Parent                 = sidebar
 
+	local PLAYER_CARD_H = 64   -- reserved height at sidebar bottom for PlayerCard
+
 	local tabListScroll = Instance.new("ScrollingFrame")
 	tabListScroll.Name                    = "TabList"
 	tabListScroll.Position                = UDim2.fromOffset(0, 30)
-	tabListScroll.Size                    = UDim2.new(1, 0, 1, -32)
+	tabListScroll.Size                    = UDim2.new(1, 0, 1, -(32 + PLAYER_CARD_H))
 	tabListScroll.BackgroundTransparency  = 1
 	tabListScroll.BorderSizePixel         = 0
 	tabListScroll.ScrollBarThickness      = 2
@@ -445,6 +459,17 @@ function Window.new(props: WindowProps): Window
 	sidebarPad.PaddingBottom = UDim.new(0, 8)
 	sidebarPad.Parent        = tabListScroll
 
+	-- Slot at the bottom of the sidebar for the PlayerCard widget
+	local playerCardSlot = Instance.new("Frame")
+	playerCardSlot.Name             = "PlayerCardSlot"
+	playerCardSlot.AnchorPoint      = Vector2.new(0, 1)
+	playerCardSlot.Position         = UDim2.fromScale(0, 1)
+	playerCardSlot.Size             = UDim2.new(1, 0, 0, PLAYER_CARD_H)
+	playerCardSlot.BackgroundTransparency = 1
+	playerCardSlot.BorderSizePixel  = 0
+	playerCardSlot.ClipsDescendants = false
+	playerCardSlot.Parent           = sidebar
+
 	-- Divider: garis vertikal pemisah antara sidebar dan contentArea
 	local divider = Instance.new("Frame")
 	divider.Name                   = "Divider"
@@ -466,9 +491,10 @@ function Window.new(props: WindowProps): Window
 	contentArea.Parent                 = body
 
 	-- ── Settings panel ──────────────────────────────────────────────────────
-	local SP_W    = 520
-	local SP_H    = 340
-	local SP_TB   = 34
+	local SP_W    = 580
+	local SP_H    = 420
+	local SP_TB   = 44
+	local SP_NAV  = 116
 
 	local spAccent   = colorAccent
 	-- M1 FIX: on touch-only devices the default 1.0 scale leaves 11-13px text
@@ -546,18 +572,47 @@ function Window.new(props: WindowProps): Window
 		sep.ZIndex           = constants.zIndex.popup
 		sep.Parent           = spTB
 	end
+	-- Icon badge in settings titlebar
+	local spTBBadge = Instance.new("Frame")
+	spTBBadge.Name             = "IconBadge"
+	spTBBadge.AnchorPoint      = Vector2.new(0, 0.5)
+	spTBBadge.Position         = UDim2.new(0, 12, 0.5, 0)
+	spTBBadge.Size             = UDim2.fromOffset(26, 26)
+	spTBBadge.BackgroundColor3 = colorAccent
+	spTBBadge.BorderSizePixel  = 0
+	spTBBadge.ZIndex           = constants.zIndex.popup + 1
+	spTBBadge.Parent           = spTB
 	do
-		local p = Instance.new("UIPadding")
-		p.PaddingLeft  = UDim.new(0, 12)
-		p.PaddingRight = UDim.new(0, 8)
-		p.Parent       = spTB
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(0, 6)
+		c.Parent       = spTBBadge
+	end
+	do
+		local g = Instance.new("UIGradient")
+		g.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.45),
+			NumberSequenceKeypoint.new(1, 0.75),
+		})
+		g.Rotation = 135
+		g.Parent   = spTBBadge
+	end
+	do
+		local settingsIco = Instance.new("ImageLabel")
+		settingsIco.Size                   = UDim2.fromOffset(14, 14)
+		settingsIco.AnchorPoint            = Vector2.new(0.5, 0.5)
+		settingsIco.Position               = UDim2.fromScale(0.5, 0.5)
+		settingsIco.BackgroundTransparency = 1
+		settingsIco.Image                  = ICON_SETTINGS
+		settingsIco.ImageColor3            = Color3.fromRGB(255, 255, 255)
+		settingsIco.ZIndex                 = constants.zIndex.popup + 2
+		settingsIco.Parent                 = spTBBadge
 	end
 
 	local spTitle = Instance.new("TextLabel")
 	spTitle.Name                   = "Title"
 	spTitle.AnchorPoint            = Vector2.new(0, 0.5)
-	spTitle.Position               = UDim2.fromScale(0, 0.5)
-	spTitle.Size                   = UDim2.new(0.7, 0, 0, 16)
+	spTitle.Position               = UDim2.new(0, 46, 0.5, 0)
+	spTitle.Size                   = UDim2.new(0.6, -46, 0, 16)
 	spTitle.BackgroundTransparency = 1
 	spTitle.Text                   = "Settings"
 	spTitle.TextColor3             = colorTextPrimary
@@ -565,7 +620,7 @@ function Window.new(props: WindowProps): Window
 	spTitle.FontFace               = resolvedTheme.TitleFont
 		or Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.SemiBold)
 	spTitle.TextXAlignment         = Enum.TextXAlignment.Left
-	spTitle.ZIndex                 = constants.zIndex.popup
+	spTitle.ZIndex                 = constants.zIndex.popup + 1
 	spTitle.Parent                 = spTB
 
 	local spClose = Instance.new("TextButton")
@@ -610,20 +665,94 @@ function Window.new(props: WindowProps): Window
 		variables.settingsOpen = false
 	end)
 
-	-- Body
+	-- Body: horizontal split (nav sidebar | scrolling content)
 	local spBody = Instance.new("Frame")
 	spBody.Name                   = "Body"
 	spBody.Position               = UDim2.fromOffset(0, SP_TB + 1)
 	spBody.Size                   = UDim2.new(1, 0, 1, -(SP_TB + 1))
 	spBody.BackgroundTransparency = 1
+	spBody.ClipsDescendants       = false
 	spBody.ZIndex                 = constants.zIndex.popup
 	spBody.Parent                 = settingsPanel
 
-	-- Content pane (ScrollingFrame for mobile responsiveness)
+	-- Nav sidebar
+	local spNav = Instance.new("Frame")
+	spNav.Name             = "Nav"
+	spNav.Size             = UDim2.new(0, SP_NAV, 1, 0)
+	spNav.BackgroundColor3 = Color3.fromHex("#0e0e0e")
+	spNav.BackgroundTransparency = 0
+	spNav.BorderSizePixel  = 0
+	spNav.ClipsDescendants = true
+	spNav.ZIndex           = constants.zIndex.popup
+	spNav.Parent           = spBody
+	do
+		local g = Instance.new("UIGradient")
+		g.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromHex("#181818")),
+			ColorSequenceKeypoint.new(1, Color3.fromHex("#101010")),
+		})
+		g.Rotation = 90
+		g.Parent   = spNav
+	end
+	-- Nav inner (for padding without clipping the active bar)
+	local spNavInner = Instance.new("Frame")
+	spNavInner.Name             = "NavInner"
+	spNavInner.Size             = UDim2.fromScale(1, 1)
+	spNavInner.BackgroundTransparency = 1
+	spNavInner.ZIndex           = constants.zIndex.popup
+	spNavInner.Parent           = spNav
+	do
+		local p = Instance.new("UIPadding")
+		p.PaddingTop    = UDim.new(0, 10)
+		p.PaddingBottom = UDim.new(0, 10)
+		p.PaddingLeft   = UDim.new(0, 7)
+		p.PaddingRight  = UDim.new(0, 7)
+		p.Parent        = spNavInner
+	end
+	local spNavLayout = Instance.new("UIListLayout")
+	spNavLayout.FillDirection     = Enum.FillDirection.Vertical
+	spNavLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+	spNavLayout.Padding           = UDim.new(0, 2)
+	spNavLayout.SortOrder         = Enum.SortOrder.LayoutOrder
+	spNavLayout.Parent            = spNavInner
+
+	-- "PREFERENCES" section label in nav
+	local spNavSectionLbl = Instance.new("TextLabel")
+	spNavSectionLbl.Name                   = "SectionLbl"
+	spNavSectionLbl.Size                   = UDim2.new(1, 0, 0, 22)
+	spNavSectionLbl.BackgroundTransparency = 1
+	spNavSectionLbl.Text                   = "PREFERENCES"
+	spNavSectionLbl.TextColor3             = colorTextSecondary
+	spNavSectionLbl.TextTransparency       = 0.5
+	spNavSectionLbl.TextSize               = 9
+	spNavSectionLbl.FontFace               = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold)
+	spNavSectionLbl.TextXAlignment         = Enum.TextXAlignment.Left
+	spNavSectionLbl.LayoutOrder            = 0
+	spNavSectionLbl.ZIndex                 = constants.zIndex.popup + 1
+	spNavSectionLbl.Parent                 = spNavInner
+	do
+		local p = Instance.new("UIPadding")
+		p.PaddingLeft   = UDim.new(0, 5)
+		p.PaddingBottom = UDim.new(0, 2)
+		p.Parent        = spNavSectionLbl
+	end
+
+	-- Vertical divider between nav and content
+	local spNavDivLine = Instance.new("Frame")
+	spNavDivLine.Name             = "NavDivLine"
+	spNavDivLine.Position         = UDim2.fromOffset(SP_NAV, 0)
+	spNavDivLine.Size             = UDim2.new(0, 1, 1, 0)
+	spNavDivLine.BackgroundColor3 = colorBorder
+	spNavDivLine.BackgroundTransparency = 0.4
+	spNavDivLine.BorderSizePixel  = 0
+	spNavDivLine.ZIndex           = constants.zIndex.popup + 1
+	spNavDivLine.Parent           = spBody
+
+	-- Content ScrollingFrame (right of nav)
 	local spContent = Instance.new("ScrollingFrame")
 	spContent.Name                    = "Content"
-	spContent.Position                = UDim2.fromOffset(0, 0)
-	spContent.Size                    = UDim2.fromScale(1, 1)
+	spContent.Position                = UDim2.fromOffset(SP_NAV + 1, 0)
+	spContent.Size                    = UDim2.new(1, -(SP_NAV + 1), 1, 0)
 	spContent.BackgroundTransparency  = 1
 	spContent.BorderSizePixel         = 0
 	spContent.ScrollBarThickness      = 2
@@ -658,6 +787,8 @@ function Window.new(props: WindowProps): Window
 		logoMark.BackgroundColor3 = col
 		resolvedTheme.AccentColor = col
 		resolvedTheme.ElementStrokeHover = col   -- keep hover tint in sync with accent
+		resolvedTheme.SliderProgress = ColorSequence.new(col, col:Lerp(Color3.fromRGB(0, 0, 0), 0.25))
+		resolvedTheme.AccentStroke = col:Lerp(Color3.fromRGB(255, 255, 255), 0.2)
 		for _, fn in spAccentUpdaters do
 			fn(col)
 		end
@@ -725,33 +856,6 @@ function Window.new(props: WindowProps): Window
 		lbl.ZIndex                 = constants.zIndex.popup
 		lbl.Parent                 = row
 		return row
-	end
-
-	-- Helper: section header
-	local function spMakeSectionHeader(parent: Frame, title: string, order: number)
-		local hdr = Instance.new("Frame")
-		hdr.Name                   = "Header_" .. title
-		hdr.Size                   = UDim2.new(1, 0, 0, 22)
-		hdr.BackgroundTransparency = 1
-		hdr.BorderSizePixel        = 0
-		hdr.LayoutOrder            = order
-		hdr.ZIndex                 = constants.zIndex.popup
-		hdr.Parent                 = parent
-
-		local lbl = Instance.new("TextLabel")
-		lbl.Name                   = "Title"
-		lbl.AnchorPoint            = Vector2.new(0, 1)
-		lbl.Position               = UDim2.new(0, 4, 1, -2)
-		lbl.Size                   = UDim2.new(1, -8, 0, 14)
-		lbl.BackgroundTransparency = 1
-		lbl.Text                   = string.upper(title)
-		lbl.TextColor3             = colorTextSecondary
-		lbl.TextTransparency       = 0.4
-		lbl.TextSize               = 10
-		lbl.FontFace               = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold)
-		lbl.TextXAlignment         = Enum.TextXAlignment.Left
-		lbl.ZIndex                 = constants.zIndex.popup
-		lbl.Parent                 = hdr
 	end
 
 	-- Helper: interactive slider row
@@ -929,45 +1033,198 @@ function Window.new(props: WindowProps): Window
 	-- untracked UserInputService.InputBegan connection inside spMakeKeybind (line 1022
 	-- in the original). Removed all three dead closures.
 
-	local spIfaceFrame = Instance.new("Frame")
-	spIfaceFrame.Name                   = "Interface"
-	spIfaceFrame.Position               = UDim2.fromOffset(12, 8)
-	spIfaceFrame.Size                   = UDim2.new(1, -24, 0, 0)
-	spIfaceFrame.AutomaticSize          = Enum.AutomaticSize.Y
-	spIfaceFrame.BackgroundTransparency = 1
-	spIfaceFrame.Visible                = true
-	spIfaceFrame.ZIndex                 = constants.zIndex.popup
-	spIfaceFrame.Parent                 = spContent
-	do
-		local l = Instance.new("UIListLayout")
-		l.FillDirection     = Enum.FillDirection.Vertical
-		l.VerticalAlignment = Enum.VerticalAlignment.Top
-		l.Padding           = UDim.new(0, constants.elementPadding)
-		l.SortOrder         = Enum.SortOrder.LayoutOrder
-		l.Parent            = spIfaceFrame
-	end
-	do
-		local p = Instance.new("UIPadding")
-		p.PaddingBottom = UDim.new(0, 14)
-		p.Parent        = spIfaceFrame
-	end
-
-	-- Section 1: Appearance
-	spMakeSectionHeader(spIfaceFrame, "Appearance", 1)
-
-	local currentCornerRadius = (resolvedTheme.CornerRoundness or UDim.new(0, 10)).Offset
-	spMakeSlider(spIfaceFrame, "Corner Roundness", 0, 16, 1, currentCornerRadius, "px", 2, function(r)
-		local cr = UDim.new(0, r)
-		-- winCorner rounds the outer window frame.
-		winCorner.CornerRadius = cr
-		-- titleBarBg is solid and covers the top-left/top-right corners of the window.
-		-- ClipsDescendants clips to rectangle (not UICorner shape), so titleBarBg would
-		-- paint over the rounded corners unless its own UICorner also matches.
-		-- Only update when NOT minimized — minimize state manages titleBarCorner separately.
-		if not (s and (s :: any)._minimized) then
-			titleBarCorner.CornerRadius = cr
+	-- ── Category page frame builder ─────────────────────────────────────────
+	local function spMakePage(parentFrame: ScrollingFrame): Frame
+		local pg = Instance.new("Frame")
+		pg.Name                   = "Page"
+		pg.Size                   = UDim2.new(1, -24, 0, 0)
+		pg.Position               = UDim2.fromOffset(12, 8)
+		pg.AutomaticSize          = Enum.AutomaticSize.Y
+		pg.BackgroundTransparency = 1
+		pg.Visible                = false
+		pg.ZIndex                 = constants.zIndex.popup
+		pg.Parent                 = parentFrame
+		do
+			local l = Instance.new("UIListLayout")
+			l.FillDirection     = Enum.FillDirection.Vertical
+			l.VerticalAlignment = Enum.VerticalAlignment.Top
+			l.Padding           = UDim.new(0, constants.elementPadding)
+			l.SortOrder         = Enum.SortOrder.LayoutOrder
+			l.Parent            = pg
 		end
-		-- Persist so minimize/restore animation uses the latest value.
+		do
+			local p = Instance.new("UIPadding")
+			p.PaddingBottom = UDim.new(0, 14)
+			p.Parent        = pg
+		end
+		return pg
+	end
+
+	-- ── Nav item builder ──────────────────────────────────────────────────
+	local spActiveNavItem: Frame? = nil
+	local spNavPages: { [Frame]: Frame } = {}
+
+	local function spMakeNavItem(label: string, iconChar: string, order: number): Frame
+		local item = Instance.new("Frame")
+		item.Name             = "NavItem_" .. label
+		item.Size             = UDim2.new(1, 0, 0, 34)
+		item.BackgroundColor3 = Color3.fromHex("#1e1e1e")
+		item.BackgroundTransparency = 1
+		item.BorderSizePixel  = 0
+		item.LayoutOrder      = order
+		item.ClipsDescendants = false
+		item.ZIndex           = constants.zIndex.popup + 1
+		item.Parent           = spNavInner
+		do
+			local c = Instance.new("UICorner")
+			c.CornerRadius = UDim.new(0, 6)
+			c.Parent       = item
+		end
+
+		-- Left accent bar (visible when active)
+		local activeBar = Instance.new("Frame")
+		activeBar.Name             = "ActiveBar"
+		activeBar.AnchorPoint      = Vector2.new(0, 0.5)
+		activeBar.Position         = UDim2.new(0, 0, 0.5, 0)
+		activeBar.Size             = UDim2.fromOffset(3, 14)
+		activeBar.BackgroundColor3 = colorAccent
+		activeBar.BorderSizePixel  = 0
+		activeBar.Visible          = false
+		activeBar.ZIndex           = constants.zIndex.popup + 2
+		activeBar.Parent           = item
+		do
+			local c = Instance.new("UICorner")
+			c.CornerRadius = UDim.new(1, 0)
+			c.Parent       = activeBar
+		end
+
+		-- Icon badge
+		local iconBadge = Instance.new("Frame")
+		iconBadge.Name             = "IconBadge"
+		iconBadge.AnchorPoint      = Vector2.new(0, 0.5)
+		iconBadge.Position         = UDim2.new(0, 10, 0.5, 0)
+		iconBadge.Size             = UDim2.fromOffset(20, 20)
+		iconBadge.BackgroundColor3 = Color3.fromHex("#242424")
+		iconBadge.BorderSizePixel  = 0
+		iconBadge.ZIndex           = constants.zIndex.popup + 2
+		iconBadge.Parent           = item
+		do
+			local c = Instance.new("UICorner")
+			c.CornerRadius = UDim.new(0, 5)
+			c.Parent       = iconBadge
+		end
+		local iconLbl = Instance.new("TextLabel")
+		iconLbl.Name                   = "Icon"
+		iconLbl.Size                   = UDim2.fromScale(1, 1)
+		iconLbl.BackgroundTransparency = 1
+		iconLbl.Text                   = iconChar
+		iconLbl.TextColor3             = colorTextSecondary
+		iconLbl.TextSize               = 10
+		iconLbl.FontFace               = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold)
+		iconLbl.TextXAlignment         = Enum.TextXAlignment.Center
+		iconLbl.ZIndex                 = constants.zIndex.popup + 3
+		iconLbl.Parent                 = iconBadge
+
+		-- Label
+		local lbl = Instance.new("TextLabel")
+		lbl.Name                   = "Label"
+		lbl.AnchorPoint            = Vector2.new(0, 0.5)
+		lbl.Position               = UDim2.new(0, 36, 0.5, 0)
+		lbl.Size                   = UDim2.new(1, -36, 0, 14)
+		lbl.BackgroundTransparency = 1
+		lbl.Text                   = label
+		lbl.TextColor3             = colorTextSecondary
+		lbl.TextSize               = 11
+		lbl.FontFace               = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium)
+		lbl.TextXAlignment         = Enum.TextXAlignment.Left
+		lbl.ZIndex                 = constants.zIndex.popup + 2
+		lbl.Parent                 = item
+
+		-- Invisible hit button
+		local hit = Instance.new("TextButton")
+		hit.Name                   = "Hit"
+		hit.Size                   = UDim2.fromScale(1, 1)
+		hit.BackgroundTransparency = 1
+		hit.Text                   = ""
+		hit.AutoButtonColor        = false
+		hit.ZIndex                 = constants.zIndex.popup + 3
+		hit.Parent                 = item
+
+		hit.MouseEnter:Connect(function()
+			if spActiveNavItem ~= item then
+				item.BackgroundTransparency = 0.82
+				lbl.TextColor3 = colorTextPrimary
+				iconBadge.BackgroundColor3 = Color3.fromHex("#2c2c2c")
+			end
+		end)
+		hit.MouseLeave:Connect(function()
+			if spActiveNavItem ~= item then
+				item.BackgroundTransparency = 1
+				lbl.TextColor3 = colorTextSecondary
+				iconBadge.BackgroundColor3 = Color3.fromHex("#242424")
+			end
+		end)
+		hit.MouseButton1Click:Connect(function()
+			if spActiveNavItem == item then return end
+			-- Deactivate old
+			if spActiveNavItem then
+				local oldBar   = spActiveNavItem:FindFirstChild("ActiveBar")
+				local oldLbl   = spActiveNavItem:FindFirstChild("Label")
+				local oldBadge = spActiveNavItem:FindFirstChild("IconBadge")
+				local oldIco   = if oldBadge then (oldBadge :: Frame):FindFirstChild("Icon") else nil
+				spActiveNavItem.BackgroundTransparency = 1
+				if oldBar   then (oldBar   :: Frame).Visible             = false end
+				if oldLbl   then (oldLbl   :: TextLabel).TextColor3      = colorTextSecondary end
+				if oldBadge then (oldBadge :: Frame).BackgroundColor3    = Color3.fromHex("#242424") end
+				if oldIco   then (oldIco   :: TextLabel).TextColor3      = colorTextSecondary end
+				local oldPage = spNavPages[spActiveNavItem]
+				if oldPage then oldPage.Visible = false end
+			end
+			-- Activate new
+			spActiveNavItem = item
+			item.BackgroundTransparency = 0.86
+			item.BackgroundColor3 = colorAccent
+			activeBar.Visible     = true
+			lbl.TextColor3        = colorAccent
+			iconBadge.BackgroundColor3 = colorAccent
+			iconLbl.TextColor3    = Color3.fromRGB(255, 255, 255)
+			local newPage = spNavPages[item]
+			if newPage then
+				newPage.Visible = true
+				spContent.CanvasPosition = Vector2.zero
+			end
+		end)
+
+		return item
+	end
+
+	-- ── Create the 3 pages ───────────────────────────────────────────────
+	local pageAppearance = spMakePage(spContent)
+	pageAppearance.Name = "PageAppearance"
+
+	local pageControls = spMakePage(spContent)
+	pageControls.Name = "PageControls"
+
+	local pageFont = spMakePage(spContent)
+	pageFont.Name = "PageFont"
+
+	-- ── Create nav items ─────────────────────────────────────────────────
+	local navItemAppearance = spMakeNavItem("Appearance", "◈",  1)
+	local navItemControls   = spMakeNavItem("Controls",   "⌨",  2)
+	local navItemFont       = spMakeNavItem("Font",       "Aa", 3)
+
+	spNavPages[navItemAppearance] = pageAppearance
+	spNavPages[navItemControls]   = pageControls
+	spNavPages[navItemFont]       = pageFont
+
+	-- ── Populate: Appearance ─────────────────────────────────────────────
+	local currentCornerRadius = (resolvedTheme.CornerRoundness or UDim.new(0, 10)).Offset
+	spMakeSlider(pageAppearance, "Corner Roundness", 0, 16, 1, currentCornerRadius, "px", 1, function(r)
+		local cr = UDim.new(0, r)
+		winCorner.CornerRadius = cr
+		titleBarCorner.CornerRadius = cr
+		cornerCover.Size = UDim.new(1, 0, 0, r)
+		cornerCover.Position = UDim.new(0, 0, 1, -r)
 		resolvedTheme.CornerRoundness = cr
 	end)
 
@@ -984,11 +1241,7 @@ function Window.new(props: WindowProps): Window
 			{ Scale = factor }
 		)
 		if s then s._scaleTween = tw end
-
-		-- Re-clamp position after scale tween completes using live AbsoluteSize.
-		-- This is more reliable than computing ahead-of-time with Size.Offset * scale.
 		tw.Completed:Once(function()
-			-- A5 FIX: tween.play() doesn't auto-destroy; destroy here after Completed.
 			tw:Destroy()
 			if s then s._scaleTween = nil end
 			if not self then return end
@@ -996,7 +1249,6 @@ function Window.new(props: WindowProps): Window
 			if not wf then return end
 			local screen = (self :: any)._gui.AbsoluteSize
 			local margin = 8
-			-- AbsoluteSize is already post-scale (Roblox applies UIScale to it)
 			local curW = wf.AbsoluteSize.X
 			local curH = wf.AbsoluteSize.Y
 			local curPos = wf.Position
@@ -1024,11 +1276,10 @@ function Window.new(props: WindowProps): Window
 				posTw:Play()
 			end
 		end)
-
 		tw:Play()
 	end
 
-	spMakeSlider(spIfaceFrame, "UI Scale / DPI", 80, 125, 5, 100, "%", 3, function(pct)
+	spMakeSlider(pageAppearance, "UI Scale / DPI", 80, 125, 5, 100, "%", 2, function(pct)
 		smoothSetScale(pct / 100)
 	end)
 
@@ -1039,20 +1290,16 @@ function Window.new(props: WindowProps): Window
 			callback = function(col: Color3, _alpha: number)
 				updateAccent(col)
 			end,
-		}, resolvedTheme, spIfaceFrame)
-		cp._frame.LayoutOrder = 4
+		}, resolvedTheme, pageAppearance)
+		cp._frame.LayoutOrder = 3
 	end
 
-	spMakeSlider(spIfaceFrame, "Background Transparency", 0, 25, 5, 0, "%", 5, function(pct)
+	spMakeSlider(pageAppearance, "Background Transparency", 0, 25, 5, 0, "%", 4, function(pct)
 		windowFrame.BackgroundTransparency = pct / 100
 	end)
 
-	-- Section 2: Controls & Window
-	spMakeSectionHeader(spIfaceFrame, "Controls & Window", 6)
-
+	-- ── Populate: Controls ───────────────────────────────────────────────
 	do
-		-- Use the real Keybind component so the settings UI is consistent with
-		-- the actual Keybind element used everywhere else in the library.
 		local kb = Keybind.new({
 			name      = "Menu Keybind",
 			value     = currentToggleKey,
@@ -1060,12 +1307,11 @@ function Window.new(props: WindowProps): Window
 				currentToggleKey = newKey
 				if s then s._toggleKey = newKey end
 			end,
-		}, resolvedTheme, spIfaceFrame)
-		kb._frame.LayoutOrder = 7
+		}, resolvedTheme, pageControls)
+		kb._frame.LayoutOrder = 1
 	end
 
-	-- Section 3: Font
-	spMakeSectionHeader(spIfaceFrame, "Font", 10)
+	-- ── Populate: Font ───────────────────────────────────────────────────
 	do
 		local FONT_MAP: { [string]: string } = {
 			["Gotham"]          = "rbxasset://fonts/families/GothamSSm.json",
@@ -1081,13 +1327,12 @@ function Window.new(props: WindowProps): Window
 			name        = "UI Font",
 			options     = { "Gotham", "Roboto", "Source Sans Pro", "Ubuntu", "Syne", "Nunito", "Builder Sans", "Jura" },
 			value       = "Gotham",
-			layoutOrder = 11,
+			layoutOrder = 1,
 			callback    = function(val: any)
 				local family = FONT_MAP[tostring(val)] or "rbxasset://fonts/families/GothamSSm.json"
 				resolvedTheme.Font      = Font.new(family, Enum.FontWeight.Medium)
 				resolvedTheme.TitleFont = Font.new(family, Enum.FontWeight.SemiBold)
 				themeUtil.broadcast(resolvedTheme)
-				-- Apply font family to every text element in the window, preserving weight & style
 				for _, desc in windowFrame:GetDescendants() do
 					if desc:IsA("TextLabel") or desc:IsA("TextButton") then
 						local existing = (desc :: TextLabel).FontFace
@@ -1095,8 +1340,27 @@ function Window.new(props: WindowProps): Window
 					end
 				end
 			end,
-		}, resolvedTheme, spIfaceFrame)
-		fontDD._frame.LayoutOrder = 11
+		}, resolvedTheme, pageFont)
+		fontDD._frame.LayoutOrder = 1
+	end
+
+	-- ── Activate Appearance by default ───────────────────────────────────
+	do
+		local firstItem = navItemAppearance
+		spActiveNavItem        = firstItem
+		firstItem.BackgroundTransparency = 0.86
+		firstItem.BackgroundColor3       = colorAccent
+		local bar   = firstItem:FindFirstChild("ActiveBar")
+		local lbl   = firstItem:FindFirstChild("Label")
+		local badge = firstItem:FindFirstChild("IconBadge")
+		if bar   then (bar   :: Frame).Visible             = true end
+		if lbl   then (lbl   :: TextLabel).TextColor3      = colorAccent end
+		if badge then
+			(badge :: Frame).BackgroundColor3 = colorAccent
+			local ico = (badge :: Frame):FindFirstChild("Icon")
+			if ico then (ico :: TextLabel).TextColor3 = Color3.fromRGB(255, 255, 255) end
+		end
+		pageAppearance.Visible = true
 	end
 
 	local function updateSettingsPanelSize()
@@ -1138,7 +1402,8 @@ function Window.new(props: WindowProps): Window
 	s._userScale     = userScale
 	s._toggleKey     = currentToggleKey
 	s._sidebar       = tabListScroll
-	s._sidebarFrame  = sidebar
+	s._sidebarFrame    = sidebar
+	s._playerCardSlot  = playerCardSlot
 	s._contentArea   = contentArea
 	s._divider       = divider
 	s._theme         = resolvedTheme
@@ -1164,6 +1429,7 @@ function Window.new(props: WindowProps): Window
 	s._minimizeAnimId = nil           -- guard token for body-hide task.delay
 	s._titleBarBg     = titleBarBg
 	s._titleBarCorner = titleBarCorner
+	s._cornerCover    = cornerCover
 
 	-- M1 FIX: apply initial scale (0.9 on touch, 1.0 on desktop) now that s exists.
 	if userScale ~= 1.0 then
@@ -1492,6 +1758,10 @@ function Window:CreateTab(props: Tab.TabProps): Tab.Tab
 
 	btn.MouseButton1Click:Connect(function()
 		local _s = (self :: any)
+		-- hide dashboard content when switching to a real tab
+		if _s._playerCard then
+			(_s._playerCard :: any):HideContent()
+		end
 		_s:_activateTab(t)
 	end)
 
@@ -1506,6 +1776,33 @@ function Window:CreateTab(props: Tab.TabProps): Tab.Tab
 	end
 
 	return t
+end
+
+-- ── PlayerCard ───────────────────────────────────────────────────────────────
+
+function Window:CreatePlayerCard()
+	local s            = (self :: any)
+	local slot: Frame  = s._playerCardSlot
+	local wf: Frame    = s._windowFrame
+	local ca: Frame    = s._contentArea
+	local theme        = s._theme
+
+	local pc = PlayerCard.new(slot, wf, ca, theme)
+	s._playerCard = pc
+
+	-- Wire card click → deselect all real tabs → show dashboard content
+	local cardHit = (pc :: any)._cardHit :: TextButton?
+	if cardHit then
+		cardHit.MouseButton1Click:Connect(function()
+			for _, tab in (s._tabs :: { any }) do
+				tab:Hide()
+			end
+			s._activeTab = nil
+			pc:ShowContent()
+		end)
+	end
+
+	return pc
 end
 
 function Window:_activateTab(target: Tab.Tab)
@@ -1545,6 +1842,7 @@ function Window:Show()
 		;(s._body :: Frame).Visible = true
 		if s._divider then (s._divider :: Frame).Visible = true end
 		if s._titleSep then (s._titleSep :: Frame).Visible = true end
+		if s._cornerCover then (s._cornerCover :: Frame).Visible = true end
 		local fullH: number = s._windowSize.Y.Offset
 		local topY = windowFrame.Position.Y.Offset - math.floor(s._titlebarH / 2)
 		local restoreCenterY = topY + math.floor(fullH / 2)
@@ -1609,10 +1907,28 @@ function Window:ToggleMinimise()
 	local windowFrame: Frame    = s._windowFrame
 	local body: Frame           = s._body
 	local divider: Frame?       = s._divider
+	local cornerCover: Frame?   = s._cornerCover
 	local titlebarH: number     = s._titlebarH
 	local fullH: number         = s._windowSize.Y.Offset
 	local width: number         = s._windowSize.X.Offset
 	local keepOnScreen: boolean = s._keepOnScreen
+	local screen                = self._gui.AbsoluteSize
+	local margin                = 8
+
+	-- Snapshot actual rendered geometry to avoid floating-point / subpixel rounding jitter.
+	local absPos  = windowFrame.AbsolutePosition
+	local absSize = windowFrame.AbsoluteSize
+	local centerX = absPos.X + absSize.X / 2
+	local centerY = absPos.Y + absSize.Y / 2
+	local topY    = absPos.Y
+
+	if keepOnScreen then
+		local halfW = width / 2
+		centerX = math.clamp(centerX, halfW + margin, math.max(halfW + margin, screen.X - halfW - margin))
+	end
+
+	-- Normalize position to pure integer Offset centered at the current visual position
+	windowFrame.Position = UDim2.fromOffset(centerX, centerY)
 
 	local TWEEN_INFO = TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
 
@@ -1621,36 +1937,27 @@ function Window:ToggleMinimise()
 		s._minimized     = false
 		s._pendingResize = false
 
-		local topY = windowFrame.Position.Y.Offset - math.floor(titlebarH / 2)
-		local restoreCenterY = topY + math.floor(fullH / 2)
-		local targetPos = UDim2.fromOffset(windowFrame.Position.X.Offset, restoreCenterY)
+		local targetCY = topY + fullH / 2
 		if keepOnScreen then
-			targetPos = self:_clampedPosition(targetPos)
+			local halfH = fullH / 2
+			targetCY = math.clamp(targetCY, halfH + margin, math.max(halfH + margin, screen.Y - halfH - margin))
 		end
 
-		-- Square titleBar corners immediately — body expanding into that space
-		if s._titleBarCorner then
-			(s._titleBarCorner :: UICorner).CornerRadius = UDim.new(0, 0)
-		end
-
-		-- Keep body hidden while the window frame expands so elements don't squash or flash
-		body.Visible = false
-		if divider then divider.Visible = false end
+		body.Visible = true
+		if divider then divider.Visible = true end
+		if s._titleSep then (s._titleSep :: Frame).Visible = true end
 
 		local tw = tween.play(windowFrame, TWEEN_INFO, {
-			Size = UDim2.fromOffset(width, fullH),
-			Position = targetPos,
+			Size     = UDim2.fromOffset(width, fullH),
+			Position = UDim2.fromOffset(centerX, targetCY),
 		})
 		s._activeTween = tw
 		tw.Completed:Once(function()
-			-- A5 FIX: destroy Tween on Completed; tween.play() won't do it automatically.
 			tw:Destroy()
 			if s._activeTween == tw then
 				s._activeTween = nil
 				if not s._minimized then
-					body.Visible = true
-					if divider then divider.Visible = true end
-					if s._titleSep then (s._titleSep :: Frame).Visible = true end
+					if cornerCover then cornerCover.Visible = true end
 				end
 			end
 		end)
@@ -1660,7 +1967,7 @@ function Window:ToggleMinimise()
 			local _ic = s._minIcon :: ImageLabel
 			local _fo = tween.play(_ic, TweenInfo.new(0.1, Enum.EasingStyle.Quad), { ImageTransparency = 1 })
 			_fo.Completed:Once(function()
-				_fo:Destroy() -- A5 FIX: destroy the fade-out tween after Completed
+				_fo:Destroy()
 				_ic.Image = ICON_MINIMIZE
 				tween.fire(_ic, TweenInfo.new(0.1, Enum.EasingStyle.Quad), { ImageTransparency = 0 })
 			end)
@@ -1669,39 +1976,47 @@ function Window:ToggleMinimise()
 		-- ── MINIMIZE ─────────────────────────────────────────────
 		s._minimized = true
 
-		local topY = windowFrame.Position.Y.Offset - math.floor(fullH / 2)
-		local minCenterY = topY + math.floor(titlebarH / 2)
-		local targetPos = UDim2.fromOffset(windowFrame.Position.X.Offset, minCenterY)
+		local targetCY = topY + titlebarH / 2
+		if keepOnScreen then
+			local halfTH = titlebarH / 2
+			targetCY = math.clamp(targetCY, halfTH + margin, math.max(halfTH + margin, screen.Y - halfTH - margin))
+		end
 
-		-- Hide body immediately so content never squashes or flickers while shrinking
-		body.Visible = false
+		-- Flatten bottom corners to rounded immediately so the pill is cleanly rounded during the whole tween
+		if cornerCover then cornerCover.Visible = false end
 		if divider then divider.Visible = false end
 		if s._titleSep then (s._titleSep :: Frame).Visible = false end
 
+		local animId = {}
+		s._minimizeAnimId = animId
+
 		local tw = tween.play(windowFrame, TWEEN_INFO, {
-			Size = UDim2.fromOffset(width, titlebarH),
-			Position = targetPos,
+			Size     = UDim2.fromOffset(width, titlebarH),
+			Position = UDim2.fromOffset(centerX, targetCY),
 		})
 		s._activeTween = tw
 		tw.Completed:Once(function()
-			-- A5 FIX: destroy Tween on Completed.
 			tw:Destroy()
 			if s._activeTween == tw then
 				s._activeTween = nil
-				-- Round titleBar corners now it's the full visible face of the minimised window
-				if s._titleBarCorner then
-					local cr = s._theme.CornerRoundness or UDim.new(0, 10)
-					;(s._titleBarCorner :: UICorner).CornerRadius = cr
-				end
+				body.Visible = false
 			end
 		end)
+
+		-- Defer hiding body contents slightly to avoid frame-0 layout reflow jitter
+		task.delay(0.22, function()
+			if s._minimizeAnimId ~= animId then return end
+			if not s._minimized then return end
+			body.Visible = false
+		end)
+
 		;(s._minBtn :: TextButton).Text = ""
 		-- Fade icon: MINIMIZE → RESTORE
 		if s._minIcon then
 			local _ic = s._minIcon :: ImageLabel
 			local _fo = tween.play(_ic, TweenInfo.new(0.1, Enum.EasingStyle.Quad), { ImageTransparency = 1 })
 			_fo.Completed:Once(function()
-				_fo:Destroy() -- A5 FIX: destroy the fade-out tween after Completed
+				_fo:Destroy()
 				_ic.Image = ICON_RESTORE
 				tween.fire(_ic, TweenInfo.new(0.1, Enum.EasingStyle.Quad), { ImageTransparency = 0 })
 			end)
@@ -1741,6 +2056,10 @@ function Window:Unload()
 		pcall(function() conn:Disconnect() end)
 	end
 	table.clear(s._connections)
+
+	if s._playerCard then
+		pcall(function() s._playerCard:Destroy() end)
+	end
 
 	self._gui:Destroy()
 
