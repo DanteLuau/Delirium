@@ -2090,7 +2090,8 @@ function Window:ToggleMinimise()
 			targetCY = math.clamp(targetCY, halfH + margin, math.max(halfH + margin, screen.Y - halfH - margin))
 		end
 
-		body.Visible = true
+		-- Keep body hidden during tween so layout doesn't fight the size interpolation
+		body.Visible = false
 		if divider then divider.Visible = true end
 		if s._titleSep then (s._titleSep :: Frame).Visible = true end
 
@@ -2104,6 +2105,7 @@ function Window:ToggleMinimise()
 			if s._activeTween == tw then
 				s._activeTween = nil
 				if not s._minimized then
+					body.Visible = true
 					if cornerCover then cornerCover.Visible = true end
 				end
 			end
@@ -2138,13 +2140,11 @@ function Window:ToggleMinimise()
 			targetCY = math.clamp(targetCY, halfTH + margin, math.max(halfTH + margin, screen.Y - halfTH - margin))
 		end
 
-		-- Flatten bottom corners to rounded immediately so the pill is cleanly rounded during the whole tween
+		-- Hide body synchronously before tween so shrinking size doesn't fight layout
+		body.Visible = false
 		if cornerCover then cornerCover.Visible = false end
 		if divider then divider.Visible = false end
 		if s._titleSep then (s._titleSep :: Frame).Visible = false end
-
-		local animId = {}
-		s._minimizeAnimId = animId
 
 		local tw = tween.play(windowFrame, TWEEN_INFO, {
 			Size     = UDim2.fromOffset(width, titlebarH),
@@ -2155,15 +2155,7 @@ function Window:ToggleMinimise()
 			tw:Destroy()
 			if s._activeTween == tw then
 				s._activeTween = nil
-				body.Visible = false
 			end
-		end)
-
-		-- Defer hiding body contents slightly to avoid frame-0 layout reflow jitter
-		task.delay(0.22, function()
-			if s._minimizeAnimId ~= animId then return end
-			if not s._minimized then return end
-			body.Visible = false
 		end)
 
 		;(s._minBtn :: TextButton).Text = ""

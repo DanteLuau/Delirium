@@ -8701,7 +8701,8 @@ function Window:ToggleMinimise()
 			targetCY = math.clamp(targetCY, halfH + margin, math.max(halfH + margin, screen.Y - halfH - margin))
 		end
 
-		body.Visible = true
+		
+		body.Visible = false
 		if divider then divider.Visible = true end
 		if s._titleSep then (s._titleSep :: Frame).Visible = true end
 
@@ -8715,6 +8716,7 @@ function Window:ToggleMinimise()
 			if s._activeTween == tw then
 				s._activeTween = nil
 				if not s._minimized then
+					body.Visible = true
 					if cornerCover then cornerCover.Visible = true end
 				end
 			end
@@ -8750,12 +8752,10 @@ function Window:ToggleMinimise()
 		end
 
 		
+		body.Visible = false
 		if cornerCover then cornerCover.Visible = false end
 		if divider then divider.Visible = false end
 		if s._titleSep then (s._titleSep :: Frame).Visible = false end
-
-		local animId = {}
-		s._minimizeAnimId = animId
 
 		local tw = tween.play(windowFrame, TWEEN_INFO, {
 			Size     = UDim2.fromOffset(width, titlebarH),
@@ -8766,15 +8766,7 @@ function Window:ToggleMinimise()
 			tw:Destroy()
 			if s._activeTween == tw then
 				s._activeTween = nil
-				body.Visible = false
 			end
-		end)
-
-		
-		task.delay(0.22, function()
-			if s._minimizeAnimId ~= animId then return end
-			if not s._minimized then return end
-			body.Visible = false
 		end)
 
 		;(s._minBtn :: TextButton).Text = ""
@@ -12833,7 +12825,7 @@ return windowSizing
 end)() end} 
 
 
-local ObjectTree = {{1,2,{"Delirium"},{{22,2,{"types"}},{23,1,{"utility"},{{30,2,{"icons"}},{38,2,{"signal"}},{35,2,{"runtime"}},{40,2,{"tween"}},{41,2,{"variables"}},{33,2,{"mediaService"}},{36,2,{"saveManager"}},{26,2,{"element"}},{39,2,{"theme"}},{29,2,{"fontLoader"}},{37,2,{"services"}},{24,2,{"assetFetcher"}},{32,2,{"imageCache"}},{25,2,{"constants"}},{31,2,{"image"}},{42,2,{"windowSizing"}},{34,2,{"network"}},{27,2,{"filesystem"}},{28,2,{"flags"}}}},{2,1,{"components"},{{12,2,{"notification"}},{3,2,{"button"}},{16,2,{"toggle"}},{17,2,{"window"}},{4,2,{"colorpicker"}},{14,2,{"slider"}},{13,2,{"section"}},{15,2,{"tab"}},{7,2,{"dropdown"}},{6,2,{"descriptor"}},{8,2,{"input"}},{9,2,{"keybind"}},{5,2,{"dashboard"}},{10,2,{"label"}},{11,2,{"loadingScreen"}}}},{18,1,{"themes"},{{21,2,{"light"}},{20,2,{"dracula"}},{19,2,{"default"}}}}}}}
+local ObjectTree = {{1,2,{"Delirium"},{{18,1,{"themes"},{{21,2,{"light"}},{20,2,{"dracula"}},{19,2,{"default"}}}},{22,2,{"types"}},{23,1,{"utility"},{{27,2,{"filesystem"}},{26,2,{"element"}},{28,2,{"flags"}},{25,2,{"constants"}},{42,2,{"windowSizing"}},{24,2,{"assetFetcher"}},{30,2,{"icons"}},{34,2,{"network"}},{36,2,{"saveManager"}},{38,2,{"signal"}},{33,2,{"mediaService"}},{39,2,{"theme"}},{35,2,{"runtime"}},{29,2,{"fontLoader"}},{31,2,{"image"}},{41,2,{"variables"}},{40,2,{"tween"}},{32,2,{"imageCache"}},{37,2,{"services"}}}},{2,1,{"components"},{{6,2,{"descriptor"}},{8,2,{"input"}},{7,2,{"dropdown"}},{9,2,{"keybind"}},{17,2,{"window"}},{3,2,{"button"}},{5,2,{"dashboard"}},{11,2,{"loadingScreen"}},{13,2,{"section"}},{4,2,{"colorpicker"}},{15,2,{"tab"}},{10,2,{"label"}},{16,2,{"toggle"}},{14,2,{"slider"}},{12,2,{"notification"}}}}}}}
 
 
 local LineOffsets = nil
