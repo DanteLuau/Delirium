@@ -1529,6 +1529,37 @@ function Window.new(props: WindowProps): Window
 		for _, fn in spAccentUpdaters do
 			fn(t.AccentColor)
 		end
+		-- B5 FIX: settings panel chrome and nav weren't wired into subscriber.
+		-- BackgroundColor3 / UIGradient / UIStroke on settingsPanel, spNav,
+		-- spTitle, spNavSectionLbl, spTBBadge, name/subtitle labels, nav divider,
+		-- and spContent scrollbar all stayed at their hardcoded init values across
+		-- any theme switch (ChangeTheme or broadcast from accent picker).
+		settingsPanel.BackgroundColor3 = t.WindowColor.Keypoints[1].Value
+		local spGrad = settingsPanel:FindFirstChildOfClass("UIGradient")
+		if spGrad then spGrad.Color = t.WindowColor end
+		local spStroke = settingsPanel:FindFirstChildOfClass("UIStroke")
+		if spStroke then spStroke.Color = t.SurfaceStroke end
+		-- spTB separator
+		local spTBSep = spTB:FindFirstChild("Sep")
+		if spTBSep and spTBSep:IsA("Frame") then
+			(spTBSep :: Frame).BackgroundColor3 = t.SurfaceStroke
+		end
+		-- Nav sidebar
+		spNav.BackgroundColor3 = t.TitleBarColor
+		local spNavGrad = spNav:FindFirstChildOfClass("UIGradient")
+		if spNavGrad then
+			spNavGrad.Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, t.TitleBarColor),
+				ColorSequenceKeypoint.new(1, t.TitleBarColor:Lerp(Color3.fromRGB(0, 0, 0), 0.18)),
+			})
+		end
+		spNavDivLine.BackgroundColor3 = t.SurfaceStroke
+		spContent.ScrollBarImageColor3 = t.SurfaceStroke
+		spTitle.TextColor3 = t.TitlingColor
+		spNavSectionLbl.TextColor3 = t.PlaceholderColor
+		spTBBadge.BackgroundColor3 = t.AccentColor
+		nameLabel.TextColor3 = t.TitlingColor
+		if subtitleLabel then (subtitleLabel :: TextLabel).TextColor3 = t.PlaceholderColor end
 	end, windowFrame)
 
 	-- ── Drag system (RenderStepped, clamped) ──────────────────────────────

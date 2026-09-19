@@ -362,6 +362,13 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 	listWrap.Parent = frame
 
 	-- ── Search Bar (Optional) ─────────────────────────────────────────────────
+	-- B5 FIX: capture searchBar element refs before the isSearchable block so they
+	-- land in the subscriber closure even though s isn't constructed yet.
+	local capturedSearchBar:    Frame?     = nil
+	local capturedSearchInner:  Frame?     = nil
+	local capturedSearchStroke: UIStroke?  = nil
+	local capturedSearchIcon:   TextLabel? = nil
+	local capturedSearchSep:    Frame?     = nil
 	local searchBox: TextBox? = nil
 	if isSearchable then
 		local searchBar = Instance.new("Frame")
@@ -439,6 +446,12 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 		sep.BorderSizePixel = 0
 		sep.ZIndex = 4
 		sep.Parent = listWrap
+		-- Capture refs for the subscriber (s doesn't exist yet at this point).
+		capturedSearchBar    = searchBar
+		capturedSearchInner  = searchInner
+		capturedSearchStroke = searchStroke
+		capturedSearchIcon   = searchIcon
+		capturedSearchSep    = sep
 	end
 
 	-- ── Scrolling Options Area ────────────────────────────────────────────────
@@ -702,7 +715,8 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 			local optFrame = Instance.new("Frame")
 			optFrame.Name = "Option_" .. i
 			optFrame.Size = UDim2.new(1, 0, 0, OPTION_H)
-			optFrame.BackgroundColor3 = Color3.fromHex("#1a1a1a")
+			-- B5 FIX: use theme surface color instead of hardcoded #1a1a1a
+			optFrame.BackgroundColor3 = (s._theme.WindowColor and s._theme.WindowColor.Keypoints[1].Value) or Color3.fromHex("#1a1a1a")
 			optFrame.BackgroundTransparency = 1
 			optFrame.BorderSizePixel = 0
 			optFrame.LayoutOrder = i
@@ -813,7 +827,8 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 
 				table.insert(s._optConns, optHit.MouseLeave:Connect(function()
 					optFrame.BackgroundTransparency = 1
-					optFrame.BackgroundColor3 = Color3.fromHex("#1a1a1a")
+					-- B5 FIX: use theme surface color on leave
+					optFrame.BackgroundColor3 = (s._theme.WindowColor and s._theme.WindowColor.Keypoints[1].Value) or Color3.fromHex("#1a1a1a")
 					local isSel = if s._multiSelect
 						then s._selectedSet[opt.Value] == true
 						else s._selectedValue == opt.Value
@@ -997,6 +1012,29 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 			ColorSequenceKeypoint.new(0, Color3.fromHex("#2e2e2e")),
 			ColorSequenceKeypoint.new(1, Color3.fromHex("#181818")),
 		})
+		-- B5 FIX: listWrap popup container and all searchBar sub-elements were
+		-- hardcoded and never reached by the subscriber.
+		listWrap.BackgroundColor3 = if t.WindowColor
+			then t.WindowColor.Keypoints[1].Value
+			else Color3.fromHex("#1a1a1a")
+		if capturedSearchBar then
+			capturedSearchBar.BackgroundColor3 = t.TitleBarColor or Color3.fromHex("#1e1e1e")
+		end
+		if capturedSearchInner then
+			capturedSearchInner.BackgroundColor3 = t.NeutralButton or Color3.fromHex("#2a2a2a")
+		end
+		if capturedSearchStroke then
+			capturedSearchStroke.Color = t.ElementStroke or Color3.fromHex("#2b2b2b")
+		end
+		if capturedSearchIcon then
+			capturedSearchIcon.TextColor3 = t.PlaceholderColor or Color3.fromHex("#9d9d9d")
+		end
+		if searchBox then
+			(searchBox :: TextBox).TextColor3 = t.ContentColor or Color3.fromHex("#ffffff")
+		end
+		if capturedSearchSep then
+			capturedSearchSep.BackgroundColor3 = t.ElementStroke or Color3.fromHex("#2b2b2b")
+		end
 		-- B1 FIX: only rebuild option rows when the list is open.
 		-- When closed, options are invisible; re-coloring happens on next open().
 		-- This prevents dozens of instance destroy/recreate cycles per mouse-move

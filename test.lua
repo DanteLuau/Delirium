@@ -2515,6 +2515,11 @@ local ClosureBindings = {
                 listStroke.Parent = listWrap
                 listWrap.Parent = frame
 
+                local capturedSearchBar: Frame? = nil
+                local capturedSearchInner: Frame? = nil
+                local capturedSearchStroke: UIStroke? = nil
+                local capturedSearchIcon: TextLabel? = nil
+                local capturedSearchSep: Frame? = nil
                 local searchBox: TextBox? = nil
 
                 if isSearchable then
@@ -2601,6 +2606,11 @@ local ClosureBindings = {
                     sep.BorderSizePixel = 0
                     sep.ZIndex = 4
                     sep.Parent = listWrap
+                    capturedSearchBar = searchBar
+                    capturedSearchInner = searchInner
+                    capturedSearchStroke = searchStroke
+                    capturedSearchIcon = searchIcon
+                    capturedSearchSep = sep
                 end
 
                 local scrollTopOffset = if isSearchable then SEARCH_H else 0
@@ -2880,7 +2890,7 @@ local ClosureBindings = {
 
                         optFrame.Name = 'Option_' .. i
                         optFrame.Size = UDim2.new(1, 0, 0, OPTION_H)
-                        optFrame.BackgroundColor3 = Color3.fromHex('#1a1a1a')
+                        optFrame.BackgroundColor3 = (s._theme.WindowColor and s._theme.WindowColor.Keypoints[1].Value) or Color3.fromHex('#1a1a1a')
                         optFrame.BackgroundTransparency = 1
                         optFrame.BorderSizePixel = 0
                         optFrame.LayoutOrder = i
@@ -2991,7 +3001,7 @@ local ClosureBindings = {
                             table.insert(s._optConns, optHit.MouseLeave:Connect(function(
                             )
                                 optFrame.BackgroundTransparency = 1
-                                optFrame.BackgroundColor3 = Color3.fromHex('#1a1a1a')
+                                optFrame.BackgroundColor3 = (s._theme.WindowColor and s._theme.WindowColor.Keypoints[1].Value) or Color3.fromHex('#1a1a1a')
 
                                 local isSel = if s._multiSelect then s._selectedSet[opt.Value] == true else s._selectedValue == opt.Value
 
@@ -3219,7 +3229,26 @@ local ClosureBindings = {
                         ColorSequenceKeypoint.new(0, Color3.fromHex('#2e2e2e')),
                         ColorSequenceKeypoint.new(1, Color3.fromHex('#181818')),
                     })
+                    listWrap.BackgroundColor3 = if t.WindowColor then t.WindowColor.Keypoints[1].Value else Color3.fromHex('#1a1a1a')
 
+                    if capturedSearchBar then
+                        capturedSearchBar.BackgroundColor3 = t.TitleBarColor or Color3.fromHex('#1e1e1e')
+                    end
+                    if capturedSearchInner then
+                        capturedSearchInner.BackgroundColor3 = t.NeutralButton or Color3.fromHex('#2a2a2a')
+                    end
+                    if capturedSearchStroke then
+                        capturedSearchStroke.Color = t.ElementStroke or Color3.fromHex('#2b2b2b')
+                    end
+                    if capturedSearchIcon then
+                        capturedSearchIcon.TextColor3 = t.PlaceholderColor or Color3.fromHex('#9d9d9d')
+                    end
+                    if searchBox then
+                        (searchBox::TextBox).TextColor3 = t.ContentColor or Color3.fromHex('#ffffff')
+                    end
+                    if capturedSearchSep then
+                        capturedSearchSep.BackgroundColor3 = t.ElementStroke or Color3.fromHex('#2b2b2b')
+                    end
                     if s._open then
                         createOptionRows()
                     end
@@ -8583,6 +8612,48 @@ local ClosureBindings = {
                     for _, fn in spAccentUpdaters do
                         fn(t.AccentColor)
                     end
+
+                    settingsPanel.BackgroundColor3 = t.WindowColor.Keypoints[1].Value
+
+                    local spGrad = settingsPanel:FindFirstChildOfClass('UIGradient')
+
+                    if spGrad then
+                        spGrad.Color = t.WindowColor
+                    end
+
+                    local spStroke = settingsPanel:FindFirstChildOfClass('UIStroke')
+
+                    if spStroke then
+                        spStroke.Color = t.SurfaceStroke
+                    end
+
+                    local spTBSep = spTB:FindFirstChild('Sep')
+
+                    if spTBSep and spTBSep:IsA('Frame') then
+                        (spTBSep::Frame).BackgroundColor3 = t.SurfaceStroke
+                    end
+
+                    spNav.BackgroundColor3 = t.TitleBarColor
+
+                    local spNavGrad = spNav:FindFirstChildOfClass('UIGradient')
+
+                    if spNavGrad then
+                        spNavGrad.Color = ColorSequence.new({
+                            ColorSequenceKeypoint.new(0, t.TitleBarColor),
+                            ColorSequenceKeypoint.new(1, t.TitleBarColor:Lerp(Color3.fromRGB(0, 0, 0), 0.18)),
+                        })
+                    end
+
+                    spNavDivLine.BackgroundColor3 = t.SurfaceStroke
+                    spContent.ScrollBarImageColor3 = t.SurfaceStroke
+                    spTitle.TextColor3 = t.TitlingColor
+                    spNavSectionLbl.TextColor3 = t.PlaceholderColor
+                    spTBBadge.BackgroundColor3 = t.AccentColor
+                    nameLabel.TextColor3 = t.TitlingColor
+
+                    if subtitleLabel then
+                        (subtitleLabel::TextLabel).TextColor3 = t.PlaceholderColor
+                    end
                 end, windowFrame)
 
                 do
@@ -12805,6 +12876,13 @@ local ObjectTree = {
                 },
                 {
                     {
+                        21,
+                        2,
+                        {
+                            'light',
+                        },
+                    },
+                    {
                         20,
                         2,
                         {
@@ -12818,134 +12896,6 @@ local ObjectTree = {
                             'default',
                         },
                     },
-                    {
-                        21,
-                        2,
-                        {
-                            'light',
-                        },
-                    },
-                },
-            },
-            {
-                2,
-                1,
-                {
-                    'components',
-                },
-                {
-                    {
-                        15,
-                        2,
-                        {
-                            'tab',
-                        },
-                    },
-                    {
-                        3,
-                        2,
-                        {
-                            'button',
-                        },
-                    },
-                    {
-                        4,
-                        2,
-                        {
-                            'colorpicker',
-                        },
-                    },
-                    {
-                        17,
-                        2,
-                        {
-                            'window',
-                        },
-                    },
-                    {
-                        14,
-                        2,
-                        {
-                            'slider',
-                        },
-                    },
-                    {
-                        8,
-                        2,
-                        {
-                            'input',
-                        },
-                    },
-                    {
-                        16,
-                        2,
-                        {
-                            'toggle',
-                        },
-                    },
-                    {
-                        5,
-                        2,
-                        {
-                            'dashboard',
-                        },
-                    },
-                    {
-                        9,
-                        2,
-                        {
-                            'keybind',
-                        },
-                    },
-                    {
-                        13,
-                        2,
-                        {
-                            'section',
-                        },
-                    },
-                    {
-                        7,
-                        2,
-                        {
-                            'dropdown',
-                        },
-                    },
-                    {
-                        10,
-                        2,
-                        {
-                            'label',
-                        },
-                    },
-                    {
-                        6,
-                        2,
-                        {
-                            'descriptor',
-                        },
-                    },
-                    {
-                        11,
-                        2,
-                        {
-                            'loadingScreen',
-                        },
-                    },
-                    {
-                        12,
-                        2,
-                        {
-                            'notification',
-                        },
-                    },
-                },
-            },
-            {
-                22,
-                2,
-                {
-                    'types',
                 },
             },
             {
@@ -12956,13 +12906,6 @@ local ObjectTree = {
                 },
                 {
                     {
-                        34,
-                        2,
-                        {
-                            'network',
-                        },
-                    },
-                    {
                         25,
                         2,
                         {
@@ -12970,10 +12913,80 @@ local ObjectTree = {
                         },
                     },
                     {
-                        26,
+                        28,
                         2,
                         {
-                            'element',
+                            'flags',
+                        },
+                    },
+                    {
+                        37,
+                        2,
+                        {
+                            'services',
+                        },
+                    },
+                    {
+                        30,
+                        2,
+                        {
+                            'icons',
+                        },
+                    },
+                    {
+                        34,
+                        2,
+                        {
+                            'network',
+                        },
+                    },
+                    {
+                        27,
+                        2,
+                        {
+                            'filesystem',
+                        },
+                    },
+                    {
+                        33,
+                        2,
+                        {
+                            'mediaService',
+                        },
+                    },
+                    {
+                        29,
+                        2,
+                        {
+                            'fontLoader',
+                        },
+                    },
+                    {
+                        24,
+                        2,
+                        {
+                            'assetFetcher',
+                        },
+                    },
+                    {
+                        36,
+                        2,
+                        {
+                            'saveManager',
+                        },
+                    },
+                    {
+                        35,
+                        2,
+                        {
+                            'runtime',
+                        },
+                    },
+                    {
+                        42,
+                        2,
+                        {
+                            'windowSizing',
                         },
                     },
                     {
@@ -12991,31 +13004,24 @@ local ObjectTree = {
                         },
                     },
                     {
-                        33,
+                        40,
                         2,
                         {
-                            'mediaService',
+                            'tween',
                         },
                     },
                     {
-                        28,
+                        26,
                         2,
                         {
-                            'flags',
+                            'element',
                         },
                     },
                     {
-                        36,
+                        39,
                         2,
                         {
-                            'saveManager',
-                        },
-                    },
-                    {
-                        42,
-                        2,
-                        {
-                            'windowSizing',
+                            'theme',
                         },
                     },
                     {
@@ -13026,66 +13032,131 @@ local ObjectTree = {
                         },
                     },
                     {
-                        37,
-                        2,
-                        {
-                            'services',
-                        },
-                    },
-                    {
                         32,
                         2,
                         {
                             'imageCache',
                         },
                     },
+                },
+            },
+            {
+                22,
+                2,
+                {
+                    'types',
+                },
+            },
+            {
+                2,
+                1,
+                {
+                    'components',
+                },
+                {
                     {
-                        30,
+                        6,
                         2,
                         {
-                            'icons',
+                            'descriptor',
                         },
                     },
                     {
-                        40,
+                        8,
                         2,
                         {
-                            'tween',
+                            'input',
                         },
                     },
                     {
-                        29,
+                        9,
                         2,
                         {
-                            'fontLoader',
+                            'keybind',
                         },
                     },
                     {
-                        27,
+                        17,
                         2,
                         {
-                            'filesystem',
+                            'window',
                         },
                     },
                     {
-                        35,
+                        7,
                         2,
                         {
-                            'runtime',
+                            'dropdown',
                         },
                     },
                     {
-                        24,
+                        4,
                         2,
                         {
-                            'assetFetcher',
+                            'colorpicker',
                         },
                     },
                     {
-                        39,
+                        16,
                         2,
                         {
-                            'theme',
+                            'toggle',
+                        },
+                    },
+                    {
+                        11,
+                        2,
+                        {
+                            'loadingScreen',
+                        },
+                    },
+                    {
+                        13,
+                        2,
+                        {
+                            'section',
+                        },
+                    },
+                    {
+                        14,
+                        2,
+                        {
+                            'slider',
+                        },
+                    },
+                    {
+                        15,
+                        2,
+                        {
+                            'tab',
+                        },
+                    },
+                    {
+                        12,
+                        2,
+                        {
+                            'notification',
+                        },
+                    },
+                    {
+                        10,
+                        2,
+                        {
+                            'label',
+                        },
+                    },
+                    {
+                        5,
+                        2,
+                        {
+                            'dashboard',
+                        },
+                    },
+                    {
+                        3,
+                        2,
+                        {
+                            'button',
                         },
                     },
                 },
