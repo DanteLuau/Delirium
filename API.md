@@ -14,6 +14,8 @@ local Delirium = require(game.ReplicatedStorage.Delirium)
 local src = game:HttpGet("https://raw.githubusercontent.com/DanteLuau/Delirium/refs/heads/main/dist/library.lua")
 local Delirium = loadstring(src)()
 
+-- sementara load https://raw.githubusercontent.com/DanteLuau/Delirium/refs/heads/main/test.lua karna dist masih maintenance
+
 assert(Delirium and Delirium.CreateWindow, "Delirium failed to load")
 ```
 
