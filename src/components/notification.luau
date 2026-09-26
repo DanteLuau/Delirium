@@ -103,6 +103,13 @@ end
 local function ensureGui()
 	if _gui and _gui.Parent and _container and _container.Parent then return end
 
+	-- Escalate identity: notification.send() can be called from a task.spawn/deferred
+	-- thread, which drops to identity 2 and can't parent into guiContainer (CoreGui/PluginGui).
+	local _sti = typeof(setthreadidentity) == "function" and setthreadidentity
+		or typeof(set_thread_identity) == "function" and set_thread_identity
+		or nil
+	if _sti then pcall(_sti, 8) end
+
 	local isMobile = variables.userInputService.TouchEnabled and not variables.userInputService.KeyboardEnabled
 	if not variables.runService:IsStudio() then
 		local cam = workspace.CurrentCamera

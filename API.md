@@ -14,8 +14,6 @@ local Delirium = require(game.ReplicatedStorage.Delirium)
 local src = game:HttpGet("https://raw.githubusercontent.com/DanteLuau/Delirium/refs/heads/main/dist/library.lua")
 local Delirium = loadstring(src)()
 
--- sementara load https://raw.githubusercontent.com/DanteLuau/Delirium/refs/heads/main/test.lua karna dist masih maintenance
-
 assert(Delirium and Delirium.CreateWindow, "Delirium failed to load")
 ```
 
@@ -75,7 +73,7 @@ local Window = Delirium:CreateWindow({
 | `CreateTab` | `(props: TabProps) -> Tab` | Tambah tab baru. |
 | `Notify` | `(props: NotifyProps) -> ()` | Tampilkan notifikasi. |
 | `Show` | `() -> ()` | Tampilkan window. |
-| `Hide` | `() -> ()` | Sembunyikan window. |
+| `Hide` | `() -> ()` | Sembunyikan window (otomatis menutup panel Settings jika sedang terbuka). |
 | `ToggleHide` | `() -> ()` | Toggle antara Show/Hide. |
 | `ToggleMinimise` | `() -> ()` | Toggle minimize ke pill (spelling Inggris). |
 | `ChangeTheme` | `(input: string \| ThemeTable) -> ()` | Ganti tema; broadcast ke semua komponen. |
@@ -392,9 +390,12 @@ SaveManager:Refresh()                      -- re-push semua flag ke setter (sync
 SaveManager:List()                         -- { string } daftar profil tersimpan
 SaveManager:Delete("profilku")             -- hapus profil (returns boolean)
 SaveManager:BuildConfigTab(Window)         -- auto-buat tab "Config" lengkap
-SaveManager:SetAutoSaveInterval(30)        -- detik, panggil sebelum BuildConfigTab
+SaveManager:SetAutoSaveInterval(30)        -- detik, panggil sebelum StartAutoSave/BuildConfigTab
+SaveManager:StartAutoSave()                -- mulai loop autosave manual (tanpa perlu BuildConfigTab)
 SaveManager:ScheduleAutoSave()             -- debounce 0.5s; panggil di dalam flag callback
 SaveManager:StopAutoSave()                 -- hentikan loop (panggil di unload)
+SaveManager:GetActiveProfile()             -- string, nama profil aktif saat ini (default "flags")
+SaveManager:SetActiveProfile("profilku")   -- ganti profil aktif tanpa save/load
 SaveManager.deriveFlagFromName("My Toggle") -- "my_toggle"
 ```
 
@@ -406,6 +407,9 @@ SaveManager.deriveFlagFromName("My Toggle") -- "my_toggle"
 - `_activeProfile` internal — `BuildConfigTab` tidak lagi baca `.value` dari element (bug lama)
 - `_pendingLoad` di-clear setiap `Load()` — tidak ada bleed antar load
 - `Delete()` return false pada empty name (tidak hapus default secara diam-diam)
+- `StartAutoSave()` baru (public) — sebelumnya autosave cuma bisa dinyalakan lewat toggle di `BuildConfigTab`
+- `GetActiveProfile()` / `SetActiveProfile(name)` baru — baca/atur profil aktif tanpa `BuildConfigTab`
+- `Register(flag, target)` sekarang `warn()` jika `flag` yang sama didaftarkan dua kali (biasanya copy-paste bug antar komponen)
 
 ## 11. Tema
 

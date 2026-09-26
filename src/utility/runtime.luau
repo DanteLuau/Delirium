@@ -68,6 +68,12 @@ end)() :: boolean
 -- Resolve the best parent container for ScreenGuis.
 -- Studio → PlayerGui. Exploit → gethui(). Fallback → CoreGui (tested via pcall) → PlayerGui.
 runtime.guiContainer = (function(): Instance
+	-- Escalate identity: module may run in a wax Defer'd thread (identity 2 by default)
+	local _sti = typeof(setthreadidentity) == "function" and setthreadidentity
+		or typeof(set_thread_identity) == "function" and set_thread_identity
+		or nil
+	if _sti then pcall(_sti, 8) end
+
 	if runtime.runService:IsStudio() then
 		local lp = runtime.localPlayer or (services.getService("Players") :: Players).LocalPlayer
 		if lp then

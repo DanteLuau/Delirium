@@ -61,8 +61,18 @@
 --   SaveManager:Delete(profileName) → boolean
 --       Remove one profile file. Returns true if file existed and was removed.
 --
+--   SaveManager:StartAutoSave()
+--       Start the autosave loop manually (useful without BuildConfigTab's toggle).
+--
 --   SaveManager:StopAutoSave()
 --       Stop the autosave loop. Call in your script's cleanup / unload handler.
+--
+--   SaveManager:GetActiveProfile() → string
+--       Currently active profile name (defaults to "flags").
+--
+--   SaveManager:SetActiveProfile(name)
+--       Change the active profile without saving/loading — affects what
+--       Save()/Load()/ScheduleAutoSave() target when called with no name.
 --
 --   SaveManager:BuildConfigTab(window)
 --       Builds a "Config" tab on window with profile input, dropdown, Save/Load/
@@ -114,7 +124,11 @@ export type SaveManager = {
 	Delete:              (self: SaveManager, profileName: string) -> boolean,
 	-- autosave
 	StopAutoSave:        (self: SaveManager) -> (),
+	StartAutoSave:       (self: SaveManager) -> (),
 	ScheduleAutoSave:    (self: SaveManager) -> (),
+	-- profile getters/setters (for building a custom config UI without BuildConfigTab)
+	GetActiveProfile:    (self: SaveManager) -> string,
+	SetActiveProfile:    (self: SaveManager, name: string) -> (),
 	-- ui
 	BuildConfigTab:      (self: SaveManager, window: any) -> (),
 	-- static
@@ -356,6 +370,17 @@ end
 function SaveManager:Register(flag: string, target: any)
 	assert(type(flag) == "string" and #flag > 0, "SaveManager:Register — flag must be a non-empty string")
 
+	-- DX FIX: registering the same flag twice (usually a copy-paste mistake between
+	-- two components) silently drops the first element's setter — it stops receiving
+	-- Load()/Refresh() updates with no indication why. Warn so it's caught early.
+	if _registry[flag] then
+		warn(string.format(
+			'[Delirium] SaveManager:Register — flag "%s" is already registered; overwriting. '
+				.. "Two components likely share the same flag name.",
+			flag
+		))
+	end
+
 	local entry: FlagEntry
 	if type(target) == "function" then
 		entry = { set = target }
@@ -551,6 +576,12 @@ end
 
 -- ── Autosave ──────────────────────────────────────────────────────────────────
 
+-- Start the autosave loop (uses the interval set via SetAutoSaveInterval, default 30s).
+-- Safe to call repeatedly — restarts the loop rather than stacking threads.
+function SaveManager:StartAutoSave()
+	startAutoSave()
+end
+
 -- Stop the autosave loop and remove the flags change hook.
 -- Call in your script's cleanup / Window:Unload handler.
 function SaveManager:StopAutoSave()
@@ -559,6 +590,18 @@ function SaveManager:StopAutoSave()
 		_autoSaveHook()
 		_autoSaveHook = nil
 	end
+end
+
+-- Get the currently active profile name (defaults to "flags").
+-- Useful when building a custom config UI instead of BuildConfigTab.
+function SaveManager:GetActiveProfile(): string
+	return _activeProfile
+end
+
+-- Set the active profile name directly (does not load or save — just changes
+-- which profile Save()/Load()/ScheduleAutoSave() target when called with no name).
+function SaveManager:SetActiveProfile(name: string)
+	_activeProfile = resolveProfile(name)
 end
 
 -- Debounced 0.5 s autosave — call from inside a flag callback to persist the
@@ -738,7 +781,7 @@ function SaveManager:BuildConfigTab(window: any)
 		value       = false,
 		callback    = function(enabled: boolean)
 			if enabled then
-				startAutoSave()
+				self:StartAutoSave()
 				window:Notify({
 					title   = "Auto Save On",
 					content = "Saving every " .. tostring(_autoInterval) .. " s to '" .. _activeProfile .. "'.",
@@ -746,7 +789,7 @@ function SaveManager:BuildConfigTab(window: any)
 					duration = 3,
 				})
 			else
-				stopAutoSave()
+				self:StopAutoSave()
 				window:Notify({
 					title   = "Auto Save Off",
 					content = "Stopped.",

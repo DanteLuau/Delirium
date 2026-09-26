@@ -4411,6 +4411,12 @@ local ClosureBindings = {
             LoadingScreen.__index = LoadingScreen
 
             function LoadingScreen.new(props: LoadingScreenProps): LoadingScreen
+                local _sti = typeof(setthreadidentity) == 'function' and setthreadidentity or typeof(set_thread_identity) == 'function' and set_thread_identity or nil
+
+                if _sti then
+                    pcall(_sti, 8)
+                end
+
                 local title = props.title or 'Delirium'
                 local accent = props.accent or Color3.fromHex('#4cc2ff')
                 local gui = Instance.new('ScreenGui')
@@ -4767,6 +4773,12 @@ local ClosureBindings = {
             local function ensureGui()
                 if _gui and _gui.Parent and _container and _container.Parent then
                     return
+                end
+
+                local _sti = typeof(setthreadidentity) == 'function' and setthreadidentity or typeof(set_thread_identity) == 'function' and set_thread_identity or nil
+
+                if _sti then
+                    pcall(_sti, 8)
                 end
 
                 local isMobile = variables.userInputService.TouchEnabled and not variables.userInputService.KeyboardEnabled
@@ -7040,6 +7052,12 @@ local ClosureBindings = {
             end
 
             function Window.new(props: WindowProps): Window
+                local _sti = typeof(setthreadidentity) == 'function' and setthreadidentity or typeof(set_thread_identity) == 'function' and set_thread_identity or nil
+
+                if _sti then
+                    pcall(_sti, 8)
+                end
+
                 local windowName = props.name or 'Delirium'
                 local subtitle = props.subtitle or ''
                 local toggleKey = resolveKeybind(props.keybind)
@@ -8260,6 +8278,9 @@ local ClosureBindings = {
                 spNavPages[navItemFont] = pageFont
 
                 local spSliders: {any} = {}
+                local spColorPicker: any = nil
+                local spKeybind: any = nil
+                local spFontDropdown: any = nil
                 local currentCornerRadius = (resolvedTheme.CornerRoundness or UDim.new(0, 10)).Offset
 
                 do
@@ -8381,6 +8402,7 @@ local ClosureBindings = {
                     }, resolvedTheme, pageAppearance)
 
                     cp._frame.LayoutOrder = 3
+                    spColorPicker = cp
                 end
                 do
                     local sl = Slider.new({
@@ -8425,6 +8447,7 @@ local ClosureBindings = {
                     }, resolvedTheme, pageControls)
 
                     kb._frame.LayoutOrder = 1
+                    spKeybind = kb
                 end
                 do
                     local FONT_MAP: {[string]: string} = {
@@ -8470,6 +8493,7 @@ local ClosureBindings = {
                     }, resolvedTheme, pageFont)
 
                     fontDD._frame.LayoutOrder = 1
+                    spFontDropdown = fontDD
                 end
                 do
                     local firstItem = navItemAppearance
@@ -8617,7 +8641,11 @@ local ClosureBindings = {
                 s._spOverlay = spOverlay
                 s._bodyBlocker = bodyBlocker
                 s._updateAccent = updateAccent
+                s._closeSettings = closeSettings
                 s._spSliders = spSliders
+                s._spColorPicker = spColorPicker
+                s._spKeybind = spKeybind
+                s._spFontDropdown = spFontDropdown
 
                 if userScale ~= 1 then
                     winScale.Scale = userScale
@@ -9323,6 +9351,23 @@ local ClosureBindings = {
                 local s = (self::any)
                 local windowFrame: Frame = s._windowFrame
 
+                if s._settingsPanel and s._settingsPanel.Visible then
+                    if s._closeSettings then
+                        s._closeSettings()
+                    else
+                        s._settingsPanel.Visible = false
+
+                        if s._spOverlay then
+                            s._spOverlay.Visible = false
+                        end
+                        if s._bodyBlocker then
+                            s._bodyBlocker.Visible = false
+                        end
+
+                        variables.settingsOpen = false
+                    end
+                end
+
                 s._visible = false
                 windowFrame.Visible = false
             end
@@ -9614,6 +9659,28 @@ local ClosureBindings = {
                     pcall(function()
                         sl:Destroy()
                     end)
+                end
+
+                if s._spColorPicker then
+                    pcall(function()
+                        s._spColorPicker:Destroy()
+                    end)
+
+                    s._spColorPicker = nil
+                end
+                if s._spKeybind then
+                    pcall(function()
+                        s._spKeybind:Destroy()
+                    end)
+
+                    s._spKeybind = nil
+                end
+                if s._spFontDropdown then
+                    pcall(function()
+                        s._spFontDropdown:Destroy()
+                    end)
+
+                    s._spFontDropdown = nil
                 end
 
                 local tabs: {Tab.Tab} = s._tabs
@@ -11777,6 +11844,11 @@ local ClosureBindings = {
                 return true
             end)()::boolean
             runtime.guiContainer = (function(): Instance
+                local _sti = typeof(setthreadidentity) == 'function' and setthreadidentity or typeof(set_thread_identity) == 'function' and set_thread_identity or nil
+
+                if _sti then
+                    pcall(_sti, 8)
+                end
                 if runtime.runService:IsStudio() then
                     local lp = runtime.localPlayer or (services.getService('Players')::Players).LocalPlayer
 
@@ -11841,7 +11913,7 @@ local ClosureBindings = {
 
             type Setter = (value:any, skipCallback:boolean?) -> ()
             type FlagEntry = {element: any?, set: Setter}
-            export type SaveManager = {SetFolder: (self:SaveManager, name:string) -> (), SetSubFolder: (self:SaveManager, name:string?) -> (), SetSubfolder: (self:SaveManager, name:string?) -> (), SetAutoSaveInterval: (self:SaveManager, seconds:number) -> (), Register: (self:SaveManager, flag:string, target:any) -> (), RegisterMany: (self:SaveManager, map:{[string]: any}) -> (), Ignore: (self:SaveManager, flag:string) -> (), IgnoreMany: (self:SaveManager, mapOrList:any) -> (), GetRegistry: (self:SaveManager) -> {[string]: FlagEntry}, Save: (self:SaveManager, profileName:string?) -> boolean, Load: (self:SaveManager, profileName:string?, skipCallbacks:boolean?) -> number, Refresh: (self:SaveManager, skipCallbacks:boolean?) -> (), List: (self:SaveManager) -> {string}, Delete: (self:SaveManager, profileName:string) -> boolean, StopAutoSave: (self:SaveManager) -> (), ScheduleAutoSave: (self:SaveManager) -> (), BuildConfigTab: (self:SaveManager, window:any) -> (), deriveFlagFromName: (label:string) -> string}
+            export type SaveManager = {SetFolder: (self:SaveManager, name:string) -> (), SetSubFolder: (self:SaveManager, name:string?) -> (), SetSubfolder: (self:SaveManager, name:string?) -> (), SetAutoSaveInterval: (self:SaveManager, seconds:number) -> (), Register: (self:SaveManager, flag:string, target:any) -> (), RegisterMany: (self:SaveManager, map:{[string]: any}) -> (), Ignore: (self:SaveManager, flag:string) -> (), IgnoreMany: (self:SaveManager, mapOrList:any) -> (), GetRegistry: (self:SaveManager) -> {[string]: FlagEntry}, Save: (self:SaveManager, profileName:string?) -> boolean, Load: (self:SaveManager, profileName:string?, skipCallbacks:boolean?) -> number, Refresh: (self:SaveManager, skipCallbacks:boolean?) -> (), List: (self:SaveManager) -> {string}, Delete: (self:SaveManager, profileName:string) -> boolean, StopAutoSave: (self:SaveManager) -> (), StartAutoSave: (self:SaveManager) -> (), ScheduleAutoSave: (self:SaveManager) -> (), GetActiveProfile: (self:SaveManager) -> string, SetActiveProfile: (self:SaveManager, name:string) -> (), BuildConfigTab: (self:SaveManager, window:any) -> (), deriveFlagFromName: (label:string) -> string}
 
             local SaveManager = {}::any
 
@@ -12048,6 +12120,10 @@ local ClosureBindings = {
             function SaveManager:Register(flag: string, target: any)
                 assert(type(flag) == 'string' and #flag > 0, 'SaveManager:Register \u{2014} flag must be a non-empty string')
 
+                if _registry[flag] then
+                    warn(string.format('[Delirium] SaveManager:Register \u{2014} flag "%s" is already registered; overwriting. ' .. 'Two components likely share the same flag name.', flag))
+                end
+
                 local entry: FlagEntry
 
                 if type(target) == 'function' then
@@ -12253,6 +12329,9 @@ local ClosureBindings = {
 
                 return existed
             end
+            function SaveManager:StartAutoSave()
+                startAutoSave()
+            end
             function SaveManager:StopAutoSave()
                 stopAutoSave()
 
@@ -12261,6 +12340,12 @@ local ClosureBindings = {
 
                     _autoSaveHook = nil
                 end
+            end
+            function SaveManager:GetActiveProfile(): string
+                return _activeProfile
+            end
+            function SaveManager:SetActiveProfile(name: string)
+                _activeProfile = resolveProfile(name)
             end
             function SaveManager:ScheduleAutoSave()
                 if _loading or _savePending then
@@ -12440,7 +12525,7 @@ local ClosureBindings = {
                     value = false,
                     callback = function(enabled: boolean)
                         if enabled then
-                            startAutoSave()
+                            self:StartAutoSave()
                             window:Notify({
                                 title = 'Auto Save On',
                                 content = 'Saving every ' .. tostring(_autoInterval) .. " s to '" .. _activeProfile .. "'.",
@@ -12448,7 +12533,7 @@ local ClosureBindings = {
                                 duration = 3,
                             })
                         else
-                            stopAutoSave()
+                            self:StopAutoSave()
                             window:Notify({
                                 title = 'Auto Save Off',
                                 content = 'Stopped.',
@@ -12969,150 +13054,6 @@ local ObjectTree = {
         },
         {
             {
-                18,
-                1,
-                {
-                    'themes',
-                },
-                {
-                    {
-                        21,
-                        2,
-                        {
-                            'light',
-                        },
-                    },
-                    {
-                        20,
-                        2,
-                        {
-                            'dracula',
-                        },
-                    },
-                    {
-                        19,
-                        2,
-                        {
-                            'default',
-                        },
-                    },
-                },
-            },
-            {
-                2,
-                1,
-                {
-                    'components',
-                },
-                {
-                    {
-                        17,
-                        2,
-                        {
-                            'window',
-                        },
-                    },
-                    {
-                        6,
-                        2,
-                        {
-                            'descriptor',
-                        },
-                    },
-                    {
-                        16,
-                        2,
-                        {
-                            'toggle',
-                        },
-                    },
-                    {
-                        9,
-                        2,
-                        {
-                            'keybind',
-                        },
-                    },
-                    {
-                        3,
-                        2,
-                        {
-                            'button',
-                        },
-                    },
-                    {
-                        11,
-                        2,
-                        {
-                            'loadingScreen',
-                        },
-                    },
-                    {
-                        15,
-                        2,
-                        {
-                            'tab',
-                        },
-                    },
-                    {
-                        8,
-                        2,
-                        {
-                            'input',
-                        },
-                    },
-                    {
-                        14,
-                        2,
-                        {
-                            'slider',
-                        },
-                    },
-                    {
-                        10,
-                        2,
-                        {
-                            'label',
-                        },
-                    },
-                    {
-                        4,
-                        2,
-                        {
-                            'colorpicker',
-                        },
-                    },
-                    {
-                        12,
-                        2,
-                        {
-                            'notification',
-                        },
-                    },
-                    {
-                        13,
-                        2,
-                        {
-                            'section',
-                        },
-                    },
-                    {
-                        7,
-                        2,
-                        {
-                            'dropdown',
-                        },
-                    },
-                    {
-                        5,
-                        2,
-                        {
-                            'dashboard',
-                        },
-                    },
-                },
-            },
-            {
                 23,
                 1,
                 {
@@ -13127,10 +13068,24 @@ local ObjectTree = {
                         },
                     },
                     {
-                        41,
+                        29,
                         2,
                         {
-                            'variables',
+                            'fontLoader',
+                        },
+                    },
+                    {
+                        35,
+                        2,
+                        {
+                            'runtime',
+                        },
+                    },
+                    {
+                        28,
+                        2,
+                        {
+                            'flags',
                         },
                     },
                     {
@@ -13141,24 +13096,10 @@ local ObjectTree = {
                         },
                     },
                     {
-                        29,
+                        32,
                         2,
                         {
-                            'fontLoader',
-                        },
-                    },
-                    {
-                        34,
-                        2,
-                        {
-                            'network',
-                        },
-                    },
-                    {
-                        31,
-                        2,
-                        {
-                            'image',
+                            'imageCache',
                         },
                     },
                     {
@@ -13169,38 +13110,10 @@ local ObjectTree = {
                         },
                     },
                     {
-                        25,
+                        30,
                         2,
                         {
-                            'constants',
-                        },
-                    },
-                    {
-                        42,
-                        2,
-                        {
-                            'windowSizing',
-                        },
-                    },
-                    {
-                        39,
-                        2,
-                        {
-                            'theme',
-                        },
-                    },
-                    {
-                        40,
-                        2,
-                        {
-                            'tween',
-                        },
-                    },
-                    {
-                        28,
-                        2,
-                        {
-                            'flags',
+                            'icons',
                         },
                     },
                     {
@@ -13218,24 +13131,10 @@ local ObjectTree = {
                         },
                     },
                     {
-                        30,
+                        40,
                         2,
                         {
-                            'icons',
-                        },
-                    },
-                    {
-                        35,
-                        2,
-                        {
-                            'runtime',
-                        },
-                    },
-                    {
-                        32,
-                        2,
-                        {
-                            'imageCache',
+                            'tween',
                         },
                     },
                     {
@@ -13246,10 +13145,52 @@ local ObjectTree = {
                         },
                     },
                     {
+                        42,
+                        2,
+                        {
+                            'windowSizing',
+                        },
+                    },
+                    {
                         26,
                         2,
                         {
                             'element',
+                        },
+                    },
+                    {
+                        31,
+                        2,
+                        {
+                            'image',
+                        },
+                    },
+                    {
+                        41,
+                        2,
+                        {
+                            'variables',
+                        },
+                    },
+                    {
+                        39,
+                        2,
+                        {
+                            'theme',
+                        },
+                    },
+                    {
+                        25,
+                        2,
+                        {
+                            'constants',
+                        },
+                    },
+                    {
+                        34,
+                        2,
+                        {
+                            'network',
                         },
                     },
                 },
@@ -13259,6 +13200,150 @@ local ObjectTree = {
                 2,
                 {
                     'types',
+                },
+            },
+            {
+                2,
+                1,
+                {
+                    'components',
+                },
+                {
+                    {
+                        13,
+                        2,
+                        {
+                            'section',
+                        },
+                    },
+                    {
+                        8,
+                        2,
+                        {
+                            'input',
+                        },
+                    },
+                    {
+                        9,
+                        2,
+                        {
+                            'keybind',
+                        },
+                    },
+                    {
+                        5,
+                        2,
+                        {
+                            'dashboard',
+                        },
+                    },
+                    {
+                        12,
+                        2,
+                        {
+                            'notification',
+                        },
+                    },
+                    {
+                        17,
+                        2,
+                        {
+                            'window',
+                        },
+                    },
+                    {
+                        14,
+                        2,
+                        {
+                            'slider',
+                        },
+                    },
+                    {
+                        11,
+                        2,
+                        {
+                            'loadingScreen',
+                        },
+                    },
+                    {
+                        4,
+                        2,
+                        {
+                            'colorpicker',
+                        },
+                    },
+                    {
+                        7,
+                        2,
+                        {
+                            'dropdown',
+                        },
+                    },
+                    {
+                        3,
+                        2,
+                        {
+                            'button',
+                        },
+                    },
+                    {
+                        16,
+                        2,
+                        {
+                            'toggle',
+                        },
+                    },
+                    {
+                        15,
+                        2,
+                        {
+                            'tab',
+                        },
+                    },
+                    {
+                        10,
+                        2,
+                        {
+                            'label',
+                        },
+                    },
+                    {
+                        6,
+                        2,
+                        {
+                            'descriptor',
+                        },
+                    },
+                },
+            },
+            {
+                18,
+                1,
+                {
+                    'themes',
+                },
+                {
+                    {
+                        20,
+                        2,
+                        {
+                            'dracula',
+                        },
+                    },
+                    {
+                        21,
+                        2,
+                        {
+                            'light',
+                        },
+                    },
+                    {
+                        19,
+                        2,
+                        {
+                            'default',
+                        },
+                    },
                 },
             },
         },

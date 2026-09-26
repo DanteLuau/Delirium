@@ -71,6 +71,12 @@ end
 -- ── Window.new ────────────────────────────────────────────────────────────────
 
 function Window.new(props: WindowProps): Window
+	-- Escalate identity: called from Boot/CreateWindow in a task.spawn thread
+	local _sti = typeof(setthreadidentity) == "function" and setthreadidentity
+		or typeof(set_thread_identity) == "function" and set_thread_identity
+		or nil
+	if _sti then pcall(_sti, 8) end
+
 	local windowName = props.name or "Delirium"
 	local subtitle   = props.subtitle or ""
 	local toggleKey  = resolveKeybind(props.keybind)
@@ -1240,6 +1246,9 @@ function Window.new(props: WindowProps): Window
 	-- ── Populate: Appearance ─────────────────────────────────────────────
 	-- Real Slider instances for the settings panel — tracked for Unload() cleanup.
 	local spSliders: { any } = {}
+	local spColorPicker: any = nil
+	local spKeybind: any = nil
+	local spFontDropdown: any = nil
 	local currentCornerRadius = (resolvedTheme.CornerRoundness or UDim.new(0, 10)).Offset
 	do
 		local sl = Slider.new({
@@ -1336,6 +1345,11 @@ function Window.new(props: WindowProps): Window
 			end,
 		}, resolvedTheme, pageAppearance)
 		cp._frame.LayoutOrder = 3
+		-- LEAK FIX: ScreenGui-mode ColorPicker (no overlayParent) builds its own
+		-- standalone ScreenGui parented to guiContainer, outside this window's
+		-- own `gui`. Must be tracked and explicitly destroyed in Unload(), or it
+		-- orphans a popup ScreenGui + camera connection on every window close.
+		spColorPicker = cp
 	end
 
 	do
@@ -1376,6 +1390,11 @@ function Window.new(props: WindowProps): Window
 			end,
 		}, resolvedTheme, pageControls)
 		kb._frame.LayoutOrder = 1
+		-- LEAK FIX: if Unload() fires while this keybind is mid-recording, its
+		-- ContextActionService sink binding (MB1/MB2/MB3/Touch + every KeyCode,
+		-- priority High+2000) never gets unbound unless kb:Destroy() runs.
+		-- That would sink all game input permanently. Must track + destroy.
+		spKeybind = kb
 	end
 
 	-- ── Populate: Font ───────────────────────────────────────────────────
@@ -1409,6 +1428,7 @@ function Window.new(props: WindowProps): Window
 			end,
 		}, resolvedTheme, pageFont)
 		fontDD._frame.LayoutOrder = 1
+		spFontDropdown = fontDD
 	end
 
 	-- ── Activate Appearance by default ───────────────────────────────────
@@ -1539,7 +1559,11 @@ function Window.new(props: WindowProps): Window
 	s._spOverlay      = spOverlay
 	s._bodyBlocker    = bodyBlocker
 	s._updateAccent   = updateAccent
+	s._closeSettings  = closeSettings   -- exposed so Hide()/ToggleHide() can force-close the settings panel
 	s._spSliders      = spSliders
+	s._spColorPicker  = spColorPicker
+	s._spKeybind      = spKeybind
+	s._spFontDropdown = spFontDropdown
 
 	-- M1 FIX: apply initial scale (0.9 on touch, 1.0 on desktop) now that s exists.
 	if userScale ~= 1.0 then
@@ -2144,6 +2168,20 @@ function Window:Hide()
 	if self.unloaded then return end
 	local s = (self :: any)
 	local windowFrame: Frame = s._windowFrame
+
+	-- Auto-close the settings panel whenever the window itself is hidden, so it
+	-- doesn't sit open (and re-appear open) the next time the window is shown.
+	if s._settingsPanel and s._settingsPanel.Visible then
+		if s._closeSettings then
+			s._closeSettings()
+		else
+			s._settingsPanel.Visible = false
+			if s._spOverlay then s._spOverlay.Visible = false end
+			if s._bodyBlocker then s._bodyBlocker.Visible = false end
+			variables.settingsOpen = false
+		end
+	end
+
 	s._visible = false
 	windowFrame.Visible = false
 end
@@ -2377,6 +2415,23 @@ function Window:Unload()
 	local spSlidersRef: { any } = s._spSliders or {}
 	for _, sl in spSlidersRef do
 		pcall(function() sl:Destroy() end)
+	end
+
+	-- LEAK FIX: settings-panel accent ColorPicker and Menu Keybind aren't part
+	-- of the tab tree and aren't cleaned by the gui:Destroy() cascade alone
+	-- (ColorPicker owns an external ScreenGui; Keybind may own a live
+	-- ContextActionService binding). Destroy them explicitly.
+	if s._spColorPicker then
+		pcall(function() s._spColorPicker:Destroy() end)
+		s._spColorPicker = nil
+	end
+	if s._spKeybind then
+		pcall(function() s._spKeybind:Destroy() end)
+		s._spKeybind = nil
+	end
+	if s._spFontDropdown then
+		pcall(function() s._spFontDropdown:Destroy() end)
+		s._spFontDropdown = nil
 	end
 
 	local tabs: { Tab.Tab } = s._tabs

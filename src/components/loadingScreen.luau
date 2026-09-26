@@ -30,6 +30,12 @@ local LoadingScreen = {}
 LoadingScreen.__index = LoadingScreen
 
 function LoadingScreen.new(props: LoadingScreenProps): LoadingScreen
+	-- Escalate identity: called from Boot which runs in a task.spawn thread
+	local _sti = typeof(setthreadidentity) == "function" and setthreadidentity
+		or typeof(set_thread_identity) == "function" and set_thread_identity
+		or nil
+	if _sti then pcall(_sti, 8) end
+
 	local title  = props.title  or "Delirium"
 	local accent = props.accent or Color3.fromHex("#4cc2ff")
 
