@@ -66,10 +66,14 @@ runtime.isTouchOnly = (function(): boolean
 end)() :: boolean
 
 -- Resolve the best parent container for ScreenGuis.
--- Studio → PlayerGui. Exploit → gethui(). Fallback → CoreGui.
+-- Studio → PlayerGui. Exploit → gethui(). Fallback → CoreGui (tested via pcall) → PlayerGui.
 runtime.guiContainer = (function(): Instance
 	if runtime.runService:IsStudio() then
-		return (runtime.localPlayer :: Player).PlayerGui
+		local lp = runtime.localPlayer or (services.getService("Players") :: Players).LocalPlayer
+		if lp then
+			local pg = lp:FindFirstChildOfClass("PlayerGui") or lp:FindFirstChild("PlayerGui")
+			if pg then return pg end
+		end
 	end
 	if typeof(gethui) == "function" then
 		local ok, container = pcall(gethui)
@@ -77,7 +81,25 @@ runtime.guiContainer = (function(): Instance
 			return container :: Instance
 		end
 	end
-	return runtime.coreGui
+	-- Verify CoreGui accessibility (avoids 'lacking capability Plugin' error)
+	local coreGui = runtime.coreGui
+	if coreGui then
+		local ok = pcall(function()
+			local test = Instance.new("Folder")
+			test.Parent = coreGui
+			test:Destroy()
+		end)
+		if ok then
+			return coreGui
+		end
+	end
+	-- Safe universal fallback for all execution contexts
+	local lp = runtime.localPlayer or (services.getService("Players") :: Players).LocalPlayer
+	if lp then
+		local pg = lp:FindFirstChildOfClass("PlayerGui") or lp:WaitForChild("PlayerGui", 5)
+		if pg then return pg end
+	end
+	return coreGui
 end)()
 
 return runtime
