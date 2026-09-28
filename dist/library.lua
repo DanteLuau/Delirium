@@ -8599,8 +8599,12 @@ local ClosureBindings = {
                     end
                 end
 
-                table.insert(_preConns, settingsBtn.MouseButton1Click:Connect(toggleSettings))
-                table.insert(_preConns, settingsBtn.TouchTap:Connect(toggleSettings))
+                if isTouchOnly then
+                    table.insert(_preConns, settingsBtn.TouchTap:Connect(toggleSettings))
+                else
+                    table.insert(_preConns, settingsBtn.MouseButton1Click:Connect(toggleSettings))
+                end
+
                 table.insert(_preConns, windowFrame:GetPropertyChangedSignal('Size'):Connect(function(
                 )
                     if settingsPanel.Visible then
@@ -8875,7 +8879,10 @@ local ClosureBindings = {
                                     newY = math.clamp(newY, minY, maxY)
                                 end
                             end
-                            if math.abs(newX - lastX) < 0.5 and math.abs(newY - lastY) < 0.5 then
+
+                            local _dragThreshold = if isTouchOnly then 1 else 0.5
+
+                            if math.abs(newX - lastX) < _dragThreshold and math.abs(newY - lastY) < _dragThreshold then
                                 return
                             end
 
@@ -8891,20 +8898,26 @@ local ClosureBindings = {
                     end))
                 end
 
-                table.insert(s._connections, closeBtn.MouseButton1Click:Connect(function(
-                )
-                    self:Unload()
-                end))
-                table.insert(s._connections, closeBtn.TouchTap:Connect(function()
-                    self:Unload()
-                end))
-                table.insert(s._connections, minBtn.MouseButton1Click:Connect(function(
-                )
-                    self:ToggleMinimise()
-                end))
-                table.insert(s._connections, minBtn.TouchTap:Connect(function()
-                    self:ToggleMinimise()
-                end))
+                if isTouchOnly then
+                    table.insert(s._connections, closeBtn.TouchTap:Connect(function(
+                    )
+                        self:Unload()
+                    end))
+                    table.insert(s._connections, minBtn.TouchTap:Connect(function(
+                    )
+                        self:ToggleMinimise()
+                    end))
+                else
+                    table.insert(s._connections, closeBtn.MouseButton1Click:Connect(function(
+                    )
+                        self:Unload()
+                    end))
+                    table.insert(s._connections, minBtn.MouseButton1Click:Connect(function(
+                    )
+                        self:ToggleMinimise()
+                    end))
+                end
+
                 table.insert(s._connections, variables.userInputService.InputBegan:Connect(function(
                     input,
                     gameProcessed
@@ -9014,9 +9027,19 @@ local ClosureBindings = {
                     end
 
                     table.insert(s._connections, barContainer.InputBegan:Connect(function(
-                        input
+                        input,
+                        gameProcessed
                     )
+                        if gameProcessed then
+                            return
+                        end
                         if input.UserInputType ~= Enum.UserInputType.Touch then
+                            return
+                        end
+
+                        local screenH = gui.AbsoluteSize.Y
+
+                        if screenH > 0 and input.Position.Y > screenH * 0.72 then
                             return
                         end
 
@@ -9040,6 +9063,8 @@ local ClosureBindings = {
                             dragEndConn:Disconnect()
                         end
 
+                        local _lastVisualX = -1
+
                         dragMoveConn = variables.userInputService.InputChanged:Connect(function(
                             moveInput
                         )
@@ -9054,8 +9079,13 @@ local ClosureBindings = {
 
                             currentDeltaX = delta
 
-                            local visualX = math.min(delta, 80)
+                            local visualX = math.floor(math.min(delta, 80))
 
+                            if visualX == _lastVisualX then
+                                return
+                            end
+
+                            _lastVisualX = visualX
                             barPill.Position = UDim2.new(0, 4 + visualX, 0.5, 0)
                         end)
                         dragEndConn = variables.userInputService.InputEnded:Connect(function(
@@ -9322,8 +9352,9 @@ local ClosureBindings = {
                     end
 
                     local fullH: number = s._windowSize.Y.Offset
-                    local topY = windowFrame.Position.Y.Offset - math.floor(s._titlebarH / 2)
-                    local restoreCenterY = topY + math.floor(fullH / 2)
+                    local _scale = s._userScale or 1
+                    local topY = windowFrame.Position.Y.Offset - math.floor(s._titlebarH * _scale / 2)
+                    local restoreCenterY = topY + math.floor(fullH * _scale / 2)
 
                     windowFrame.Position = self:_clampedPosition(UDim2.fromOffset(windowFrame.Position.X.Offset, restoreCenterY))
                     windowFrame.Size = s._windowSize;
@@ -9421,9 +9452,10 @@ local ClosureBindings = {
                 local margin = 8
                 local posX = windowFrame.Position.X.Offset
                 local posY = windowFrame.Position.Y.Offset
+                local scale = s._userScale or 1
 
                 if keepOnScreen then
-                    local halfW = math.floor(width / 2)
+                    local halfW = math.floor(width * scale / 2)
 
                     posX = math.clamp(posX, halfW + margin, math.max(halfW + margin, screen.X - halfW - margin))
                 end
@@ -9434,11 +9466,11 @@ local ClosureBindings = {
                     s._minimized = false
                     s._pendingResize = false
 
-                    local topY = posY - math.floor(titlebarH / 2)
-                    local targetCY = topY + math.floor(fullH / 2)
+                    local topY = posY - math.floor(titlebarH * scale / 2)
+                    local targetCY = topY + math.floor(fullH * scale / 2)
 
                     if keepOnScreen then
-                        local halfH = math.floor(fullH / 2)
+                        local halfH = math.floor(fullH * scale / 2)
 
                         targetCY = math.clamp(targetCY, halfH + margin, math.max(halfH + margin, screen.Y - halfH - margin))
                     end
@@ -9505,11 +9537,11 @@ local ClosureBindings = {
                         variables.settingsOpen = false
                     end
 
-                    local topY = posY - math.floor(fullH / 2)
-                    local targetCY = topY + math.floor(titlebarH / 2)
+                    local topY = posY - math.floor(fullH * scale / 2)
+                    local targetCY = topY + math.floor(titlebarH * scale / 2)
 
                     if keepOnScreen then
-                        local halfTH = math.floor(titlebarH / 2)
+                        local halfTH = math.floor(titlebarH * scale / 2)
 
                         targetCY = math.clamp(targetCY, halfTH + margin, math.max(halfTH + margin, screen.Y - halfTH - margin))
                     end
@@ -13070,143 +13102,31 @@ local ObjectTree = {
         },
         {
             {
-                23,
+                18,
                 1,
                 {
-                    'utility',
+                    'themes',
                 },
                 {
                     {
-                        31,
+                        19,
                         2,
                         {
-                            'image',
+                            'default',
                         },
                     },
                     {
-                        33,
+                        20,
                         2,
                         {
-                            'mediaService',
+                            'dracula',
                         },
                     },
                     {
-                        37,
+                        21,
                         2,
                         {
-                            'services',
-                        },
-                    },
-                    {
-                        36,
-                        2,
-                        {
-                            'saveManager',
-                        },
-                    },
-                    {
-                        39,
-                        2,
-                        {
-                            'theme',
-                        },
-                    },
-                    {
-                        29,
-                        2,
-                        {
-                            'fontLoader',
-                        },
-                    },
-                    {
-                        25,
-                        2,
-                        {
-                            'constants',
-                        },
-                    },
-                    {
-                        35,
-                        2,
-                        {
-                            'runtime',
-                        },
-                    },
-                    {
-                        42,
-                        2,
-                        {
-                            'windowSizing',
-                        },
-                    },
-                    {
-                        40,
-                        2,
-                        {
-                            'tween',
-                        },
-                    },
-                    {
-                        26,
-                        2,
-                        {
-                            'element',
-                        },
-                    },
-                    {
-                        24,
-                        2,
-                        {
-                            'assetFetcher',
-                        },
-                    },
-                    {
-                        41,
-                        2,
-                        {
-                            'variables',
-                        },
-                    },
-                    {
-                        28,
-                        2,
-                        {
-                            'flags',
-                        },
-                    },
-                    {
-                        32,
-                        2,
-                        {
-                            'imageCache',
-                        },
-                    },
-                    {
-                        27,
-                        2,
-                        {
-                            'filesystem',
-                        },
-                    },
-                    {
-                        34,
-                        2,
-                        {
-                            'network',
-                        },
-                    },
-                    {
-                        30,
-                        2,
-                        {
-                            'icons',
-                        },
-                    },
-                    {
-                        38,
-                        2,
-                        {
-                            'signal',
+                            'light',
                         },
                     },
                 },
@@ -13219,13 +13139,6 @@ local ObjectTree = {
                 },
                 {
                     {
-                        5,
-                        2,
-                        {
-                            'dashboard',
-                        },
-                    },
-                    {
                         9,
                         2,
                         {
@@ -13233,17 +13146,10 @@ local ObjectTree = {
                         },
                     },
                     {
-                        7,
+                        4,
                         2,
                         {
-                            'dropdown',
-                        },
-                    },
-                    {
-                        12,
-                        2,
-                        {
-                            'notification',
+                            'colorpicker',
                         },
                     },
                     {
@@ -13254,17 +13160,10 @@ local ObjectTree = {
                         },
                     },
                     {
-                        11,
+                        16,
                         2,
                         {
-                            'loadingScreen',
-                        },
-                    },
-                    {
-                        3,
-                        2,
-                        {
-                            'button',
+                            'toggle',
                         },
                     },
                     {
@@ -13275,17 +13174,17 @@ local ObjectTree = {
                         },
                     },
                     {
+                        10,
+                        2,
+                        {
+                            'label',
+                        },
+                    },
+                    {
                         15,
                         2,
                         {
                             'tab',
-                        },
-                    },
-                    {
-                        16,
-                        2,
-                        {
-                            'toggle',
                         },
                     },
                     {
@@ -13303,17 +13202,38 @@ local ObjectTree = {
                         },
                     },
                     {
-                        10,
+                        11,
                         2,
                         {
-                            'label',
+                            'loadingScreen',
                         },
                     },
                     {
-                        4,
+                        12,
                         2,
                         {
-                            'colorpicker',
+                            'notification',
+                        },
+                    },
+                    {
+                        5,
+                        2,
+                        {
+                            'dashboard',
+                        },
+                    },
+                    {
+                        3,
+                        2,
+                        {
+                            'button',
+                        },
+                    },
+                    {
+                        7,
+                        2,
+                        {
+                            'dropdown',
                         },
                     },
                     {
@@ -13326,40 +13246,152 @@ local ObjectTree = {
                 },
             },
             {
+                23,
+                1,
+                {
+                    'utility',
+                },
+                {
+                    {
+                        32,
+                        2,
+                        {
+                            'imageCache',
+                        },
+                    },
+                    {
+                        25,
+                        2,
+                        {
+                            'constants',
+                        },
+                    },
+                    {
+                        36,
+                        2,
+                        {
+                            'saveManager',
+                        },
+                    },
+                    {
+                        37,
+                        2,
+                        {
+                            'services',
+                        },
+                    },
+                    {
+                        42,
+                        2,
+                        {
+                            'windowSizing',
+                        },
+                    },
+                    {
+                        31,
+                        2,
+                        {
+                            'image',
+                        },
+                    },
+                    {
+                        30,
+                        2,
+                        {
+                            'icons',
+                        },
+                    },
+                    {
+                        24,
+                        2,
+                        {
+                            'assetFetcher',
+                        },
+                    },
+                    {
+                        41,
+                        2,
+                        {
+                            'variables',
+                        },
+                    },
+                    {
+                        40,
+                        2,
+                        {
+                            'tween',
+                        },
+                    },
+                    {
+                        39,
+                        2,
+                        {
+                            'theme',
+                        },
+                    },
+                    {
+                        38,
+                        2,
+                        {
+                            'signal',
+                        },
+                    },
+                    {
+                        27,
+                        2,
+                        {
+                            'filesystem',
+                        },
+                    },
+                    {
+                        28,
+                        2,
+                        {
+                            'flags',
+                        },
+                    },
+                    {
+                        35,
+                        2,
+                        {
+                            'runtime',
+                        },
+                    },
+                    {
+                        26,
+                        2,
+                        {
+                            'element',
+                        },
+                    },
+                    {
+                        29,
+                        2,
+                        {
+                            'fontLoader',
+                        },
+                    },
+                    {
+                        33,
+                        2,
+                        {
+                            'mediaService',
+                        },
+                    },
+                    {
+                        34,
+                        2,
+                        {
+                            'network',
+                        },
+                    },
+                },
+            },
+            {
                 22,
                 2,
                 {
                     'types',
-                },
-            },
-            {
-                18,
-                1,
-                {
-                    'themes',
-                },
-                {
-                    {
-                        20,
-                        2,
-                        {
-                            'dracula',
-                        },
-                    },
-                    {
-                        21,
-                        2,
-                        {
-                            'light',
-                        },
-                    },
-                    {
-                        19,
-                        2,
-                        {
-                            'default',
-                        },
-                    },
                 },
             },
         },

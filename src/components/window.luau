@@ -1501,8 +1501,14 @@ function Window.new(props: WindowProps): Window
 		end
 	end
 
-	table.insert(_preConns, settingsBtn.MouseButton1Click:Connect(toggleSettings))
-	table.insert(_preConns, settingsBtn.TouchTap:Connect(toggleSettings))
+	-- TOUCH-DOUBLE-FIRE FIX: on mobile, MouseButton1Click AND TouchTap both fire
+	-- on a single tap → toggleSettings() runs twice → panel opens then immediately closes (blink).
+	-- Only connect the appropriate event for the device type.
+	if isTouchOnly then
+		table.insert(_preConns, settingsBtn.TouchTap:Connect(toggleSettings))
+	else
+		table.insert(_preConns, settingsBtn.MouseButton1Click:Connect(toggleSettings))
+	end
 
 	table.insert(_preConns, windowFrame:GetPropertyChangedSignal("Size"):Connect(function()
 		if settingsPanel.Visible then
@@ -1739,7 +1745,11 @@ function Window.new(props: WindowProps): Window
 					end
 				end
 
-				if math.abs(newX - lastX) < 0.5 and math.abs(newY - lastY) < 0.5 then return end
+				-- DRAG-DEDUP FIX: 0.5px threshold causes constant re-renders on touch
+				-- (sub-pixel finger jitter even when the hand is stationary). Bump to
+				-- 1.0px on touch-only so we skip the write when nothing visually moved.
+				local _dragThreshold = if isTouchOnly then 1.0 else 0.5
+				if math.abs(newX - lastX) < _dragThreshold and math.abs(newY - lastY) < _dragThreshold then return end
 				lastX, lastY = newX, newY
 				windowFrame.Position = UDim2.fromOffset(newX, newY)
 			end)
@@ -1756,19 +1766,24 @@ function Window.new(props: WindowProps): Window
 	end
 
 	-- ── Window controls ───────────────────────────────────────────────────
-	table.insert(s._connections, closeBtn.MouseButton1Click:Connect(function()
-		self:Unload()
-	end))
-	table.insert(s._connections, closeBtn.TouchTap:Connect(function()
-		self:Unload()
-	end))
-
-	table.insert(s._connections, minBtn.MouseButton1Click:Connect(function()
-		self:ToggleMinimise()
-	end))
-	table.insert(s._connections, minBtn.TouchTap:Connect(function()
-		self:ToggleMinimise()
-	end))
+	-- TOUCH-DOUBLE-FIRE FIX: same as settingsBtn — single tap fires both events on mobile.
+	-- Close calling Unload() twice is safe (unloaded guard), but minimize double-fires
+	-- ToggleMinimise() → minimizes then immediately restores → visible as a blink/kedip.
+	if isTouchOnly then
+		table.insert(s._connections, closeBtn.TouchTap:Connect(function()
+			self:Unload()
+		end))
+		table.insert(s._connections, minBtn.TouchTap:Connect(function()
+			self:ToggleMinimise()
+		end))
+	else
+		table.insert(s._connections, closeBtn.MouseButton1Click:Connect(function()
+			self:Unload()
+		end))
+		table.insert(s._connections, minBtn.MouseButton1Click:Connect(function()
+			self:ToggleMinimise()
+		end))
+	end
 
 	-- ── Toggle keybind ────────────────────────────────────────────────────
 	-- A1 FIX: capture this global InputBegan connection so Unload() disconnects it.
@@ -1862,10 +1877,16 @@ function Window.new(props: WindowProps): Window
 			currentDeltaX = 0
 		end
 
-		table.insert(s._connections, barContainer.InputBegan:Connect(function(input)
-			if input.UserInputType ~= Enum.UserInputType.Touch then
-				return
-			end
+		table.insert(s._connections, barContainer.InputBegan:Connect(function(input, gameProcessed)
+			-- JOYSTICK FIX: barContainer.InputBegan previously had no gameProcessed check,
+			-- so joystick thumb movement in the bottom-left zone falsely triggered gesture
+			-- drag when the player's hand shifted across the left edge of the pill.
+			-- Also guard against touches originating in the bottom 28% of the screen
+			-- (typical virtual joystick zone) so those never reach the gesture system.
+			if gameProcessed then return end
+			if input.UserInputType ~= Enum.UserInputType.Touch then return end
+			local screenH = gui.AbsoluteSize.Y
+			if screenH > 0 and input.Position.Y > screenH * 0.72 then return end
 			isGestureDragging = true
 			startTouchX = input.Position.X
 			currentDeltaX = 0
@@ -1882,15 +1903,19 @@ function Window.new(props: WindowProps): Window
 			if dragMoveConn then dragMoveConn:Disconnect() end
 			if dragEndConn then dragEndConn:Disconnect() end
 
+			-- PERF FIX: gesture drag previously updated barPill.Position on every InputChanged
+			-- event even when the pill hadn't moved a pixel — on mobile this fires at 60-120 Hz
+			-- and causes unnecessary layout work. Dedup with _lastVisualX; skip if unchanged.
+			-- Also floor visualX so sub-pixel jitter never triggers an update.
+			local _lastVisualX = -1
 			dragMoveConn = variables.userInputService.InputChanged:Connect(function(moveInput)
 				if not isGestureDragging then return end
-				if moveInput.UserInputType ~= Enum.UserInputType.Touch then
-					return
-				end
-
+				if moveInput.UserInputType ~= Enum.UserInputType.Touch then return end
 				local delta = math.max(0, moveInput.Position.X - startTouchX)
 				currentDeltaX = delta
-				local visualX = math.min(delta, 80)
+				local visualX = math.floor(math.min(delta, 80))
+				if visualX == _lastVisualX then return end
+				_lastVisualX = visualX
 				barPill.Position = UDim2.new(0, 4 + visualX, 0.5, 0)
 			end)
 
@@ -2132,8 +2157,11 @@ function Window:Show()
 		if s._titleSep then (s._titleSep :: Frame).Visible = true end
 		if s._cornerCover then (s._cornerCover :: Frame).Visible = true end
 		local fullH: number = s._windowSize.Y.Offset
-		local topY = windowFrame.Position.Y.Offset - math.floor(s._titlebarH / 2)
-		local restoreCenterY = topY + math.floor(fullH / 2)
+		-- SCALE FIX: Show() restores from minimized state using the same center-anchor
+		-- math as ToggleMinimise. Must multiply by scale to match the rendered geometry.
+		local _scale = s._userScale or 1.0
+		local topY = windowFrame.Position.Y.Offset - math.floor(s._titlebarH * _scale / 2)
+		local restoreCenterY = topY + math.floor(fullH * _scale / 2)
 		windowFrame.Position = self:_clampedPosition(UDim2.fromOffset(windowFrame.Position.X.Offset, restoreCenterY))
 		windowFrame.Size = s._windowSize
 		;(s._minBtn :: TextButton).Text = ""
@@ -2219,8 +2247,14 @@ function Window:ToggleMinimise()
 	local posX = windowFrame.Position.X.Offset
 	local posY = windowFrame.Position.Y.Offset
 
+	-- SCALE FIX: ToggleMinimise computed half-widths and half-heights from raw pixel
+	-- values without accounting for UIScale. On mobile (scale=0.9) this offset the
+	-- window by ~24px after every minimize/restore cycle because the frame's rendered
+	-- size is width*scale, not width. Multiply by scale so the center-anchor math is correct.
+	local scale = s._userScale or 1.0
+
 	if keepOnScreen then
-		local halfW = math.floor(width / 2)
+		local halfW = math.floor(width * scale / 2)
 		posX = math.clamp(posX, halfW + margin, math.max(halfW + margin, screen.X - halfW - margin))
 	end
 
@@ -2231,10 +2265,10 @@ function Window:ToggleMinimise()
 		s._minimized     = false
 		s._pendingResize = false
 
-		local topY = posY - math.floor(titlebarH / 2)
-		local targetCY = topY + math.floor(fullH / 2)
+		local topY = posY - math.floor(titlebarH * scale / 2)
+		local targetCY = topY + math.floor(fullH * scale / 2)
 		if keepOnScreen then
-			local halfH = math.floor(fullH / 2)
+			local halfH = math.floor(fullH * scale / 2)
 			targetCY = math.clamp(targetCY, halfH + margin, math.max(halfH + margin, screen.Y - halfH - margin))
 		end
 
@@ -2281,10 +2315,10 @@ function Window:ToggleMinimise()
 			variables.settingsOpen = false
 		end
 
-		local topY = posY - math.floor(fullH / 2)
-		local targetCY = topY + math.floor(titlebarH / 2)
+		local topY = posY - math.floor(fullH * scale / 2)
+		local targetCY = topY + math.floor(titlebarH * scale / 2)
 		if keepOnScreen then
-			local halfTH = math.floor(titlebarH / 2)
+			local halfTH = math.floor(titlebarH * scale / 2)
 			targetCY = math.clamp(targetCY, halfTH + margin, math.max(halfTH + margin, screen.Y - halfTH - margin))
 		end
 
