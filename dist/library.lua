@@ -10096,6 +10096,7 @@ local ClosureBindings = {
                 windowChrome = 500,
                 drag = 1000,
                 popup = 2000,
+                tooltip = 2500,
             }
             constants.displayOrder = {
                 window = 99990,
@@ -13069,126 +13070,89 @@ local ObjectTree = {
         },
         {
             {
-                2,
-                1,
-                {
-                    'components',
-                },
-                {
-                    {
-                        9,
-                        2,
-                        {
-                            'keybind',
-                        },
-                    },
-                    {
-                        3,
-                        2,
-                        {
-                            'button',
-                        },
-                    },
-                    {
-                        4,
-                        2,
-                        {
-                            'colorpicker',
-                        },
-                    },
-                    {
-                        10,
-                        2,
-                        {
-                            'label',
-                        },
-                    },
-                    {
-                        17,
-                        2,
-                        {
-                            'window',
-                        },
-                    },
-                    {
-                        11,
-                        2,
-                        {
-                            'loadingScreen',
-                        },
-                    },
-                    {
-                        13,
-                        2,
-                        {
-                            'section',
-                        },
-                    },
-                    {
-                        15,
-                        2,
-                        {
-                            'tab',
-                        },
-                    },
-                    {
-                        5,
-                        2,
-                        {
-                            'dashboard',
-                        },
-                    },
-                    {
-                        6,
-                        2,
-                        {
-                            'descriptor',
-                        },
-                    },
-                    {
-                        12,
-                        2,
-                        {
-                            'notification',
-                        },
-                    },
-                    {
-                        14,
-                        2,
-                        {
-                            'slider',
-                        },
-                    },
-                    {
-                        16,
-                        2,
-                        {
-                            'toggle',
-                        },
-                    },
-                    {
-                        7,
-                        2,
-                        {
-                            'dropdown',
-                        },
-                    },
-                    {
-                        8,
-                        2,
-                        {
-                            'input',
-                        },
-                    },
-                },
-            },
-            {
                 23,
                 1,
                 {
                     'utility',
                 },
                 {
+                    {
+                        31,
+                        2,
+                        {
+                            'image',
+                        },
+                    },
+                    {
+                        33,
+                        2,
+                        {
+                            'mediaService',
+                        },
+                    },
+                    {
+                        37,
+                        2,
+                        {
+                            'services',
+                        },
+                    },
+                    {
+                        36,
+                        2,
+                        {
+                            'saveManager',
+                        },
+                    },
+                    {
+                        39,
+                        2,
+                        {
+                            'theme',
+                        },
+                    },
+                    {
+                        29,
+                        2,
+                        {
+                            'fontLoader',
+                        },
+                    },
+                    {
+                        25,
+                        2,
+                        {
+                            'constants',
+                        },
+                    },
+                    {
+                        35,
+                        2,
+                        {
+                            'runtime',
+                        },
+                    },
+                    {
+                        42,
+                        2,
+                        {
+                            'windowSizing',
+                        },
+                    },
+                    {
+                        40,
+                        2,
+                        {
+                            'tween',
+                        },
+                    },
+                    {
+                        26,
+                        2,
+                        {
+                            'element',
+                        },
+                    },
                     {
                         24,
                         2,
@@ -13197,10 +13161,31 @@ local ObjectTree = {
                         },
                     },
                     {
-                        39,
+                        41,
                         2,
                         {
-                            'theme',
+                            'variables',
+                        },
+                    },
+                    {
+                        28,
+                        2,
+                        {
+                            'flags',
+                        },
+                    },
+                    {
+                        32,
+                        2,
+                        {
+                            'imageCache',
+                        },
+                    },
+                    {
+                        27,
+                        2,
+                        {
+                            'filesystem',
                         },
                     },
                     {
@@ -13218,108 +13203,124 @@ local ObjectTree = {
                         },
                     },
                     {
-                        41,
-                        2,
-                        {
-                            'variables',
-                        },
-                    },
-                    {
-                        31,
-                        2,
-                        {
-                            'image',
-                        },
-                    },
-                    {
-                        25,
-                        2,
-                        {
-                            'constants',
-                        },
-                    },
-                    {
-                        26,
-                        2,
-                        {
-                            'element',
-                        },
-                    },
-                    {
-                        42,
-                        2,
-                        {
-                            'windowSizing',
-                        },
-                    },
-                    {
-                        33,
-                        2,
-                        {
-                            'mediaService',
-                        },
-                    },
-                    {
-                        32,
-                        2,
-                        {
-                            'imageCache',
-                        },
-                    },
-                    {
-                        37,
-                        2,
-                        {
-                            'services',
-                        },
-                    },
-                    {
-                        29,
-                        2,
-                        {
-                            'fontLoader',
-                        },
-                    },
-                    {
-                        35,
-                        2,
-                        {
-                            'runtime',
-                        },
-                    },
-                    {
-                        40,
-                        2,
-                        {
-                            'tween',
-                        },
-                    },
-                    {
-                        28,
-                        2,
-                        {
-                            'flags',
-                        },
-                    },
-                    {
-                        27,
-                        2,
-                        {
-                            'filesystem',
-                        },
-                    },
-                    {
                         38,
                         2,
                         {
                             'signal',
                         },
                     },
+                },
+            },
+            {
+                2,
+                1,
+                {
+                    'components',
+                },
+                {
                     {
-                        36,
+                        5,
                         2,
                         {
-                            'saveManager',
+                            'dashboard',
+                        },
+                    },
+                    {
+                        9,
+                        2,
+                        {
+                            'keybind',
+                        },
+                    },
+                    {
+                        7,
+                        2,
+                        {
+                            'dropdown',
+                        },
+                    },
+                    {
+                        12,
+                        2,
+                        {
+                            'notification',
+                        },
+                    },
+                    {
+                        17,
+                        2,
+                        {
+                            'window',
+                        },
+                    },
+                    {
+                        11,
+                        2,
+                        {
+                            'loadingScreen',
+                        },
+                    },
+                    {
+                        3,
+                        2,
+                        {
+                            'button',
+                        },
+                    },
+                    {
+                        6,
+                        2,
+                        {
+                            'descriptor',
+                        },
+                    },
+                    {
+                        15,
+                        2,
+                        {
+                            'tab',
+                        },
+                    },
+                    {
+                        16,
+                        2,
+                        {
+                            'toggle',
+                        },
+                    },
+                    {
+                        13,
+                        2,
+                        {
+                            'section',
+                        },
+                    },
+                    {
+                        14,
+                        2,
+                        {
+                            'slider',
+                        },
+                    },
+                    {
+                        10,
+                        2,
+                        {
+                            'label',
+                        },
+                    },
+                    {
+                        4,
+                        2,
+                        {
+                            'colorpicker',
+                        },
+                    },
+                    {
+                        8,
+                        2,
+                        {
+                            'input',
                         },
                     },
                 },
@@ -13346,17 +13347,17 @@ local ObjectTree = {
                         },
                     },
                     {
-                        19,
-                        2,
-                        {
-                            'default',
-                        },
-                    },
-                    {
                         21,
                         2,
                         {
                             'light',
+                        },
+                    },
+                    {
+                        19,
+                        2,
+                        {
+                            'default',
                         },
                     },
                 },

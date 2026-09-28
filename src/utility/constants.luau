@@ -31,6 +31,7 @@ constants.zIndex = {
 	windowChrome     = 500,    -- Window title bar / buttons
 	drag             = 1000,   -- Drag ghost layer
 	popup            = 2000,   -- Modal popups dim + content
+	tooltip          = 2500,   -- Tooltips and gesture bar (above modal layer)
 }
 
 -- ── DisplayOrder for top-level ScreenGuis ────────────────────────────────────
