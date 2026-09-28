@@ -108,7 +108,20 @@ local function ensureGui()
 	local _sti = typeof(setthreadidentity) == "function" and setthreadidentity
 		or typeof(set_thread_identity) == "function" and set_thread_identity
 		or nil
-	if _sti then pcall(_sti, 8) end
+	local escalated = false
+	if _sti then
+		escalated = pcall(_sti, 8)
+	end
+
+	-- If escalation failed, we can't safely parent into CoreGui — fall back to PlayerGui.
+	local resolvedContainer = variables.guiContainer
+	if not escalated then
+		local lp = variables.localPlayer
+		if lp then
+			local pg = lp:FindFirstChildOfClass("PlayerGui") or lp:FindFirstChild("PlayerGui")
+			if pg then resolvedContainer = pg end
+		end
+	end
 
 	local isMobile = variables.userInputService.TouchEnabled and not variables.userInputService.KeyboardEnabled
 	if not variables.runService:IsStudio() then
@@ -125,7 +138,7 @@ local function ensureGui()
 	gui.IgnoreGuiInset   = true
 	gui.ZIndexBehavior   = Enum.ZIndexBehavior.Sibling
 
-	gui.Parent           = variables.guiContainer
+	gui.Parent           = resolvedContainer
 
 	local scaledW = math.round(TOAST_W * _scale)
 
