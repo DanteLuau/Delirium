@@ -644,10 +644,26 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 		end
 	end
 
-	local function fireChanged()
+	local _firePending = false
+	local function fireChanged(immediate: boolean?)
 		local color = Color3.fromHSV(h, s, v)
 		if flagKey then flags:Set(flagKey, color) end
-		if callback then task.spawn(callback, color, a) end
+		if not callback then return end
+
+		if immediate then
+			_firePending = false
+			task.spawn(callback, color, a)
+			return
+		end
+
+		if _firePending then return end
+		_firePending = true
+		task.defer(function()
+			if not _firePending then return end
+			_firePending = false
+			local curCol = Color3.fromHSV(h, s, v)
+			task.spawn(callback, curCol, a)
+		end)
 	end
 
 	-- ── Drag pump ──────────────────────────────────────────────────────────
@@ -662,7 +678,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 			a = 1 - relPos(alphaBar :: Frame, mousePos).Y
 		end
 		refresh()
-		fireChanged()
+		fireChanged(false)
 	end
 
 	-- ── Open / close ──────────────────────────────────────────────────────
@@ -709,6 +725,7 @@ function ColorPicker.new(props: ColorPickerProps, theme: { [string]: any }, pare
 			dragConnEnd:Disconnect()
 			dragConnEnd = nil
 		end
+		fireChanged(true)
 	end
 
 	local function startColorDrag(target: DragTarget, mousePos: Vector2)

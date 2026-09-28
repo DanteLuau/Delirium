@@ -437,6 +437,7 @@ function Window.new(props: WindowProps): Window
 	tabListScroll.ScrollBarImageTransparency = 0.6
 	tabListScroll.CanvasSize              = UDim2.new(0, 0, 0, 0)
 	tabListScroll.AutomaticCanvasSize     = Enum.AutomaticSize.Y
+	tabListScroll.ScrollingDirection      = Enum.ScrollingDirection.Y
 	tabListScroll.ClipsDescendants        = true
 	tabListScroll.Parent                  = sidebar
 
@@ -2069,7 +2070,7 @@ function Window:CreateTab(props: Tab.TabProps): Tab.Tab
 
 	local btn = (t :: any)._tabButton
 
-	btn.MouseButton1Click:Connect(function()
+	btn.Activated:Connect(function()
 		local _s = (self :: any)
 		-- hide dashboard content when switching to a real tab
 		if _s._playerCard then
@@ -2106,7 +2107,7 @@ function Window:CreatePlayerCard()
 	-- Wire card click → deselect all real tabs → show dashboard content
 	local cardHit = (pc :: any)._cardHit :: TextButton?
 	if cardHit then
-		cardHit.MouseButton1Click:Connect(function()
+		cardHit.Activated:Connect(function()
 			for _, tab in (s._tabs :: { any }) do
 				tab:Hide()
 			end
@@ -2184,7 +2185,7 @@ function Window:Show()
 	windowFrame.BackgroundTransparency = 1
 	windowFrame.Visible = true
 	task.spawn(function()
-		game:GetService("RunService").RenderStepped:Wait()
+		runtime.runService.RenderStepped:Wait()
 		if not s._visible or self.unloaded then return end
 		tween.fire(windowFrame, constants.tweenNormal, {
 			BackgroundTransparency = 0,

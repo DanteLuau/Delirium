@@ -13,6 +13,7 @@ local signal    = require(script.Parent.Parent.utility.signal)
 local themeUtil = require(script.Parent.Parent.utility.theme)
 local icons     = require(script.Parent.Parent.utility.icons)
 local element   = require(script.Parent.Parent.utility.element)
+local variables = require(script.Parent.Parent.utility.variables)
 
 local UserInputService = runtime.userInputService
 local Players          = services.getService("Players") :: Players
@@ -467,6 +468,7 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 	scroll.ScrollBarImageColor3 = theme.ElementStroke or Color3.fromHex("#2b2b2b")
 	scroll.CanvasSize = UDim2.fromOffset(0, 0)
 	scroll.AutomaticCanvasSize = Enum.AutomaticSize.None
+	scroll.ScrollingDirection = Enum.ScrollingDirection.Y
 	scroll.ClipsDescendants = true
 	scroll.ZIndex = 3
 	scroll.Parent = listWrap
@@ -814,30 +816,32 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 			optHit.Parent = optFrame
 
 			if not isDisabled then
-				table.insert(s._optConns, optHit.MouseEnter:Connect(function()
-					optFrame.BackgroundTransparency = 0.85
-					optFrame.BackgroundColor3 = Color3.fromHex("#252525")
-					local isSel = if s._multiSelect
-						then s._selectedSet[opt.Value] == true
-						else s._selectedValue == opt.Value
-					if not isSel then
-						optLabel.TextColor3 = s._theme.ContentColor or Color3.fromHex("#ffffff")
-					end
-				end))
+				if not variables.isTouchOnly then
+					table.insert(s._optConns, optHit.MouseEnter:Connect(function()
+						optFrame.BackgroundTransparency = 0.85
+						optFrame.BackgroundColor3 = Color3.fromHex("#252525")
+						local isSel = if s._multiSelect
+							then s._selectedSet[opt.Value] == true
+							else s._selectedValue == opt.Value
+						if not isSel then
+							optLabel.TextColor3 = s._theme.ContentColor or Color3.fromHex("#ffffff")
+						end
+					end))
 
-				table.insert(s._optConns, optHit.MouseLeave:Connect(function()
-					optFrame.BackgroundTransparency = 1
-					-- B5 FIX: use theme surface color on leave
-					optFrame.BackgroundColor3 = (s._theme.WindowColor and s._theme.WindowColor.Keypoints[1].Value) or Color3.fromHex("#1a1a1a")
-					local isSel = if s._multiSelect
-						then s._selectedSet[opt.Value] == true
-						else s._selectedValue == opt.Value
-					if not isSel then
-						optLabel.TextColor3 = s._theme.PlaceholderColor or Color3.fromHex("#9d9d9d")
-					end
-				end))
+					table.insert(s._optConns, optHit.MouseLeave:Connect(function()
+						optFrame.BackgroundTransparency = 1
+						-- B5 FIX: use theme surface color on leave
+						optFrame.BackgroundColor3 = (s._theme.WindowColor and s._theme.WindowColor.Keypoints[1].Value) or Color3.fromHex("#1a1a1a")
+						local isSel = if s._multiSelect
+							then s._selectedSet[opt.Value] == true
+							else s._selectedValue == opt.Value
+						if not isSel then
+							optLabel.TextColor3 = s._theme.PlaceholderColor or Color3.fromHex("#9d9d9d")
+						end
+					end))
+				end
 
-				table.insert(s._optConns, optHit.MouseButton1Click:Connect(function()
+				table.insert(s._optConns, optHit.Activated:Connect(function()
 					if not s._enabled then return end
 
 					if s._multiSelect then
@@ -1035,12 +1039,30 @@ function Dropdown.new(props: DropdownProps, theme: { [string]: any }, parent: In
 		if capturedSearchSep then
 			capturedSearchSep.BackgroundColor3 = t.ElementStroke or Color3.fromHex("#2b2b2b")
 		end
-		-- B1 FIX: only rebuild option rows when the list is open.
-		-- When closed, options are invisible; re-coloring happens on next open().
-		-- This prevents dozens of instance destroy/recreate cycles per mouse-move
-		-- during accent-color drag (which triggers a broadcast per frame).
-		if s._open then
-			createOptionRows()  -- was: buildOptions() — typo; that name never existed as a local
+		-- In-place update: when open, update existing rows rather than tearing down
+		-- and rebuilding the entire UI tree, avoiding dozens of instance allocs.
+		if s._open and #optionEntries > 0 then
+			local winCol = (t.WindowColor and t.WindowColor.Keypoints[1].Value) or Color3.fromHex("#1a1a1a")
+			local strokeCol = t.ElementStroke or Color3.fromHex("#2b2b2b")
+			local accentCol = t.AccentColor or Color3.fromHex("#4cc2ff")
+			local placeholderCol = t.PlaceholderColor or Color3.fromHex("#9d9d9d")
+			for _, entry in ipairs(optionEntries) do
+				entry.frame.BackgroundColor3 = winCol
+				local isSelected = if s._multiSelect
+					then s._selectedSet[entry.opt.Value] == true
+					else s._selectedValue == entry.opt.Value
+				local isDisabled = s._disabledSet[entry.opt.Value] == true
+				if not isDisabled then
+					entry.label.TextColor3 = if isSelected then accentCol else placeholderCol
+					entry.label.FontFace = t.Font or DEFAULT_FONT
+					if entry.check then
+						entry.check.ImageColor3 = if isSelected then accentCol else Color3.fromHex("#555555")
+					end
+				end
+				if entry.sep then
+					entry.sep.BackgroundColor3 = strokeCol
+				end
+			end
 		end
 	end, frame)
 

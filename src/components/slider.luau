@@ -162,6 +162,9 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 	local shadowCorner = Instance.new("UICorner")
 	shadowCorner.CornerRadius = UDim.new(0, 7)
 	shadowCorner.Parent = shadow
+	if variables.isTouchOnly then
+		shadow.Visible = false
+	end
 	shadow.Parent = frame
 
 	-- ── Inner Shell ───────────────────────────────────────────────────────────
@@ -391,6 +394,9 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 	local knobShadowCorner = Instance.new("UICorner")
 	knobShadowCorner.CornerRadius = UDim.new(0, 100)
 	knobShadowCorner.Parent = knobShadow
+	if variables.isTouchOnly then
+		knobShadow.Visible = false
+	end
 	knobShadow.Parent = knob
 	knob.Parent = track
 	knobRef = knob  -- now knobPosScale and tFromMouseX callers can read AbsoluteSize
@@ -479,26 +485,28 @@ function Slider.new(props: SliderProps, theme: { [string]: any }, parent: Instan
 	end
 
 	-- ── Interactivity (Instant — No Tweens) ───────────────────────────────────
-	s._conns.hitEnter = hit.MouseEnter:Connect(function()
-		if not s._enabled then return end
-		if variables.settingsOpen then return end
-		hovering = true
-		stroke.Color = s._theme.AccentColor or Color3.fromHex("#4cc2ff")
-		flash.BackgroundTransparency = 0.92
-		shadow.BackgroundTransparency = 0.65
-		shadow.Position = UDim2.new(0.5, 0, 0.5, 5)
-	end)
+	if not variables.isTouchOnly then
+		s._conns.hitEnter = hit.MouseEnter:Connect(function()
+			if not s._enabled then return end
+			if variables.settingsOpen then return end
+			hovering = true
+			stroke.Color = s._theme.AccentColor or Color3.fromHex("#4cc2ff")
+			flash.BackgroundTransparency = 0.92
+			shadow.BackgroundTransparency = 0.65
+			shadow.Position = UDim2.new(0.5, 0, 0.5, 5)
+		end)
 
-	s._conns.hitLeave = hit.MouseLeave:Connect(function()
-		if not s._enabled then return end
-		hovering = false
-		if not dragging then
-			stroke.Color = s._theme.ElementStroke or Color3.fromHex("#2b2b2b")
-			flash.BackgroundTransparency = 1
-			shadow.BackgroundTransparency = 0.75
-			shadow.Position = UDim2.new(0.5, 0, 0.5, 3)
-		end
-	end)
+		s._conns.hitLeave = hit.MouseLeave:Connect(function()
+			if not s._enabled then return end
+			hovering = false
+			if not dragging then
+				stroke.Color = s._theme.ElementStroke or Color3.fromHex("#2b2b2b")
+				flash.BackgroundTransparency = 1
+				shadow.BackgroundTransparency = 0.75
+				shadow.Position = UDim2.new(0.5, 0, 0.5, 3)
+			end
+		end)
+	end
 
 	s._conns.hitBegan = hit.InputBegan:Connect(function(input: InputObject)
 		if not s._enabled then return end

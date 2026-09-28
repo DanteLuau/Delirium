@@ -813,15 +813,42 @@ local ClosureBindings = {
                         alphaInput.Text = tostring(math.round(a * 100)) .. '%'
                     end
                 end
-                local function fireChanged()
+
+                local _firePending = false
+
+                local function fireChanged(immediate: boolean?)
                     local color = Color3.fromHSV(h, s, v)
 
                     if flagKey then
                         flags:Set(flagKey, color)
                     end
-                    if callback then
-                        task.spawn(callback, color, a)
+                    if not callback then
+                        return
                     end
+                    if immediate then
+                        _firePending = false
+
+                        task.spawn(callback, color, a)
+
+                        return
+                    end
+                    if _firePending then
+                        return
+                    end
+
+                    _firePending = true
+
+                    task.defer(function()
+                        if not _firePending then
+                            return
+                        end
+
+                        _firePending = false
+
+                        local curCol = Color3.fromHSV(h, s, v)
+
+                        task.spawn(callback, curCol, a)
+                    end)
                 end
                 local function pump(mousePos: Vector2)
                     if dragging == 'canvas' then
@@ -836,7 +863,7 @@ local ClosureBindings = {
                     end
 
                     refresh()
-                    fireChanged()
+                    fireChanged(false)
                 end
 
                 local isOpen = false
@@ -901,6 +928,8 @@ local ClosureBindings = {
 
                         dragConnEnd = nil
                     end
+
+                    fireChanged(true)
                 end
                 local function startColorDrag(
                     target: DragTarget,
@@ -1185,6 +1214,9 @@ local ClosureBindings = {
             local TWEEN_TAB = TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
             local THUMB_TYPE = Enum.ThumbnailType.HeadShot
             local THUMB_SIZE = Enum.ThumbnailSize.Size100x100
+            local FONT_MEDIUM = Font.new('rbxasset://fonts/families/GothamSSm.json', Enum.FontWeight.Medium)
+            local FONT_BOLD = Font.new('rbxasset://fonts/families/GothamSSm.json', Enum.FontWeight.SemiBold)
+            local FONT_XBOLD = Font.new('rbxasset://fonts/families/GothamSSm.json', Enum.FontWeight.Bold)
 
             export type Dashboard = {_cardFrame: Frame, _content: Frame, _themeUnsub: () -> (), ShowContent: (self:Dashboard) -> (), HideContent: (self:Dashboard) -> (), Destroy: (self:Dashboard) -> ()}
 
@@ -1255,9 +1287,9 @@ local ClosureBindings = {
                         neutralBtn = t.NeutralButton or Color3.fromHex('#1e1e1e'),
                         neutralHover = t.NeutralButtonHover or Color3.fromHex('#252525'),
                         errorColor = t.ErrorColor or Color3.fromHex('#ff4f58'),
-                        font = t.Font or Font.new('rbxasset://fonts/families/GothamSSm.json', Enum.FontWeight.Medium),
-                        fontBold = Font.new('rbxasset://fonts/families/GothamSSm.json', Enum.FontWeight.SemiBold),
-                        fontXBold = Font.new('rbxasset://fonts/families/GothamSSm.json', Enum.FontWeight.Bold),
+                        font = t.Font or FONT_MEDIUM,
+                        fontBold = FONT_BOLD,
+                        fontXBold = FONT_XBOLD,
                         elemCorner = t.ElementCornerRadius or UDim.new(0, 8),
                         winGradient = t.WindowColor,
                     }
@@ -1901,6 +1933,7 @@ local ClosureBindings = {
                 local fpsTimer = 0
                 local fpsCount = 0
                 local charTimer = 0
+                local uptimeTimer = 0
                 local liveConn: RBXScriptConnection? = nil
 
                 local function startLiveUpdates()
@@ -1922,7 +1955,12 @@ local ClosureBindings = {
                             fpsTimer = 0
                         end
 
-                        uptimeRow.Text = formatTime(os.clock() - sessionStart)
+                        uptimeTimer += dt
+
+                        if uptimeTimer >= 1 then
+                            uptimeTimer = 0
+                            uptimeRow.Text = formatTime(os.clock() - sessionStart)
+                        end
 
                         pingTimer += dt
 
@@ -2183,6 +2221,7 @@ local ClosureBindings = {
             local themeUtil = require(script.Parent.Parent.utility.theme)
             local icons = require(script.Parent.Parent.utility.icons)
             local element = require(script.Parent.Parent.utility.element)
+            local variables = require(script.Parent.Parent.utility.variables)
             local UserInputService = runtime.userInputService
             local Players = services.getService('Players')::Players
             local Teams = services.getService('Teams')::Teams
@@ -2629,6 +2668,7 @@ local ClosureBindings = {
                 scroll.ScrollBarImageColor3 = theme.ElementStroke or Color3.fromHex('#2b2b2b')
                 scroll.CanvasSize = UDim2.fromOffset(0, 0)
                 scroll.AutomaticCanvasSize = Enum.AutomaticSize.None
+                scroll.ScrollingDirection = Enum.ScrollingDirection.Y
                 scroll.ClipsDescendants = true
                 scroll.ZIndex = 3
                 scroll.Parent = listWrap
@@ -2991,29 +3031,32 @@ local ClosureBindings = {
                         optHit.Parent = optFrame
 
                         if not isDisabled then
-                            table.insert(s._optConns, optHit.MouseEnter:Connect(function(
-                            )
-                                optFrame.BackgroundTransparency = 0.85
-                                optFrame.BackgroundColor3 = Color3.fromHex('#252525')
+                            if not variables.isTouchOnly then
+                                table.insert(s._optConns, optHit.MouseEnter:Connect(function(
+                                )
+                                    optFrame.BackgroundTransparency = 0.85
+                                    optFrame.BackgroundColor3 = Color3.fromHex('#252525')
 
-                                local isSel = if s._multiSelect then s._selectedSet[opt.Value] == true else s._selectedValue == opt.Value
+                                    local isSel = if s._multiSelect then s._selectedSet[opt.Value] == true else s._selectedValue == opt.Value
 
-                                if not isSel then
-                                    optLabel.TextColor3 = s._theme.ContentColor or Color3.fromHex('#ffffff')
-                                end
-                            end))
-                            table.insert(s._optConns, optHit.MouseLeave:Connect(function(
-                            )
-                                optFrame.BackgroundTransparency = 1
-                                optFrame.BackgroundColor3 = (s._theme.WindowColor and s._theme.WindowColor.Keypoints[1].Value) or Color3.fromHex('#1a1a1a')
+                                    if not isSel then
+                                        optLabel.TextColor3 = s._theme.ContentColor or Color3.fromHex('#ffffff')
+                                    end
+                                end))
+                                table.insert(s._optConns, optHit.MouseLeave:Connect(function(
+                                )
+                                    optFrame.BackgroundTransparency = 1
+                                    optFrame.BackgroundColor3 = (s._theme.WindowColor and s._theme.WindowColor.Keypoints[1].Value) or Color3.fromHex('#1a1a1a')
 
-                                local isSel = if s._multiSelect then s._selectedSet[opt.Value] == true else s._selectedValue == opt.Value
+                                    local isSel = if s._multiSelect then s._selectedSet[opt.Value] == true else s._selectedValue == opt.Value
 
-                                if not isSel then
-                                    optLabel.TextColor3 = s._theme.PlaceholderColor or Color3.fromHex('#9d9d9d')
-                                end
-                            end))
-                            table.insert(s._optConns, optHit.MouseButton1Click:Connect(function(
+                                    if not isSel then
+                                        optLabel.TextColor3 = s._theme.PlaceholderColor or Color3.fromHex('#9d9d9d')
+                                    end
+                                end))
+                            end
+
+                            table.insert(s._optConns, optHit.Activated:Connect(function(
                             )
                                 if not s._enabled then
                                     return
@@ -3253,8 +3296,30 @@ local ClosureBindings = {
                     if capturedSearchSep then
                         capturedSearchSep.BackgroundColor3 = t.ElementStroke or Color3.fromHex('#2b2b2b')
                     end
-                    if s._open then
-                        createOptionRows()
+                    if s._open and #optionEntries > 0 then
+                        local winCol = (t.WindowColor and t.WindowColor.Keypoints[1].Value) or Color3.fromHex('#1a1a1a')
+                        local strokeCol = t.ElementStroke or Color3.fromHex('#2b2b2b')
+                        local accentCol = t.AccentColor or Color3.fromHex('#4cc2ff')
+                        local placeholderCol = t.PlaceholderColor or Color3.fromHex('#9d9d9d')
+
+                        for _, entry in ipairs(optionEntries)do
+                            entry.frame.BackgroundColor3 = winCol
+
+                            local isSelected = if s._multiSelect then s._selectedSet[entry.opt.Value] == true else s._selectedValue == entry.opt.Value
+                            local isDisabled = s._disabledSet[entry.opt.Value] == true
+
+                            if not isDisabled then
+                                entry.label.TextColor3 = if isSelected then accentCol else placeholderCol
+                                entry.label.FontFace = t.Font or DEFAULT_FONT
+
+                                if entry.check then
+                                    entry.check.ImageColor3 = if isSelected then accentCol else Color3.fromHex('#555555')
+                                end
+                            end
+                            if entry.sep then
+                                entry.sep.BackgroundColor3 = strokeCol
+                            end
+                        end
                     end
                 end, frame)
 
@@ -3602,37 +3667,40 @@ local ClosureBindings = {
                 hitBtn.ZIndex = 1
                 hitBtn.Parent = frame
 
-                hitBtn.MouseEnter:Connect(function()
-                    if variables.settingsOpen then
-                        return
-                    end
+                if not variables.isTouchOnly then
+                    hitBtn.MouseEnter:Connect(function()
+                        if variables.settingsOpen then
+                            return
+                        end
 
-                    hovering = true
+                        hovering = true
 
-                    tween.fire(stroke, constants.tweenFast, {
-                        Color = theme.ElementStrokeHover or theme.AccentColor or Color3.fromHex('#4cc2ff'),
-                    })
-
-                    if not textBox:IsFocused() then
-                        tween.fire(pillStroke, constants.tweenFast, {
-                            Color = theme.AccentColor or Color3.fromHex('#4cc2ff'),
-                        })
-                    end
-                end)
-                hitBtn.MouseLeave:Connect(function()
-                    hovering = false
-
-                    if not textBox:IsFocused() then
                         tween.fire(stroke, constants.tweenFast, {
-                            Color = theme.ElementStroke or Color3.fromHex('#2b2b2b'),
+                            Color = theme.ElementStrokeHover or theme.AccentColor or Color3.fromHex('#4cc2ff'),
                         })
-                        tween.fire(pillStroke, constants.tweenFast, {
-                            Color = theme.ElementStroke or Color3.fromHex('#2b2b2b'),
-                            Transparency = 0.5,
-                        })
-                    end
-                end)
-                hitBtn.MouseButton1Click:Connect(function()
+
+                        if not textBox:IsFocused() then
+                            tween.fire(pillStroke, constants.tweenFast, {
+                                Color = theme.AccentColor or Color3.fromHex('#4cc2ff'),
+                            })
+                        end
+                    end)
+                    hitBtn.MouseLeave:Connect(function()
+                        hovering = false
+
+                        if not textBox:IsFocused() then
+                            tween.fire(stroke, constants.tweenFast, {
+                                Color = theme.ElementStroke or Color3.fromHex('#2b2b2b'),
+                            })
+                            tween.fire(pillStroke, constants.tweenFast, {
+                                Color = theme.ElementStroke or Color3.fromHex('#2b2b2b'),
+                                Transparency = 0.5,
+                            })
+                        end
+                    end)
+                end
+
+                hitBtn.Activated:Connect(function()
                     textBox:CaptureFocus()
                 end)
                 textBox:GetPropertyChangedSignal('Text'):Connect(function()
@@ -5498,6 +5566,11 @@ local ClosureBindings = {
 
                 shadowCorner.CornerRadius = UDim.new(0, 7)
                 shadowCorner.Parent = shadow
+
+                if variables.isTouchOnly then
+                    shadow.Visible = false
+                end
+
                 shadow.Parent = frame
 
                 local inner = Instance.new('Frame')
@@ -5731,6 +5804,11 @@ local ClosureBindings = {
 
                 knobShadowCorner.CornerRadius = UDim.new(0, 100)
                 knobShadowCorner.Parent = knobShadow
+
+                if variables.isTouchOnly then
+                    knobShadow.Visible = false
+                end
+
                 knobShadow.Parent = knob
                 knob.Parent = track
                 knobRef = knob
@@ -5826,34 +5904,37 @@ local ClosureBindings = {
                     scheduleChanged(val)
                 end
 
-                s._conns.hitEnter = hit.MouseEnter:Connect(function()
-                    if not s._enabled then
-                        return
-                    end
-                    if variables.settingsOpen then
-                        return
-                    end
+                if not variables.isTouchOnly then
+                    s._conns.hitEnter = hit.MouseEnter:Connect(function()
+                        if not s._enabled then
+                            return
+                        end
+                        if variables.settingsOpen then
+                            return
+                        end
 
-                    hovering = true
-                    stroke.Color = s._theme.AccentColor or Color3.fromHex('#4cc2ff')
-                    flash.BackgroundTransparency = 0.92
-                    shadow.BackgroundTransparency = 0.65
-                    shadow.Position = UDim2.new(0.5, 0, 0.5, 5)
-                end)
-                s._conns.hitLeave = hit.MouseLeave:Connect(function()
-                    if not s._enabled then
-                        return
-                    end
+                        hovering = true
+                        stroke.Color = s._theme.AccentColor or Color3.fromHex('#4cc2ff')
+                        flash.BackgroundTransparency = 0.92
+                        shadow.BackgroundTransparency = 0.65
+                        shadow.Position = UDim2.new(0.5, 0, 0.5, 5)
+                    end)
+                    s._conns.hitLeave = hit.MouseLeave:Connect(function()
+                        if not s._enabled then
+                            return
+                        end
 
-                    hovering = false
+                        hovering = false
 
-                    if not dragging then
-                        stroke.Color = s._theme.ElementStroke or Color3.fromHex('#2b2b2b')
-                        flash.BackgroundTransparency = 1
-                        shadow.BackgroundTransparency = 0.75
-                        shadow.Position = UDim2.new(0.5, 0, 0.5, 3)
-                    end
-                end)
+                        if not dragging then
+                            stroke.Color = s._theme.ElementStroke or Color3.fromHex('#2b2b2b')
+                            flash.BackgroundTransparency = 1
+                            shadow.BackgroundTransparency = 0.75
+                            shadow.Position = UDim2.new(0.5, 0, 0.5, 3)
+                        end
+                    end)
+                end
+
                 s._conns.hitBegan = hit.InputBegan:Connect(function(
                     input: InputObject
                 )
@@ -6082,6 +6163,8 @@ local ClosureBindings = {
             local ColorPicker = require(script.Parent.colorpicker)
             local Descriptor = require(script.Parent.descriptor)
             local icons = require(script.Parent.Parent.utility.icons)
+            local variables = require(script.Parent.Parent.utility.variables)
+            local DEFAULT_FONT_BOLD = Font.new('rbxasset://fonts/families/GothamSSm.json', Enum.FontWeight.Bold)
 
             export type TabProps = {name: string?, icon: string?, badge: string?, columns: number?}
             export type TabColumn = {CreateSection: (self:TabColumn, props:Section.SectionProps) -> Section.Section, CreateLabel: (self:TabColumn, props:Label.LabelProps) -> Label.Label, CreateButton: (self:TabColumn, props:Button.ButtonProps) -> Button.Button, CreateToggle: (self:TabColumn, props:Toggle.ToggleProps) -> Toggle.Toggle, CreateSlider: (self:TabColumn, props:Slider.SliderProps) -> Slider.Slider, AddSlider: (self:TabColumn, props:Slider.SliderProps) -> Slider.Slider, CreateInput: (self:TabColumn, props:Input.InputProps) -> Input.Input, CreateKeybind: (self:TabColumn, props:Keybind.KeybindProps) -> Keybind.Keybind, CreateDropdown: (self:TabColumn, props:Dropdown.DropdownProps) -> Dropdown.Dropdown, AddDropdown: (self:TabColumn, props:Dropdown.DropdownProps) -> Dropdown.Dropdown, CreateColorPicker: (self:TabColumn, props:ColorPicker.ColorPickerProps) -> ColorPicker.ColorPicker}
@@ -6148,6 +6231,7 @@ local ClosureBindings = {
                 leftScroll.BorderSizePixel = 0
                 leftScroll.CanvasSize = UDim2.fromOffset(0, 0)
                 leftScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+                leftScroll.ScrollingDirection = Enum.ScrollingDirection.Y
                 leftScroll.ClipsDescendants = true
                 leftScroll.Parent = tabContainer
 
@@ -6184,6 +6268,7 @@ local ClosureBindings = {
                     rs.BorderSizePixel = 0
                     rs.CanvasSize = UDim2.fromOffset(0, 0)
                     rs.AutomaticCanvasSize = Enum.AutomaticSize.Y
+                    rs.ScrollingDirection = Enum.ScrollingDirection.Y
                     rs.ClipsDescendants = true
                     rs.Parent = tabContainer
 
@@ -6356,52 +6441,53 @@ local ClosureBindings = {
                     bl.Text = badgeText::string
                     bl.TextColor3 = tokens.colorAccent
                     bl.TextSize = 9
-                    bl.FontFace = Font.new('rbxasset://fonts/families/GothamSSm.json', Enum.FontWeight.Bold)
+                    bl.FontFace = DEFAULT_FONT_BOLD
                     bl.Parent = bf
                     badgeLabel = bl
                     badgeFrame = bf
                 end
+                if not variables.isTouchOnly then
+                    tabBtn.MouseEnter:Connect(function()
+                        if tabContainer.Visible then
+                            return
+                        end
 
-                tabBtn.MouseEnter:Connect(function()
-                    if tabContainer.Visible then
-                        return
-                    end
-
-                    tween.fire(tabBtn, constants.tweenFast, {
-                        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-                        BackgroundTransparency = 0.94,
-                    })
-                    tween.fire(tabStroke, constants.tweenFast, {
-                        Color = tokens.colorBorder,
-                        Transparency = 0.65,
-                    })
-                    tween.fire(titleLabel, constants.tweenFast, {
-                        TextColor3 = tokens.colorTextPrimary:Lerp(tokens.colorTextSecondary, 0.3),
-                    })
-
-                    if iconImg then
-                        tween.fire(iconImg, constants.tweenFast, {
-                            ImageColor3 = tokens.colorTextPrimary:Lerp(tokens.colorTextSecondary, 0.3),
+                        tween.fire(tabBtn, constants.tweenFast, {
+                            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                            BackgroundTransparency = 0.94,
                         })
-                    end
-                end)
-                tabBtn.MouseLeave:Connect(function()
-                    if tabContainer.Visible then
-                        return
-                    end
-
-                    tween.fire(tabBtn, constants.tweenFast, {BackgroundTransparency = 1})
-                    tween.fire(tabStroke, constants.tweenFast, {Transparency = 1})
-                    tween.fire(titleLabel, constants.tweenFast, {
-                        TextColor3 = tokens.colorTextSecondary,
-                    })
-
-                    if iconImg then
-                        tween.fire(iconImg, constants.tweenFast, {
-                            ImageColor3 = tokens.colorTextSecondary,
+                        tween.fire(tabStroke, constants.tweenFast, {
+                            Color = tokens.colorBorder,
+                            Transparency = 0.65,
                         })
-                    end
-                end)
+                        tween.fire(titleLabel, constants.tweenFast, {
+                            TextColor3 = tokens.colorTextPrimary:Lerp(tokens.colorTextSecondary, 0.3),
+                        })
+
+                        if iconImg then
+                            tween.fire(iconImg, constants.tweenFast, {
+                                ImageColor3 = tokens.colorTextPrimary:Lerp(tokens.colorTextSecondary, 0.3),
+                            })
+                        end
+                    end)
+                    tabBtn.MouseLeave:Connect(function()
+                        if tabContainer.Visible then
+                            return
+                        end
+
+                        tween.fire(tabBtn, constants.tweenFast, {BackgroundTransparency = 1})
+                        tween.fire(tabStroke, constants.tweenFast, {Transparency = 1})
+                        tween.fire(titleLabel, constants.tweenFast, {
+                            TextColor3 = tokens.colorTextSecondary,
+                        })
+
+                        if iconImg then
+                            tween.fire(iconImg, constants.tweenFast, {
+                                ImageColor3 = tokens.colorTextSecondary,
+                            })
+                        end
+                    end)
+                end
 
                 local self = setmetatable({}, Tab)::any
 
@@ -7426,6 +7512,7 @@ local ClosureBindings = {
                 tabListScroll.ScrollBarImageTransparency = 0.6
                 tabListScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
                 tabListScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+                tabListScroll.ScrollingDirection = Enum.ScrollingDirection.Y
                 tabListScroll.ClipsDescendants = true
                 tabListScroll.Parent = sidebar
 
@@ -9253,7 +9340,7 @@ local ClosureBindings = {
                 local t = Tab.new(props, theme, contentArea, sidebar, wf)
                 local btn = (t::any)._tabButton
 
-                btn.MouseButton1Click:Connect(function()
+                btn.Activated:Connect(function()
                     local _s = (self::any)
 
                     if _s._playerCard then
@@ -9289,7 +9376,7 @@ local ClosureBindings = {
                 local cardHit = (pc::any)._cardHit::TextButton?
 
                 if cardHit then
-                    cardHit.MouseButton1Click:Connect(function()
+                    cardHit.Activated:Connect(function()
                         for _, tab in (s._tabs::{any})do
                             tab:Hide()
                         end
@@ -9380,7 +9467,7 @@ local ClosureBindings = {
                 windowFrame.Visible = true
 
                 task.spawn(function()
-                    game:GetService('RunService').RenderStepped:Wait()
+                    runtime.runService.RenderStepped:Wait()
 
                     if not s._visible or self.unloaded then
                         return
@@ -10158,6 +10245,8 @@ local ClosureBindings = {
         return (function(...)
             local constants = require(script.Parent.constants)
             local runtime = require(script.Parent.runtime)
+            local tween = require(script.Parent.tween)
+            local variables = require(script.Parent.variables)
             local element = {}
 
             function element.makeFrame(
@@ -10329,39 +10418,36 @@ local ClosureBindings = {
                 btn.AutoButtonColor = false
                 btn.Parent = frame
 
-                btn.MouseEnter:Connect(function()
-                    local variables = require(script.Parent.variables)
-                    local tween = require(script.Parent.tween)
+                if not variables.isTouchOnly then
+                    btn.MouseEnter:Connect(function()
+                        if variables.settingsOpen then
+                            return
+                        end
 
-                    if variables.settingsOpen then
-                        return
-                    end
+                        local t = themeRef()
 
-                    local t = themeRef()
+                        tween.fire(frame, constants.tweenFast, {
+                            BackgroundTransparency = math.max(0, (t.ElementTransparency or 0) - 0.06),
+                        })
+                        tween.fire(stroke, constants.tweenFast, {
+                            Color = t.ElementStrokeHover or t.AccentColor or Color3.fromHex('#4cc2ff'),
+                            Transparency = t.ElementStrokeHoverTransparency or 0,
+                        })
+                    end)
+                    btn.MouseLeave:Connect(function()
+                        local t = themeRef()
 
-                    tween.fire(frame, constants.tweenFast, {
-                        BackgroundTransparency = math.max(0, (t.ElementTransparency or 0) - 0.06),
-                    })
-                    tween.fire(stroke, constants.tweenFast, {
-                        Color = t.ElementStrokeHover or t.AccentColor or Color3.fromHex('#4cc2ff'),
-                        Transparency = t.ElementStrokeHoverTransparency or 0,
-                    })
-                end)
-                btn.MouseLeave:Connect(function()
-                    local tween = require(script.Parent.tween)
-                    local t = themeRef()
-
-                    tween.fire(frame, constants.tweenFast, {
-                        BackgroundTransparency = t.ElementTransparency or 0,
-                    })
-                    tween.fire(stroke, constants.tweenFast, {
-                        Color = t.ElementStroke or Color3.fromHex('#2b2b2b'),
-                        Transparency = t.ElementStrokeTransparency or 0,
-                    })
-                end)
-
+                        tween.fire(frame, constants.tweenFast, {
+                            BackgroundTransparency = t.ElementTransparency or 0,
+                        })
+                        tween.fire(stroke, constants.tweenFast, {
+                            Color = t.ElementStroke or Color3.fromHex('#2b2b2b'),
+                            Transparency = t.ElementStrokeTransparency or 0,
+                        })
+                    end)
+                end
                 if onClick then
-                    btn.MouseButton1Click:Connect(onClick)
+                    btn.Activated:Connect(onClick)
                 end
 
                 return btn
@@ -13102,70 +13188,12 @@ local ObjectTree = {
         },
         {
             {
-                18,
-                1,
-                {
-                    'themes',
-                },
-                {
-                    {
-                        19,
-                        2,
-                        {
-                            'default',
-                        },
-                    },
-                    {
-                        20,
-                        2,
-                        {
-                            'dracula',
-                        },
-                    },
-                    {
-                        21,
-                        2,
-                        {
-                            'light',
-                        },
-                    },
-                },
-            },
-            {
                 2,
                 1,
                 {
                     'components',
                 },
                 {
-                    {
-                        9,
-                        2,
-                        {
-                            'keybind',
-                        },
-                    },
-                    {
-                        4,
-                        2,
-                        {
-                            'colorpicker',
-                        },
-                    },
-                    {
-                        17,
-                        2,
-                        {
-                            'window',
-                        },
-                    },
-                    {
-                        16,
-                        2,
-                        {
-                            'toggle',
-                        },
-                    },
                     {
                         6,
                         2,
@@ -13174,38 +13202,24 @@ local ObjectTree = {
                         },
                     },
                     {
-                        10,
-                        2,
-                        {
-                            'label',
-                        },
-                    },
-                    {
-                        15,
-                        2,
-                        {
-                            'tab',
-                        },
-                    },
-                    {
-                        13,
-                        2,
-                        {
-                            'section',
-                        },
-                    },
-                    {
-                        14,
-                        2,
-                        {
-                            'slider',
-                        },
-                    },
-                    {
                         11,
                         2,
                         {
                             'loadingScreen',
+                        },
+                    },
+                    {
+                        8,
+                        2,
+                        {
+                            'input',
+                        },
+                    },
+                    {
+                        7,
+                        2,
+                        {
+                            'dropdown',
                         },
                     },
                     {
@@ -13223,6 +13237,34 @@ local ObjectTree = {
                         },
                     },
                     {
+                        16,
+                        2,
+                        {
+                            'toggle',
+                        },
+                    },
+                    {
+                        15,
+                        2,
+                        {
+                            'tab',
+                        },
+                    },
+                    {
+                        14,
+                        2,
+                        {
+                            'slider',
+                        },
+                    },
+                    {
+                        4,
+                        2,
+                        {
+                            'colorpicker',
+                        },
+                    },
+                    {
                         3,
                         2,
                         {
@@ -13230,17 +13272,31 @@ local ObjectTree = {
                         },
                     },
                     {
-                        7,
+                        17,
                         2,
                         {
-                            'dropdown',
+                            'window',
                         },
                     },
                     {
-                        8,
+                        9,
                         2,
                         {
-                            'input',
+                            'keybind',
+                        },
+                    },
+                    {
+                        13,
+                        2,
+                        {
+                            'section',
+                        },
+                    },
+                    {
+                        10,
+                        2,
+                        {
+                            'label',
                         },
                     },
                 },
@@ -13253,45 +13309,10 @@ local ObjectTree = {
                 },
                 {
                     {
-                        32,
-                        2,
-                        {
-                            'imageCache',
-                        },
-                    },
-                    {
-                        25,
-                        2,
-                        {
-                            'constants',
-                        },
-                    },
-                    {
                         36,
                         2,
                         {
                             'saveManager',
-                        },
-                    },
-                    {
-                        37,
-                        2,
-                        {
-                            'services',
-                        },
-                    },
-                    {
-                        42,
-                        2,
-                        {
-                            'windowSizing',
-                        },
-                    },
-                    {
-                        31,
-                        2,
-                        {
-                            'image',
                         },
                     },
                     {
@@ -13302,31 +13323,10 @@ local ObjectTree = {
                         },
                     },
                     {
-                        24,
+                        25,
                         2,
                         {
-                            'assetFetcher',
-                        },
-                    },
-                    {
-                        41,
-                        2,
-                        {
-                            'variables',
-                        },
-                    },
-                    {
-                        40,
-                        2,
-                        {
-                            'tween',
-                        },
-                    },
-                    {
-                        39,
-                        2,
-                        {
-                            'theme',
+                            'constants',
                         },
                     },
                     {
@@ -13337,17 +13337,24 @@ local ObjectTree = {
                         },
                     },
                     {
+                        34,
+                        2,
+                        {
+                            'network',
+                        },
+                    },
+                    {
+                        37,
+                        2,
+                        {
+                            'services',
+                        },
+                    },
+                    {
                         27,
                         2,
                         {
                             'filesystem',
-                        },
-                    },
-                    {
-                        28,
-                        2,
-                        {
-                            'flags',
                         },
                     },
                     {
@@ -13358,17 +13365,10 @@ local ObjectTree = {
                         },
                     },
                     {
-                        26,
+                        42,
                         2,
                         {
-                            'element',
-                        },
-                    },
-                    {
-                        29,
-                        2,
-                        {
-                            'fontLoader',
+                            'windowSizing',
                         },
                     },
                     {
@@ -13379,10 +13379,96 @@ local ObjectTree = {
                         },
                     },
                     {
-                        34,
+                        41,
                         2,
                         {
-                            'network',
+                            'variables',
+                        },
+                    },
+                    {
+                        29,
+                        2,
+                        {
+                            'fontLoader',
+                        },
+                    },
+                    {
+                        24,
+                        2,
+                        {
+                            'assetFetcher',
+                        },
+                    },
+                    {
+                        39,
+                        2,
+                        {
+                            'theme',
+                        },
+                    },
+                    {
+                        26,
+                        2,
+                        {
+                            'element',
+                        },
+                    },
+                    {
+                        28,
+                        2,
+                        {
+                            'flags',
+                        },
+                    },
+                    {
+                        32,
+                        2,
+                        {
+                            'imageCache',
+                        },
+                    },
+                    {
+                        31,
+                        2,
+                        {
+                            'image',
+                        },
+                    },
+                    {
+                        40,
+                        2,
+                        {
+                            'tween',
+                        },
+                    },
+                },
+            },
+            {
+                18,
+                1,
+                {
+                    'themes',
+                },
+                {
+                    {
+                        21,
+                        2,
+                        {
+                            'light',
+                        },
+                    },
+                    {
+                        19,
+                        2,
+                        {
+                            'default',
+                        },
+                    },
+                    {
+                        20,
+                        2,
+                        {
+                            'dracula',
                         },
                     },
                 },

@@ -21,6 +21,9 @@ local Dropdown     = require(script.Parent.dropdown)
 local ColorPicker  = require(script.Parent.colorpicker)
 local Descriptor   = require(script.Parent.descriptor)
 local icons        = require(script.Parent.Parent.utility.icons)
+local variables    = require(script.Parent.Parent.utility.variables)
+
+local DEFAULT_FONT_BOLD = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold)
 
 export type TabProps = {
 	name:    string?,
@@ -146,6 +149,7 @@ function Tab.new(props: TabProps, theme: { [string]: any }, contentParent: Frame
 	leftScroll.BorderSizePixel         = 0
 	leftScroll.CanvasSize              = UDim2.fromOffset(0, 0)
 	leftScroll.AutomaticCanvasSize     = Enum.AutomaticSize.Y
+	leftScroll.ScrollingDirection      = Enum.ScrollingDirection.Y
 	leftScroll.ClipsDescendants        = true
 	leftScroll.Parent                  = tabContainer
 
@@ -180,6 +184,7 @@ function Tab.new(props: TabProps, theme: { [string]: any }, contentParent: Frame
 		rs.BorderSizePixel         = 0
 		rs.CanvasSize              = UDim2.fromOffset(0, 0)
 		rs.AutomaticCanvasSize     = Enum.AutomaticSize.Y
+		rs.ScrollingDirection      = Enum.ScrollingDirection.Y
 		rs.ClipsDescendants        = true
 		rs.Parent                  = tabContainer
 
@@ -337,50 +342,52 @@ function Tab.new(props: TabProps, theme: { [string]: any }, contentParent: Frame
 		bl.Text                   = badgeText :: string
 		bl.TextColor3             = tokens.colorAccent
 		bl.TextSize               = 9
-		bl.FontFace               = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold)
+		bl.FontFace               = DEFAULT_FONT_BOLD
 		bl.Parent                 = bf
 		badgeLabel                = bl
 		badgeFrame                = bf
 	end
 
-	-- Hover animations (inactive state only)
-	tabBtn.MouseEnter:Connect(function()
-		if tabContainer.Visible then return end
-		tween.fire(tabBtn, constants.tweenFast, {
-			BackgroundColor3       = Color3.fromRGB(255, 255, 255),
-			BackgroundTransparency = 0.94,
-		})
-		tween.fire(tabStroke, constants.tweenFast, {
-			Color        = tokens.colorBorder,
-			Transparency = 0.65,
-		})
-		tween.fire(titleLabel, constants.tweenFast, {
-			TextColor3 = tokens.colorTextPrimary:Lerp(tokens.colorTextSecondary, 0.3),
-		})
-		if iconImg then
-			tween.fire(iconImg, constants.tweenFast, {
-				ImageColor3 = tokens.colorTextPrimary:Lerp(tokens.colorTextSecondary, 0.3),
+	-- Hover animations (desktop / mouse only — touch devices skip hover to avoid stutter & stuck states)
+	if not variables.isTouchOnly then
+		tabBtn.MouseEnter:Connect(function()
+			if tabContainer.Visible then return end
+			tween.fire(tabBtn, constants.tweenFast, {
+				BackgroundColor3       = Color3.fromRGB(255, 255, 255),
+				BackgroundTransparency = 0.94,
 			})
-		end
-	end)
+			tween.fire(tabStroke, constants.tweenFast, {
+				Color        = tokens.colorBorder,
+				Transparency = 0.65,
+			})
+			tween.fire(titleLabel, constants.tweenFast, {
+				TextColor3 = tokens.colorTextPrimary:Lerp(tokens.colorTextSecondary, 0.3),
+			})
+			if iconImg then
+				tween.fire(iconImg, constants.tweenFast, {
+					ImageColor3 = tokens.colorTextPrimary:Lerp(tokens.colorTextSecondary, 0.3),
+				})
+			end
+		end)
 
-	tabBtn.MouseLeave:Connect(function()
-		if tabContainer.Visible then return end
-		tween.fire(tabBtn, constants.tweenFast, {
-			BackgroundTransparency = 1,
-		})
-		tween.fire(tabStroke, constants.tweenFast, {
-			Transparency = 1,
-		})
-		tween.fire(titleLabel, constants.tweenFast, {
-			TextColor3 = tokens.colorTextSecondary,
-		})
-		if iconImg then
-			tween.fire(iconImg, constants.tweenFast, {
-				ImageColor3 = tokens.colorTextSecondary,
+		tabBtn.MouseLeave:Connect(function()
+			if tabContainer.Visible then return end
+			tween.fire(tabBtn, constants.tweenFast, {
+				BackgroundTransparency = 1,
 			})
-		end
-	end)
+			tween.fire(tabStroke, constants.tweenFast, {
+				Transparency = 1,
+			})
+			tween.fire(titleLabel, constants.tweenFast, {
+				TextColor3 = tokens.colorTextSecondary,
+			})
+			if iconImg then
+				tween.fire(iconImg, constants.tweenFast, {
+					ImageColor3 = tokens.colorTextSecondary,
+				})
+			end
+		end)
+	end
 
 	local self = setmetatable({}, Tab) :: any
 	self._frame            = tabContainer

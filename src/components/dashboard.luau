@@ -21,6 +21,10 @@ local TWEEN_TAB  = TweenInfo.new(0.16, Enum.EasingStyle.Quad,  Enum.EasingDirect
 local THUMB_TYPE = Enum.ThumbnailType.HeadShot
 local THUMB_SIZE = Enum.ThumbnailSize.Size100x100
 
+local FONT_MEDIUM = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium)
+local FONT_BOLD   = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.SemiBold)
+local FONT_XBOLD  = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold)
+
 export type Dashboard = {
 	_cardFrame:   Frame,
 	_content:     Frame,
@@ -93,9 +97,9 @@ function Dashboard.new(
 			neutralBtn    = t.NeutralButton       or Color3.fromHex("#1e1e1e"),
 			neutralHover  = t.NeutralButtonHover  or Color3.fromHex("#252525"),
 			errorColor    = t.ErrorColor          or Color3.fromHex("#ff4f58"),
-			font          = t.Font                or Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium),
-			fontBold      = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.SemiBold),
-			fontXBold     = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold),
+			font          = t.Font                or FONT_MEDIUM,
+			fontBold      = FONT_BOLD,
+			fontXBold     = FONT_XBOLD,
 			elemCorner    = t.ElementCornerRadius or UDim.new(0, 8),
 			winGradient   = t.WindowColor,
 		}
@@ -500,7 +504,7 @@ function Dashboard.new(
 
 	-- ── Live update heartbeat (dynamic: active only when dashboard is visible) ──
 	local sessionStart = os.clock()
-	local pingTimer = 0; local fpsTimer = 0; local fpsCount = 0; local charTimer = 0
+	local pingTimer = 0; local fpsTimer = 0; local fpsCount = 0; local charTimer = 0; local uptimeTimer = 0
 	local liveConn: RBXScriptConnection? = nil
 
 	local function startLiveUpdates()
@@ -514,7 +518,11 @@ function Dashboard.new(
 				fpsCount = 0; fpsTimer = 0
 			end
 
-			uptimeRow.Text = formatTime(os.clock() - sessionStart)
+			uptimeTimer += dt
+			if uptimeTimer >= 1.0 then
+				uptimeTimer = 0
+				uptimeRow.Text = formatTime(os.clock() - sessionStart)
+			end
 
 			pingTimer += dt
 			if pingTimer >= 1.5 then

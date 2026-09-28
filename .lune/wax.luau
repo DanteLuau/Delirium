@@ -128,9 +128,9 @@ local U,V=pcall(i.deserializeModel,f.readFile(I))if not U then R(`Failed to dese
 'rojo',{'build','-o',v(U),v(I)},false,R)T=i.deserializeModel(f.readFile(U))F(U)end local U,V,W=pcall(l,T,C,B,
 ExtraOffsetLines,z)if not U then R(`Error during BundleModel() process: {V}`)end if B and S then local X=Q..N E(X,V)D(o.
 Info,'Starting minification process with Darklua')local Y,Z,_={},Q..'.darklua.json',false if DarkluaConfigPath then
-table.insert(Y,`-c={v(DarkluaConfigPath)}`)elseif not f.isFile'.darklua.json'and not f.isFile'.darklua.json5'then D(o.
-Info,`No default Darklua config file found in CWD; creating our default config at "{Z}"`)E(Z,n)_=true table.insert(Y,`-c={
-v(Z)}`)end r('darklua',{'process',v(X),v(M),unpack(Y)})F(X)if _ then F(Z)end else E(M,V)end if f.isDir(Q)then H(Q)end if
+table.insert(Y,'--config')table.insert(Y,v(DarkluaConfigPath))elseif not f.isFile'.darklua.json'and not f.isFile'.darklua.json5'then D(o.
+Info,`No default Darklua config file found in CWD; creating our default config at "{Z}"`)E(Z,n)_=true table.insert(Y,'--config')table.insert(Y,
+v(Z))end r('darklua',{'process',v(X),v(M),unpack(Y)})F(X)if _ then F(Z)end else E(M,V)end if f.isDir(Q)then H(Q)end if
 W>0 then print()o.Warn(`WARNING: {W} scripts failed to compile ahead-of-time (CHECK FULL BUILD LOG ABOVE FOR MORE DETAILS); these will throw errors at runtime upon being loaded, detailing said compilation errors.`
 )j.exit(1)end else o.Error(`Subcommand "{x}" invalid, see usage for all valid subcommands:\n`)print(t)j.exit(1)end end)(
 )end,[12]=function()local b,c,d=a(12)local e return(function(...)local f=d'@lune/fs'local function g(h:{[string]:any},i:

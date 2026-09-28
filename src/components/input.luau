@@ -161,31 +161,33 @@ function Input.new(props: InputProps, theme: { [string]: any }, parent: Instance
 	hitBtn.ZIndex                 = 1
 	hitBtn.Parent                 = frame
 
-	hitBtn.MouseEnter:Connect(function()
-		if variables.settingsOpen then return end
-		hovering = true
-		tween.fire(stroke, constants.tweenFast, {
-			Color = theme.ElementStrokeHover or theme.AccentColor or Color3.fromHex("#4cc2ff"),
-		})
-		if not textBox:IsFocused() then
-			tween.fire(pillStroke, constants.tweenFast, {
-				Color = theme.AccentColor or Color3.fromHex("#4cc2ff"),
+	if not variables.isTouchOnly then
+		hitBtn.MouseEnter:Connect(function()
+			if variables.settingsOpen then return end
+			hovering = true
+			tween.fire(stroke, constants.tweenFast, {
+				Color = theme.ElementStrokeHover or theme.AccentColor or Color3.fromHex("#4cc2ff"),
 			})
-		end
-	end)
+			if not textBox:IsFocused() then
+				tween.fire(pillStroke, constants.tweenFast, {
+					Color = theme.AccentColor or Color3.fromHex("#4cc2ff"),
+				})
+			end
+		end)
 
-	hitBtn.MouseLeave:Connect(function()
-		hovering = false
-		if not textBox:IsFocused() then
-			tween.fire(stroke, constants.tweenFast, { Color = theme.ElementStroke or Color3.fromHex("#2b2b2b") })
-			tween.fire(pillStroke, constants.tweenFast, {
-				Color = theme.ElementStroke or Color3.fromHex("#2b2b2b"),
-				Transparency = 0.5,
-			})
-		end
-	end)
+		hitBtn.MouseLeave:Connect(function()
+			hovering = false
+			if not textBox:IsFocused() then
+				tween.fire(stroke, constants.tweenFast, { Color = theme.ElementStroke or Color3.fromHex("#2b2b2b") })
+				tween.fire(pillStroke, constants.tweenFast, {
+					Color = theme.ElementStroke or Color3.fromHex("#2b2b2b"),
+					Transparency = 0.5,
+				})
+			end
+		end)
+	end
 
-	hitBtn.MouseButton1Click:Connect(function() textBox:CaptureFocus() end)
+	hitBtn.Activated:Connect(function() textBox:CaptureFocus() end)
 
 	textBox:GetPropertyChangedSignal("Text"):Connect(function()
 		if isNumeric then

@@ -7,6 +7,8 @@
 
 local constants = require(script.Parent.constants)
 local runtime   = require(script.Parent.runtime)
+local tween     = require(script.Parent.tween)
+local variables = require(script.Parent.variables)
 
 local element = {}
 
@@ -178,34 +180,36 @@ function element.wireHover(
 	btn.AutoButtonColor        = false
 	btn.Parent                 = frame
 
-	btn.MouseEnter:Connect(function()
-		local variables = require(script.Parent.variables)
-		local tween = require(script.Parent.tween)
-		if variables.settingsOpen then return end
-		local t = themeRef()
-		tween.fire(frame, constants.tweenFast, {
-			BackgroundTransparency = math.max(0, (t.ElementTransparency or 0) - 0.06),
-		})
-		tween.fire(stroke, constants.tweenFast, {
-			Color        = t.ElementStrokeHover or t.AccentColor or Color3.fromHex("#4cc2ff"),
-			Transparency = t.ElementStrokeHoverTransparency or 0,
-		})
-	end)
+	-- Mobile optimization: touch-only devices do not have real hover.
+	-- Connecting MouseEnter/MouseLeave on touch devices fires during scrolling gestures,
+	-- causing laggy tweens on dozens of elements and leaving them stuck in hovered state.
+	if not variables.isTouchOnly then
+		btn.MouseEnter:Connect(function()
+			if variables.settingsOpen then return end
+			local t = themeRef()
+			tween.fire(frame, constants.tweenFast, {
+				BackgroundTransparency = math.max(0, (t.ElementTransparency or 0) - 0.06),
+			})
+			tween.fire(stroke, constants.tweenFast, {
+				Color        = t.ElementStrokeHover or t.AccentColor or Color3.fromHex("#4cc2ff"),
+				Transparency = t.ElementStrokeHoverTransparency or 0,
+			})
+		end)
 
-	btn.MouseLeave:Connect(function()
-		local tween = require(script.Parent.tween)
-		local t = themeRef()
-		tween.fire(frame, constants.tweenFast, {
-			BackgroundTransparency = t.ElementTransparency or 0,
-		})
-		tween.fire(stroke, constants.tweenFast, {
-			Color        = t.ElementStroke or Color3.fromHex("#2b2b2b"),
-			Transparency = t.ElementStrokeTransparency or 0,
-		})
-	end)
+		btn.MouseLeave:Connect(function()
+			local t = themeRef()
+			tween.fire(frame, constants.tweenFast, {
+				BackgroundTransparency = t.ElementTransparency or 0,
+			})
+			tween.fire(stroke, constants.tweenFast, {
+				Color        = t.ElementStroke or Color3.fromHex("#2b2b2b"),
+				Transparency = t.ElementStrokeTransparency or 0,
+			})
+		end)
+	end
 
 	if onClick then
-		btn.MouseButton1Click:Connect(onClick)
+		btn.Activated:Connect(onClick)
 	end
 
 	return btn
